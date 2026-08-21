@@ -234,9 +234,15 @@ export default function App() {
   async function hydrate(session: Session) {
     if (!navigator.onLine) return
     try {
+      // Cashiers and waiters may create orders even when the server does not
+      // expose the legacy `menu.view` slug for their role. The catalog is a
+      // read-only dependency of order creation, so load it for any role that
+      // can create an order. Keep `null` on transport/auth failures so a
+      // transient outage never erases a usable offline catalog.
+      const canLoadCatalog = session.permissions['menu.view'] || session.permissions['orders.create']
       const [remoteTables, remoteItems, config, remoteOrders, remoteKots, remoteKitchenPlaces, remoteNotifications, remoteReceiptSettings, remotePrinters, remotePaymentMethods] = await Promise.all([
         session.permissions['tables.view'] ? api.tables('pin').catch(() => []) : Promise.resolve([]),
-        session.permissions['menu.view'] ? api.menuItems('pin').catch(() => []) : Promise.resolve([]),
+        canLoadCatalog ? api.menuItems('pin').catch(() => null) : Promise.resolve(null),
         api.config('pin').catch(() => null),
         session.permissions['payments.charge'] ? api.orders('pin').catch(() => null) : Promise.resolve(null),
         session.permissions['kitchen.manage'] ? api.kots('pin').catch(() => null) : Promise.resolve(null),
@@ -246,17 +252,20 @@ export default function App() {
         api.printers('pin').catch(() => null),
         session.permissions['payments.charge'] ? api.paymentMethods('pin').catch(() => null) : Promise.resolve(null),
       ])
-      const enrichedItems = await Promise.all(remoteItems.map(async item => {
-        if (item.modifiers !== undefined) return item
-        try { return { ...item, modifiers: await api.modifierGroups('pin', item.id) } }
-        catch { return item }
-      }))
+      const enrichedItems = Array.isArray(remoteItems)
+        ? await Promise.all(remoteItems.map(async item => {
+          if (item.modifiers !== undefined) return item
+          try { return { ...item, modifiers: await api.modifierGroups('pin', item.id) } }
+          catch { return item }
+        }))
+        : null
       const currency = config?.restaurant?.currency
       if (currency?.symbol || currency?.code) {
         activeCurrency = { symbol: String(currency.symbol || currency.code), code: String(currency.code || ''), decimals: Number(currency.decimals ?? 2) }
         setCurrencyVersion(value => value + 1)
       }
-      const cachePatch: any = { tables: remoteTables, menuItems: enrichedItems, branchId: session.branchId, currency: activeCurrency, scopeKey: session.scopeKey || tenantScope(session) }
+      const cachePatch: any = { tables: remoteTables, branchId: session.branchId, currency: activeCurrency, scopeKey: session.scopeKey || tenantScope(session) }
+      if (enrichedItems) cachePatch.menuItems = enrichedItems
       if (remoteOrders) cachePatch.orders = remoteOrders
       if (remoteKots) cachePatch.kots = remoteKots
       if (remoteKitchenPlaces) { cachePatch.kotPlaces = remoteKitchenPlaces; setKitchenPlaces(remoteKitchenPlaces) }
@@ -269,7 +278,7 @@ export default function App() {
       }
       if (Array.isArray(config?.modules)) cachePatch.modules = config.modules.map((module: unknown) => String(typeof module === 'string' ? module : (module as any)?.name || '')).filter(Boolean)
       if (config?.features && typeof config.features === 'object') cachePatch.features = config.features
-      setTables(remoteTables); setActiveTable(current => current ? remoteTables.find(table => table.id === current.id) || current : current); setItems(enrichedItems); saveCache(cachePatch)
+      setTables(remoteTables); setActiveTable(current => current ? remoteTables.find(table => table.id === current.id) || current : current); if (enrichedItems) setItems(enrichedItems); saveCache(cachePatch)
     } catch (cause) {
       if (!tables.length && !items.length) setError(cause instanceof Error ? cause.message : 'No se pudo cargar el catálogo.')
     }
