@@ -9,6 +9,7 @@ Esta versión publica la aplicación React + TypeScript para meseros, cocina y c
 - Órdenes nuevas y órdenes activas: los envíos posteriores publican únicamente artículos nuevos.
 - KDS/KOT, estados de preparación, avisos, campana del encabezado, sonido y vibración configurables.
 - KDS separado por estación: el chef puede cambiar entre Cocina, Bar y las demás áreas activas de la sucursal; las comandas nuevas producen el mismo aviso sonoro/vibración configurado para las llamadas de mesa.
+- El PIN `chef` abre directamente el tablero exclusivo de cocina y no carga el mapa de mesas.
 - Precuenta y recibo mediante las rutas de impresión del backend y la configuración de impresoras existente.
 - Perfil cajero con cobro únicamente cuando la API devuelve el permiso `payments.charge`.
 - Delivery visible solo cuando la sucursal tiene el servicio configurado; no se inventan repartidores ni costos.
@@ -36,6 +37,7 @@ El build genera `dist/` de forma local. `dist/` y `node_modules/` no se versiona
 4. Probar en Android/tableta real: offline → online, reinicio de la aplicación, reinicio del dispositivo, sincronización sin duplicados, vibración, sonido y notificaciones.
 5. Ejecutar `npx cap sync android` y generar la APK firmada cuando la validación web y física esté aprobada.
 6. Mantener e-CF/Pay-at-Table como funciones condicionadas a que la API las publique y acepte oficialmente. La facturación tradicional B01/B02 sí pertenece al flujo actual.
+7. Añadir asistente de voz en dos fases: comandos locales deterministas primero; interpretación Groq únicamente detrás de un endpoint autenticado del backend con confirmación para cambiar estados.
 
 ## Límites conocidos del contrato actual
 

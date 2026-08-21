@@ -49,6 +49,7 @@ En la sucursal Kebab auditada, la API sí publica el tipo `Delivery`, pero actua
 - Modificadores obligatorios, asiento por platillo, notas a cocina y cantidades.
 - Cocina/KDS real para perfiles con `kitchen.manage`: consulta `GET /pos/kots`, muestra KOT pendientes/en preparación/listos y actualiza estados con `PUT /pos/kots/{id}/status`.
 - Área de cocina separada por estación: consulta `GET /pos/kot-places`, muestra pestañas como Cocina, Bar u otras zonas activas y solicita `GET /pos/kots?kitchen_place_id=...` para que el chef vea únicamente la tabla de su área. Una comanda nueva usa el mismo sonido, vibración y notificación local configurados para las llamadas de mesa.
+- El perfil `chef` abre directamente una pantalla exclusiva de cocina; no intenta cargar el mapa de mesas ni acciones de caja. Esto evita falsos avisos de permisos y deja el tablero listo para una tableta fija.
 - Una mesa con `current_order_id` abre “Agregar a orden”, lee el detalle y el último KOT publicado, y usa `PUT /pos/orders/{id}/items`; después `POST /pos/orders/{id}/kot` publica solo los artículos aún no vinculados a un KOT. Así una segunda comanda no vuelve a imprimir la primera ni muestra ejemplos fijos de productos.
 - La pre-cuenta usa el detalle fiscal real de `/pos/orders/{id}` y `POST /pos/orders/{id}/print` para encolar la impresión server-side en la misma impresora que el POS de PC; envía `Idempotency-Key`, respeta el tenant/sucursal y no registra pagos. La app consulta `/platform/receipt-settings` y `/platform/printers` para mostrar la configuración real de recibo e impresora; no inventa una ruta de recibo separada porque el contrato actual solo publica la impresión de pre-cuenta.
 - Venta rápida, división de cuenta preparada sobre las líneas actuales y cola offline.
@@ -62,6 +63,15 @@ En la sucursal Kebab auditada, la API sí publica el tipo `Delivery`, pero actua
 - Modo offline-first: el personal puede continuar con los datos publicados más recientes; las acciones pendientes se identifican como no confirmadas por el servidor hasta que se recupere la conexión.
 
 Push, Pay-at-Table e inventario se muestran como puntos de integración y no inventan datos: la API actual publica notificaciones por consulta, cobro normal con `payments.charge` y KOT con `kitchen.manage`, pero no un terminal Pay-at-Table ni un inventario de ingredientes. Sin conexión, un cobro o una impresión se guardan como pendientes y no se presentan como confirmados por el servidor; al volver la red se envían con su clave idempotente. Delivery también respeta la configuración de la sucursal: si `/pos/delivery-settings` devuelve `null` o está deshabilitado, la app informa al cajero y no permite enviar un delivery incompleto. Esto evita confirmar al cliente una acción que la API todavía no puede persistir.
+
+## Asistente de voz para cocina
+
+La pantalla de cocina ya tiene sonido, vibración y avisos locales para comandas nuevas. El asistente de voz debe incorporarse en dos capas:
+
+1. **Primera capa, sin LLM:** botón de pulsar para hablar usando reconocimiento de voz nativo/Web Speech y un conjunto cerrado de órdenes: “mostrar bar”, “mostrar cocina”, “siguiente comanda”, “marcar lista” y “repetir aviso”. Las acciones que cambian estados siempre piden confirmación visual.
+2. **Segunda capa, opcional:** un endpoint del backend puede usar Groq u otro proveedor para interpretar frases libres. La clave nunca se entrega a la APK/PWA; el servidor valida sucursal, rol `chef`, comanda y permiso antes de ejecutar. Python solo sería necesario como servicio separado, no para el cliente React.
+
+Esta separación mantiene el tablero operativo aunque el proveedor de IA no esté disponible y evita que una orden de voz cambie el estado de una comanda por error.
 
 ## Verificación
 
