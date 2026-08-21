@@ -4,6 +4,7 @@ dist/
 .env.*
 !.env.example
 *.tsbuildinfo
+keystore/
 
 # El repositorio publico contiene la app React/Capacitor. Estos directorios
 # son copias/parches internos del backend y no forman parte del cliente movil.
