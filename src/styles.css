@@ -124,6 +124,10 @@ h2 { margin-bottom: 0; font-size: 22px; letter-spacing: -.02em; }
 .kitchen-only-heading { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 18px; padding: 4px 4px 0; color: var(--primary); }
 .kitchen-only-heading > div { color: var(--ink); }
 .kitchen-only-heading h1 { margin: 0 0 5px; }
+.kitchen-permission-block { display: grid; justify-items: center; gap: 10px; padding: 50px 24px; color: var(--muted); text-align: center; background: var(--surface); border: 1px dashed var(--line); border-radius: 18px; }
+.kitchen-permission-block svg { color: var(--primary); }
+.kitchen-permission-block h2 { margin: 0; color: var(--ink); }
+.kitchen-permission-block p { max-width: 620px; margin: 0; line-height: 1.5; }
 .kitchen-standalone-panel { width: 100%; }
 .kitchen-panel-standalone { width: 100% !important; max-height: none; overflow: hidden; border-radius: 18px; box-shadow: var(--shadow); }
 .kitchen-panel-standalone > header { position: static; }
