@@ -79,6 +79,26 @@ describe('contrato base del mesero', () => {
     expect(ticket.items[0]).toMatchObject({ orderItemId: 77, name: 'Pizza simple', status: 'cooking' })
   })
 
+  it('expone en cocina el mesero, la variante, los suplementos y las notas del backend', () => {
+    const ticket = normalizeKitchenTicket({
+      id: 89,
+      order_id: 43,
+      order_number: 'Order #43',
+      waiter_name: 'Mesero Prueba',
+      note: 'Enviado desde RestaPP Mesero',
+      items: [{
+        id: 302,
+        name: 'Hamburguesa',
+        variation: 'Doble',
+        note: 'Silla 2 · Sin cebolla',
+        modifier_options: [{ id: 7, name: 'Extra queso' }],
+        quantity: 1,
+      }],
+    })
+    expect(ticket).toMatchObject({ waiterName: 'Mesero Prueba', note: 'Enviado desde RestaPP Mesero' })
+    expect(ticket.items[0]).toMatchObject({ variation: 'Doble', note: 'Silla 2 · Sin cebolla', modifiers: [{ id: 7, name: 'Extra queso' }] })
+  })
+
   it('normaliza las áreas de cocina publicadas por la sucursal', () => {
     expect(normalizeKitchenPlace({ id: 3, name: 'Bar', type: 'bar', is_default: false, printer_id: 12 })).toMatchObject({ id: 3, name: 'Bar', type: 'bar', isDefault: false, printerId: 12 })
   })
