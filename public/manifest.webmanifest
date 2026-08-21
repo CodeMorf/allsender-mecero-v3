@@ -1,0 +1,15 @@
+{
+  "name": "RestaPP Mesero",
+  "short_name": "Mesero",
+  "description": "Mesas, comandas y operación de sala para RestaPP.",
+  "lang": "es-DO",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#d97706",
+  "background_color": "#0f172a",
+  "icons": [
+    { "src": "/branding/mesero-app-icon.png", "sizes": "2048x2048", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

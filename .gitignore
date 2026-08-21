@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+
+# El repositorio publico contiene la app React/Capacitor. Estos directorios
+# son copias/parches internos del backend y no forman parte del cliente movil.
+.remote_patch/
+backend_live/
+backend_patch/
