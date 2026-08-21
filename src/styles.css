@@ -324,6 +324,7 @@ h2 { margin-bottom: 0; font-size: 22px; letter-spacing: -.02em; }
 .kitchen-ticket ul { display: grid; gap: 7px; margin: 0; padding-left: 18px; }
 .kitchen-ticket li { line-height: 1.35; }
 .kitchen-ticket li small { color: var(--muted); }
+.kitchen-ticket li .kitchen-item-meta, .kitchen-waiter-label { display: block; }
 .kitchen-ticket li em { display: block; color: var(--muted); font-size: 11px; }
 .kitchen-note { margin: 0; padding: 8px 10px; color: var(--muted); background: var(--surface); border-radius: 8px; font-size: 12px; }
 .cashier-list { display: grid; gap: 8px; padding: 20px 22px 0; }

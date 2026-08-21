@@ -343,31 +343,39 @@ export function normalizeItem(raw: any): MenuItem {
 }
 
 export function normalizeKitchenTicket(raw: any): KitchenTicket {
-  const orderType = raw.order_type?.name || raw.order_type?.order_type_name || raw.order_type || raw.order_type_name
-  const items = Array.isArray(raw.items) ? raw.items : []
+  const order = raw?.order && typeof raw.order === 'object' ? raw.order : {}
+  const orderType = raw.order_type?.name || raw.order_type?.order_type_name || raw.order_type || raw.order_type_name || order.order_type?.name || order.order_type?.order_type_name || order.order_type
+  const waiter = raw.waiter || order.waiter || order.waiter_user || {}
+  const firstText = (...values: any[]) => values.find(value => typeof value === 'string' && value.trim())?.trim()
+  const items = Array.isArray(raw.items) ? raw.items : Array.isArray(raw.kot_items) ? raw.kot_items : []
   return {
     id: Number(raw.id),
     kotNumber: raw.kot_number || raw.kotNumber,
     tokenNumber: raw.token_number || raw.tokenNumber,
-    orderId: Number(raw.order_id || raw.order?.id),
-    orderNumber: raw.order_number || raw.formatted_order_number || raw.order?.formatted_order_number || raw.order?.order_number,
+    orderId: Number(raw.order_id || order.id),
+    orderNumber: raw.order_number || raw.formatted_order_number || order.formatted_order_number || order.order_number,
     orderType: orderType ? String(orderType) : undefined,
-    tableName: raw.table_name || raw.table_code || raw.table?.table_code || raw.table?.name,
-    tableId: raw.table_id ?? raw.table?.id,
-    kitchenPlace: raw.kitchen_place?.name || raw.kitchen_place || raw.kitchenPlace,
+    waiterName: firstText(raw.waiter_name, raw.waiter?.name, waiter.name, waiter.full_name, order.waiter_name),
+    tableName: raw.table_name || raw.table_code || raw.table?.table_code || raw.table?.name || order.table?.table_code || order.table?.name,
+    tableId: raw.table_id ?? raw.table?.id ?? order.table_id ?? order.table?.id,
+    kitchenPlace: raw.kitchen_place?.name || raw.kitchen_place || raw.kitchenPlace || raw.kot_place?.name || raw.kot_place,
     kitchenPlaceId: raw.kitchen_place_id ?? raw.kitchenPlaceId,
     status: String(raw.status || 'pending_confirmation').toLowerCase(),
-    note: raw.note || undefined,
+    note: firstText(raw.note, raw.notes, raw.order_note, order.note, order.notes),
     items: items.map((item: any) => ({
       id: Number(item.id),
-      orderItemId: item.order_item_id ?? item.orderItemId,
-      menuItemId: item.menu_item_id ?? item.menuItemId,
-      name: String(item.name || item.menu_item_name || 'Producto'),
+      orderItemId: item.order_item_id ?? item.orderItemId ?? item.order_item?.id,
+      menuItemId: item.menu_item_id ?? item.menuItemId ?? item.order_item?.menu_item_id,
+      name: String(item.name || item.menu_item_name || item.menuItem?.name || item.menu_item?.name || item.order_item?.menu_item?.name || 'Producto'),
       quantity: Math.max(1, Number(item.quantity || 1)),
       status: item.status ? String(item.status).toLowerCase() : undefined,
-      note: item.note || undefined,
-      variation: item.variation || item.variation_name || undefined,
-      modifiers: Array.isArray(item.modifiers) ? item.modifiers.map((modifier: any) => ({ id: Number(modifier.id), name: String(modifier.name || modifier.option_name || 'Opción') })) : undefined,
+      note: firstText(item.note, item.notes, item.kot_item_note, item.order_item?.note),
+      variation: firstText(item.variation?.name, item.variation, item.variation_name, item.menu_item_variation?.name, item.menuItemVariation?.name, item.order_item?.variation?.name, item.order_item?.variation_name),
+      modifiers: (() => {
+        const values = item.modifiers || item.modifier_options || item.modifierOptions || item.order_item?.modifiers || item.order_item?.modifier_options
+        if (!Array.isArray(values)) return undefined
+        return values.map((modifier: any) => ({ id: Number(modifier.id || modifier.modifier_option_id || 0), name: String(modifier.name || modifier.option_name || modifier.modifier_option_name || 'Opción') })).filter((modifier: any) => modifier.name)
+      })(),
     })),
     createdAt: raw.created_at || raw.createdAt,
     updatedAt: raw.updated_at || raw.updatedAt,

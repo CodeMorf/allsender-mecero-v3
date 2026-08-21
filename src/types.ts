@@ -224,6 +224,7 @@ export type KitchenTicket = {
   orderId: number
   orderNumber?: string
   orderType?: string
+  waiterName?: string
   tableName?: string
   tableId?: number
   kitchenPlace?: string
