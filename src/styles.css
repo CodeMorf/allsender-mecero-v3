@@ -93,6 +93,31 @@ h2 { margin-bottom: 0; font-size: 22px; letter-spacing: -.02em; }
 .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
 .keypad button { height: 56px; color: var(--ink); background: var(--surface-soft); border: 1px solid var(--line); border-radius: 13px; font-size: 19px; font-weight: 800; }
 .keypad button:hover { border-color: var(--primary); background: rgba(8, 127, 140, .08); }
+.pin-shell-modern { position: relative; overflow: hidden; background: radial-gradient(circle at 18% 8%, rgba(255, 184, 88, .36), transparent 28%), radial-gradient(circle at 86% 82%, rgba(21, 165, 169, .32), transparent 32%), linear-gradient(135deg, #f8f6ea, #e1f5f1); }
+.pin-shell-modern::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(120deg, rgba(255, 255, 255, .28), transparent 48%), repeating-linear-gradient(125deg, transparent 0 42px, rgba(255, 255, 255, .08) 43px 44px); }
+.pin-card-modern { position: relative; z-index: 1; padding: 34px 30px 30px; background: rgba(255, 255, 255, .42); border-color: rgba(255, 255, 255, .72); box-shadow: 0 22px 60px rgba(29, 88, 91, .16); backdrop-filter: blur(18px); }
+.pin-brand-block { display: grid; justify-items: center; gap: 5px; margin-bottom: 24px; }
+.pin-brand-block .brand-mark { display: grid; place-items: center; width: 62px; height: 62px; margin-bottom: 5px; border-radius: 18px; box-shadow: 0 10px 22px rgba(220, 84, 38, .23); }
+.pin-brand-block h1 { margin-bottom: 0; font-size: 27px; }
+.pin-brand-block p { margin: 0; color: var(--muted); font-size: 13px; }
+.pin-business-type { display: inline-flex; align-items: center; gap: 6px; color: #c66820; font-size: 10px; font-weight: 900; letter-spacing: .13em; }
+.pin-role-modern { margin: 0 0 21px; }
+.pin-role-modern > span { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); }
+.pin-role-modern select { padding: 13px 15px; background: rgba(255, 255, 255, .62); border-color: rgba(8, 127, 140, .42); border-radius: 14px; font-weight: 800; }
+.pin-status-dots { display: flex; justify-content: center; gap: 13px; min-height: 16px; margin: 4px 0 23px; }
+.pin-status-dots span { width: 13px; height: 13px; background: rgba(87, 119, 127, .22); border-radius: 50%; transition: transform .18s ease, background .18s ease; }
+.pin-status-dots span.filled { background: #e9792d; box-shadow: 0 0 0 4px rgba(233, 121, 45, .13); transform: scale(1.08); }
+.pin-status-dots.has-error span { background: #d84d55; }
+.pin-status-dots.has-success span { background: #1b9a62; }
+.pin-keypad-modern { gap: 11px; margin-bottom: 19px; }
+.pin-keypad-modern button { height: 62px; background: rgba(255, 255, 255, .58); border-color: rgba(255, 255, 255, .72); border-radius: 15px; font-size: 21px; box-shadow: 0 5px 12px rgba(27, 71, 77, .06); }
+.pin-keypad-modern button:hover:not(:disabled) { color: #bd5a1a; background: rgba(255, 255, 255, .84); border-color: #e9792d; }
+.pin-login-status { min-height: 20px; margin: 0; color: var(--muted); font-size: 13px; font-weight: 800; text-align: center; }
+.pin-login-status.error { color: #b43d4c; }
+.pin-login-status.success { color: #168752; }
+:root[data-theme="dark"] .pin-shell-modern { background: radial-gradient(circle at 18% 8%, rgba(183, 102, 33, .35), transparent 28%), radial-gradient(circle at 86% 82%, rgba(21, 132, 138, .35), transparent 32%), #14252b; }
+:root[data-theme="dark"] .pin-card-modern { background: rgba(26, 37, 43, .68); border-color: rgba(255, 255, 255, .16); }
+:root[data-theme="dark"] .pin-role-modern select, :root[data-theme="dark"] .pin-keypad-modern button { background: rgba(28, 49, 56, .78); border-color: rgba(255, 255, 255, .15); }
 
 .app-shell { min-height: 100vh; background: linear-gradient(135deg, rgba(229, 249, 243, .45), rgba(255, 247, 226, .42)), var(--surface-soft); }
 .app-header { position: sticky; top: 0; z-index: 4; display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 12px clamp(14px, 3vw, 34px); background: var(--surface); border-bottom: 1px solid var(--line); }
@@ -278,6 +303,11 @@ h2 { margin-bottom: 0; font-size: 22px; letter-spacing: -.02em; }
 .kitchen-place-tabs { display: flex; gap: 8px; overflow-x: auto; padding: 14px 22px 0; border-top: 1px solid var(--line); }
 .kitchen-place-tabs button { flex: 0 0 auto; padding: 8px 13px; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; font-size: 12px; font-weight: 800; }
 .kitchen-place-tabs button.active { color: #fff; background: var(--primary); border-color: var(--primary); }
+.kitchen-place-filter { display: flex; align-items: end; gap: 10px; padding: 14px 22px 0; border-top: 1px solid var(--line); }
+.kitchen-place-filter label { display: grid; flex: 1; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.kitchen-place-filter select { width: 100%; padding: 9px 12px; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 9px; font-size: 13px; font-weight: 700; }
+.kitchen-place-filter select:disabled { opacity: .75; cursor: not-allowed; }
+.kitchen-place-filter .button { white-space: nowrap; }
 .kitchen-place-label { margin: 14px 22px 0; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .kitchen-place-empty { margin: 14px 22px 0; padding: 11px 13px; color: var(--muted); background: var(--surface-soft); border: 1px dashed var(--line); border-radius: 10px; font-size: 12px; }
 .kitchen-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; padding: 20px 22px; }

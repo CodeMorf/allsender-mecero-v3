@@ -243,6 +243,12 @@ export type KitchenPlace = {
   printerId?: number
 }
 
+export type KitchenView = {
+  scope: 'chef' | 'supervisor'
+  placeId: number | 'all'
+  locked: boolean
+}
+
 export type OfflineOperation = {
   id: string
   scope?: string
@@ -283,6 +289,7 @@ export type AppCache = {
   paymentMethods?: PaymentMethodOption[]
   kots?: KitchenTicket[]
   kotPlaces?: KitchenPlace[]
+  kitchenView?: KitchenView
   notifications?: unknown[]
   waiterRequests?: WaiterRequest[]
   notificationSettings?: NotificationSettings
