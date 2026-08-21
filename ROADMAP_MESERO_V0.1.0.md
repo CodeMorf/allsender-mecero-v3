@@ -8,7 +8,7 @@ Esta versión publica la aplicación React + TypeScript para meseros, cocina y c
 - Mapa de mesas, menú API, fotos publicadas, modificadores y notas a cocina.
 - Órdenes nuevas y órdenes activas: los envíos posteriores publican únicamente artículos nuevos.
 - KDS/KOT, estados de preparación, avisos, campana del encabezado, sonido y vibración configurables.
-- KDS separado por estación: el chef puede cambiar entre Cocina, Bar y las demás áreas activas de la sucursal; las comandas nuevas producen el mismo aviso sonoro/vibración configurado para las llamadas de mesa.
+- KDS separado por estación: el chef entra en la estación predeterminada y puede cambiar entre Cocina, Bar, Reparto y las demás áreas activas de la sucursal; “Todas” queda reservado para supervisión. Las comandas nuevas producen el mismo aviso sonoro/vibración configurado para las llamadas de mesa.
 - El PIN `chef` abre directamente el tablero exclusivo de cocina y no carga el mapa de mesas.
 - Precuenta y recibo mediante las rutas de impresión del backend y la configuración de impresoras existente.
 - Perfil cajero con cobro únicamente cuando la API devuelve el permiso `payments.charge`.
