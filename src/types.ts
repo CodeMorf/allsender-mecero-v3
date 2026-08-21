@@ -235,6 +235,14 @@ export type KitchenTicket = {
   updatedAt?: string
 }
 
+export type KitchenPlace = {
+  id: number
+  name: string
+  type?: string
+  isDefault?: boolean
+  printerId?: number
+}
+
 export type OfflineOperation = {
   id: string
   scope?: string
@@ -274,6 +282,7 @@ export type AppCache = {
   orders?: unknown[]
   paymentMethods?: PaymentMethodOption[]
   kots?: KitchenTicket[]
+  kotPlaces?: KitchenPlace[]
   notifications?: unknown[]
   waiterRequests?: WaiterRequest[]
   notificationSettings?: NotificationSettings

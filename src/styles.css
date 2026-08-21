@@ -264,6 +264,9 @@ h2 { margin-bottom: 0; font-size: 22px; letter-spacing: -.02em; }
 .notification-settings-grid .check-label { min-height: 38px; }
 .kitchen-panel { width: min(900px, 100%); }
 .kitchen-header-actions { display: flex; align-items: center; gap: 8px; }
+.kitchen-place-tabs { display: flex; gap: 8px; overflow-x: auto; padding: 14px 22px 0; border-top: 1px solid var(--line); }
+.kitchen-place-tabs button { flex: 0 0 auto; padding: 8px 13px; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; font-size: 12px; font-weight: 800; }
+.kitchen-place-tabs button.active { color: #fff; background: var(--primary); border-color: var(--primary); }
 .kitchen-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; padding: 20px 22px; }
 .kitchen-ticket { display: grid; gap: 12px; padding: 15px; background: var(--surface-soft); border: 1px solid var(--line); border-left: 5px solid #e9b52f; border-radius: 14px; }
 .kitchen-ticket.kitchen-in_kitchen { border-left-color: #e48b36; }
@@ -271,6 +274,7 @@ h2 { margin-bottom: 0; font-size: 22px; letter-spacing: -.02em; }
 .kitchen-ticket-header, .kitchen-ticket footer { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .kitchen-ticket-header > div { display: grid; gap: 3px; }
 .kitchen-ticket-header small, .kitchen-ticket footer small { color: var(--muted); font-size: 11px; }
+.kitchen-table-label { color: var(--ink) !important; font-size: 14px !important; font-weight: 900; }
 .kitchen-status { padding: 4px 8px; color: var(--ink); background: rgba(233, 181, 47, .2); border-radius: 999px; font-size: 11px; font-weight: 800; white-space: nowrap; }
 .kitchen-in_kitchen .kitchen-status { background: rgba(228, 139, 54, .18); }
 .kitchen-food_ready .kitchen-status { background: rgba(47, 185, 115, .18); }

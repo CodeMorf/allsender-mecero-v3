@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ApiError, normalizeAttendance, normalizeItem, normalizeKitchenTicket, normalizeStaffSchedule, normalizeTable, normalizeWaiterRequest } from './api/client'
+import { ApiError, normalizeAttendance, normalizeItem, normalizeKitchenPlace, normalizeKitchenTicket, normalizeStaffSchedule, normalizeTable, normalizeWaiterRequest } from './api/client'
 import { newIdempotencyKey, readCache, saveCache, setStorageScope } from './storage/offline'
 
 describe('contrato base del mesero', () => {
@@ -77,6 +77,10 @@ describe('contrato base del mesero', () => {
     expect(table).toMatchObject({ currentOrderId: 42, currentOrderNumber: '42', customerId: 18, customerName: 'María López', currentOrderTotal: 640, currentOrderDue: 320, status: 'occupied' })
     expect(ticket).toMatchObject({ id: 88, orderId: 42, tableName: 'T9', kitchenPlace: 'Cocina', status: 'in_kitchen' })
     expect(ticket.items[0]).toMatchObject({ orderItemId: 77, name: 'Pizza simple', status: 'cooking' })
+  })
+
+  it('normaliza las áreas de cocina publicadas por la sucursal', () => {
+    expect(normalizeKitchenPlace({ id: 3, name: 'Bar', type: 'bar', is_default: false, printer_id: 12 })).toMatchObject({ id: 3, name: 'Bar', type: 'bar', isDefault: false, printerId: 12 })
   })
 
   it('normaliza horarios y asistencia con la zona horaria publicada', () => {

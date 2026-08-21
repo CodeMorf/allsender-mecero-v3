@@ -1,4 +1,4 @@
-import type { ApiErrorShape, AttendanceRecord, Branch, DeliveryExecutive, DeliverySettings, DeviceBinding, KitchenTicket, MenuItem, PaymentMethodOption, Printer, ReceiptSettings, RestaurantTable, Session, StaffRole, StaffSchedule, TokenKind, WaiterRequest } from '../types'
+import type { ApiErrorShape, AttendanceRecord, Branch, DeliveryExecutive, DeliverySettings, DeviceBinding, KitchenPlace, KitchenTicket, MenuItem, PaymentMethodOption, Printer, ReceiptSettings, RestaurantTable, Session, StaffRole, StaffSchedule, TokenKind, WaiterRequest } from '../types'
 
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'https://restapp.allsender.tech/api/application-integration').replace(/\/$/, '')
 
@@ -27,7 +27,7 @@ function asArray<T>(payload: unknown): T[] {
   if (Array.isArray(value)) return value as T[]
   if (value && typeof value === 'object') {
     const record = value as Record<string, unknown>
-    for (const key of ['items', 'branches', 'tables', 'menus', 'categories', 'orders', 'registers', 'cash_registers', 'kots', 'notifications', 'printers', 'waiter_requests', 'results', 'data']) {
+    for (const key of ['items', 'branches', 'tables', 'menus', 'categories', 'orders', 'registers', 'cash_registers', 'kots', 'kot_places', 'places', 'notifications', 'printers', 'waiter_requests', 'results', 'data']) {
       if (Array.isArray(record[key])) return record[key] as T[]
     }
   }
@@ -203,12 +203,16 @@ export class ApiClient {
   async updateOrderItems(kind: TokenKind, orderId: number, body: unknown, idempotencyKey: string) { return this.request(`/pos/orders/${orderId}/items`, { method: 'PUT', tokenKind: kind, headers: { 'Idempotency-Key': idempotencyKey }, body: JSON.stringify(body) }) }
   async createKot(kind: TokenKind, orderId: number, body: unknown, idempotencyKey: string) { return this.request(`/pos/orders/${orderId}/kot`, { method: 'POST', tokenKind: kind, headers: { 'Idempotency-Key': idempotencyKey }, body: JSON.stringify(body) }) }
   async orderKots(kind: TokenKind, orderId: number): Promise<KitchenTicket[]> { return asArray<any>(await this.request(`/pos/orders/${orderId}/kots`, { tokenKind: kind })).map(normalizeKitchenTicket) }
-  async kots(kind: TokenKind, params: { status?: string; date?: string } = {}): Promise<KitchenTicket[]> {
+  async kots(kind: TokenKind, params: { status?: string; date?: string; kitchenPlaceId?: number } = {}): Promise<KitchenTicket[]> {
     const query = new URLSearchParams()
     if (params.status) query.set('status', params.status)
     if (params.date) query.set('date', params.date)
+    if (params.kitchenPlaceId) query.set('kitchen_place_id', String(params.kitchenPlaceId))
     const suffix = query.toString() ? `?${query.toString()}` : ''
     return asArray<any>(await this.request(`/pos/kots${suffix}`, { tokenKind: kind })).map(normalizeKitchenTicket)
+  }
+  async kotPlaces(kind: TokenKind): Promise<KitchenPlace[]> {
+    return asArray<any>(await this.request('/pos/kot-places', { tokenKind: kind })).map(normalizeKitchenPlace)
   }
   async updateKotStatus(kind: TokenKind, kotId: number, status: string, idempotencyKey: string) { return this.request(`/pos/kots/${kotId}/status`, { method: 'PUT', tokenKind: kind, headers: { 'Idempotency-Key': idempotencyKey }, body: JSON.stringify({ status }) }) }
   async updateKotItemStatus(kind: TokenKind, kotItemId: number, status: string, idempotencyKey: string) { return this.request(`/pos/kot-items/${kotItemId}/status`, { method: 'PUT', tokenKind: kind, headers: { 'Idempotency-Key': idempotencyKey }, body: JSON.stringify({ status }) }) }
@@ -367,6 +371,16 @@ export function normalizeKitchenTicket(raw: any): KitchenTicket {
     })),
     createdAt: raw.created_at || raw.createdAt,
     updatedAt: raw.updated_at || raw.updatedAt,
+  }
+}
+
+export function normalizeKitchenPlace(raw: any): KitchenPlace {
+  return {
+    id: Number(raw?.id || 0),
+    name: String(raw?.name || raw?.title || raw?.label || `Estación ${raw?.id || ''}`).trim(),
+    type: raw?.type == null ? undefined : String(raw.type),
+    isDefault: raw?.is_default === true || raw?.isDefault === true || raw?.is_default === 1,
+    printerId: raw?.printer_id == null && raw?.printerId == null ? undefined : Number(raw.printer_id ?? raw.printerId),
   }
 }
 
