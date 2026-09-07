@@ -1,4 +1,4 @@
-import type { ApiErrorShape, AttendanceRecord, Branch, DeliveryExecutive, DeliverySettings, DeviceBinding, KitchenPlace, KitchenTicket, MenuItem, PaymentMethodOption, Printer, ReceiptSettings, RestaurantTable, Session, StaffRole, StaffSchedule, TokenKind, WaiterRequest } from '../types'
+import type { ApiErrorShape, AttendanceRecord, Branch, DeliveryExecutive, DeliverySettings, DeviceBinding, KitchenPlace, KitchenTicket, MenuItem, PaymentMethodOption, PosCustomer, Printer, ReceiptSettings, RestaurantTable, Session, StaffRole, StaffSchedule, TokenKind, WaiterRequest } from '../types'
 
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'https://restapp.allsender.tech/api/application-integration').replace(/\/$/, '')
 
@@ -170,6 +170,32 @@ export class ApiClient {
   async orderTypes(kind: TokenKind) { return asArray<any>(await this.request('/pos/order-types', { tokenKind: kind })) }
   async deliveryExecutives(kind: TokenKind): Promise<DeliveryExecutive[]> { return asArray<any>(await this.request('/pos/delivery-executives', { tokenKind: kind })).map((value: any) => ({ id: Number(value.id), name: String(value.name || `Repartidor ${value.id}`), phone: value.phone, status: value.status || value.status_raw })) }
   async deliverySettings(kind: TokenKind): Promise<DeliverySettings | null> { const value = await this.request<any>('/pos/delivery-settings', { tokenKind: kind }); const data = value?.data; if (!data) return null; return { ...data, is_enabled: data.is_enabled === true || data.is_enabled === 1 || data.is_enabled === '1', fixed_fee: data.fixed_fee == null ? null : Number(data.fixed_fee) } }
+  async customers(kind: TokenKind, search = ''): Promise<PosCustomer[]> {
+    const query = search ? `?search=${encodeURIComponent(search)}` : ''
+    return asArray<any>(await this.request(`/pos/customers${query}`, { tokenKind: kind })).map(normalizeCustomer)
+  }
+  async getCustomer(kind: TokenKind, customerId: number): Promise<PosCustomer> {
+    return normalizeCustomer(unwrap<any>(await this.request(`/pos/customers/${customerId}`, { tokenKind: kind })))
+  }
+  async saveCustomer(kind: TokenKind, payload: Partial<PosCustomer>): Promise<PosCustomer> {
+    const body: Record<string, unknown> = {
+      name: payload.name,
+      phone_code: payload.phoneCode || '1',
+      phone: payload.phone,
+      email: payload.email || null,
+      address: payload.deliveryAddress || null,
+    }
+    if (payload.rncCedula) body.rnc_cedula = payload.rncCedula
+    if (payload.fiscalName) body.fiscal_name = payload.fiscalName
+    if (payload.commercialName) body.commercial_name = payload.commercialName
+    if (payload.dgiiStatus) body.dgii_status = payload.dgiiStatus
+    if (payload.dgiiTaxRegime) body.dgii_tax_regime = payload.dgiiTaxRegime
+    if (payload.dgiiIsElectronicBiller !== undefined) body.dgii_is_electronic_biller = payload.dgiiIsElectronicBiller
+    const res = await this.request<any>('/pos/customers', { method: 'POST', tokenKind: kind, body: JSON.stringify(body) })
+    const data = unwrap<any>(res)
+    const customer = data?.customer ?? data
+    return normalizeCustomer(customer)
+  }
   async orders(kind: TokenKind) { return asArray<any>(await this.request('/pos/orders', { tokenKind: kind })) }
   async getOrder(kind: TokenKind, orderId: number) { return unwrap<any>(await this.request(`/pos/orders/${orderId}`, { tokenKind: kind })) }
   async printOrder(kind: TokenKind, orderId: number, idempotencyKey: string) { return this.request(`/pos/orders/${orderId}/print`, { method: 'POST', tokenKind: kind, headers: { 'Idempotency-Key': idempotencyKey }, body: JSON.stringify({ document: 'prebill' }) }) }
@@ -439,6 +465,23 @@ export function normalizeWaiterRequest(raw: any): WaiterRequest | null {
     status: String(raw.status || 'pending').toLowerCase(),
     createdAt: raw.created_at || raw.createdAt,
     updatedAt: raw.updated_at || raw.updatedAt,
+  }
+}
+
+export function normalizeCustomer(raw: any): PosCustomer {
+  return {
+    id: Number(raw?.id || 0),
+    name: String(raw?.name || raw?.customer_name || 'Cliente sin nombre').trim(),
+    phone: raw?.phone || raw?.customer_phone || undefined,
+    phoneCode: raw?.phone_code || undefined,
+    email: raw?.email || raw?.customer_email || undefined,
+    deliveryAddress: raw?.delivery_address || raw?.address || undefined,
+    rncCedula: raw?.rnc_cedula || undefined,
+    fiscalName: raw?.fiscal_name || undefined,
+    commercialName: raw?.commercial_name || undefined,
+    dgiiStatus: raw?.dgii_status || undefined,
+    dgiiTaxRegime: raw?.dgii_tax_regime || undefined,
+    dgiiIsElectronicBiller: raw?.dgii_is_electronic_biller === true || raw?.dgii_is_electronic_biller === 1 || raw?.dgii_is_electronic_biller === '1',
   }
 }
 

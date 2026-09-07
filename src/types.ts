@@ -98,6 +98,21 @@ export type RestaurantTable = {
   position?: { x: number; y: number; rotation?: number }
 }
 
+export type PosCustomer = {
+  id: number
+  name: string
+  phone?: string
+  phoneCode?: string
+  email?: string
+  deliveryAddress?: string
+  rncCedula?: string
+  fiscalName?: string
+  commercialName?: string
+  dgiiStatus?: string
+  dgiiTaxRegime?: string
+  dgiiIsElectronicBiller?: boolean
+}
+
 export type ModifierOption = {
   id: number
   name: string
@@ -196,6 +211,7 @@ export type Printer = {
 export type OrderDraft = {
   mode: OrderMode
   existingOrderId?: number
+  customerId?: number
   customerName?: string
   customerPhone?: string
   customerEmail?: string
@@ -203,6 +219,10 @@ export type OrderDraft = {
   deliveryTime?: string
   deliveryFee?: number
   deliveryExecutiveId?: number
+  rncCedula?: string
+  fiscalName?: string
+  receiptType?: string
+  ecfType?: string
 }
 
 export type KitchenOrderItem = {
