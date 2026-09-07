@@ -405,10 +405,12 @@ export default function App() {
   }
 
   function updateTableLocally(tableId: number, updater: (table: RestaurantTable) => RestaurantTable) {
-    const nextTables = tables.map(table => table.id === tableId ? updater(table) : table)
-    setTables(nextTables)
+    setTables(currentTables => {
+      const nextTables = currentTables.map(table => table.id === tableId ? updater(table) : table)
+      saveCache({ tables: nextTables, branchId: pinSession?.branchId, scopeKey: pinSession?.scopeKey || getStorageScope() })
+      return nextTables
+    })
     setActiveTable(current => current?.id === tableId ? updater(current) : current)
-    saveCache({ tables: nextTables, branchId: pinSession?.branchId, scopeKey: pinSession?.scopeKey || getStorageScope() })
   }
 
   function makeStep(method: OfflineStep['method'], path: string, body: unknown, idempotencyKey: string = newIdempotencyKey()): OfflineStep { return { method, path, body, idempotencyKey } }
@@ -2206,8 +2208,33 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
   const [deliveryFee, setDeliveryFee] = useState('')
   const [deliveryExecutiveId, setDeliveryExecutiveId] = useState('')
   const [lines, setLines] = useState<OrderLine[]>([])
-  const [existingItems, setExistingItems] = useState<Array<{ id: number; name: string; quantity: number; amount?: number }>>([])
-  const [orderDetail, setOrderDetail] = useState<any>(null)
+  const [existingItems, setExistingItems] = useState<Array<{ id: number; name: string; quantity: number; amount?: number }>>(() => {
+    if (!table?.currentOrderId) return []
+    const cached = readCache()
+    const detail = cached.orderDetails?.[String(table.currentOrderId)]
+    const data = (detail as any)?.data ?? detail
+    const items = extractOrderItems(data)
+    if (Array.isArray(items) && items.length > 0) {
+      return items.map((item: any) => {
+        const quantity = Math.max(1, Number(item.quantity || 1))
+        const amount = Number(item.amount ?? item.total ?? item.price ?? 0)
+        return {
+          id: Number(item.id || item.order_item_id || 1),
+          name: String(item.name || item.menu_item_name || item.product_name || 'Producto'),
+          quantity,
+          amount: amount || Number(item.price || 0) * quantity
+        }
+      })
+    }
+    return []
+  })
+  const [orderDetail, setOrderDetail] = useState<any>(() => {
+    if (!table?.currentOrderId) return null
+    const cached = readCache()
+    const detail = cached.orderDetails?.[String(table.currentOrderId)]
+    return (detail as any)?.data ?? detail ?? null
+  })
+  const [loadingExistingOrder, setLoadingExistingOrder] = useState(() => Boolean(table?.currentOrderId))
   const [latestKotStatus, setLatestKotStatus] = useState('')
   const [lastSentSummary, setLastSentSummary] = useState('')
   const [selected, setSelected] = useState<MenuItem | null>(null)
@@ -2260,7 +2287,70 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
   }, [table?.id, table?.currentOrderId, table?.customerName, table?.customerId, table?.customerPhone])
   // Load the existing order read-only so the waiter can distinguish previous lines from the new KOT.
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { let cancelled = false; setExistingItems([]); setOrderDetail(null); setPreBillOpen(false); setLastSentSummary(''); setPrintStatus(''); setPrintIdempotencyKey(''); setPrinting(false); if (!table?.currentOrderId) return () => { cancelled = true }; const cached = readCache(); const cachedDetail = cached.orderDetails?.[String(table.currentOrderId)]; const cachedKots = cached.orderKots?.[String(table.currentOrderId)] || []; if (!navigator.onLine) { if (cachedDetail) { const data = (cachedDetail as any)?.data ?? cachedDetail; setOrderDetail(data); const values = Array.isArray((data as any)?.items) ? (data as any).items : []; setExistingItems(values.map((item: any) => ({ id: Number(item.id), name: String(item.name || item.menu_item_name || 'Producto'), quantity: Math.max(1, Number(item.quantity || 1)), amount: Number(item.amount ?? item.total ?? item.price ?? 0) }))) } const latest = cachedKots.slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0]; if (latest) setLastSentSummary(`${latest.items.map(item => `${item.quantity}× ${item.name}`).join(' · ') || 'Artículos sin detalle'}${latest.createdAt ? ` · ${new Date(latest.createdAt).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' })}` : ''}`); return () => { cancelled = true } } Promise.all([api.getOrder('pin', table.currentOrderId), api.orderKots('pin', table.currentOrderId)]).then(([orderPayload, kots]) => { if (cancelled) return; const data = orderPayload?.data ?? orderPayload; saveCache({ orderDetails: { ...(readCache().orderDetails || {}), [String(table.currentOrderId)]: data }, orderKots: { ...(readCache().orderKots || {}), [String(table.currentOrderId)]: kots } }); setOrderDetail(data); const values = Array.isArray(data?.items) ? data.items : []; setExistingItems(values.map((item: any) => { const quantity = Math.max(1, Number(item.quantity || 1)); const amount = Number(item.amount ?? item.total ?? 0); return { id: Number(item.id), name: String(item.name || item.menu_item_name || 'Producto'), quantity, amount: amount || Number(item.price || 0) * quantity } })); const latest = kots.slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0]; if (latest) { const summary = latest.items.map(item => `${item.quantity}× ${item.name}`).join(' · '); setLastSentSummary(`${summary || 'Artículos sin detalle'}${latest.createdAt ? ` · ${new Date(latest.createdAt).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' })}` : ''}`) } }).catch(() => { if (!cancelled) { setExistingItems([]); setOrderDetail(null); setLastSentSummary('') } }); return () => { cancelled = true } }, [table?.currentOrderId])
+  useEffect(() => {
+    let cancelled = false
+    setPreBillOpen(false)
+    setLastSentSummary('')
+    setPrintStatus('')
+    setPrintIdempotencyKey('')
+    setPrinting(false)
+    if (!table?.currentOrderId) {
+      setExistingItems([])
+      setOrderDetail(null)
+      setLoadingExistingOrder(false)
+      return () => { cancelled = true }
+    }
+    setLoadingExistingOrder(true)
+    const cached = readCache()
+    const cachedDetail = cached.orderDetails?.[String(table.currentOrderId)]
+    const cachedKots = cached.orderKots?.[String(table.currentOrderId)] || []
+    if (cachedDetail) {
+      const data = (cachedDetail as any)?.data ?? cachedDetail
+      setOrderDetail(data)
+      const values = extractOrderItems(data)
+      if (values.length) {
+        setExistingItems(values.map((item: any) => ({
+          id: Number(item.id || item.order_item_id || 1),
+          name: String(item.name || item.menu_item_name || item.product_name || 'Producto'),
+          quantity: Math.max(1, Number(item.quantity || 1)),
+          amount: Number(item.amount ?? item.total ?? item.price ?? 0)
+        })))
+      }
+    }
+    if (!navigator.onLine) {
+      setLoadingExistingOrder(false)
+      const latest = cachedKots.slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0]
+      if (latest) setLastSentSummary(`${latest.items.map(item => `${item.quantity}× ${item.name}`).join(' · ') || 'Artículos sin detalle'}${latest.createdAt ? ` · ${new Date(latest.createdAt).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' })}` : ''}`)
+      return () => { cancelled = true }
+    }
+    Promise.all([api.getOrder('pin', table.currentOrderId), api.orderKots('pin', table.currentOrderId)]).then(([orderPayload, kots]) => {
+      if (cancelled) return
+      const data = orderPayload?.data ?? orderPayload
+      saveCache({
+        orderDetails: { ...(readCache().orderDetails || {}), [String(table.currentOrderId)]: data },
+        orderKots: { ...(readCache().orderKots || {}), [String(table.currentOrderId)]: kots }
+      })
+      setOrderDetail(data)
+      const values = extractOrderItems(data)
+      if (values.length) {
+        setExistingItems(values.map((item: any) => {
+          const quantity = Math.max(1, Number(item.quantity || 1))
+          const amount = Number(item.amount ?? item.total ?? 0)
+          return { id: Number(item.id || item.order_item_id || 1), name: String(item.name || item.menu_item_name || item.product_name || 'Producto'), quantity, amount: amount || Number(item.price || 0) * quantity }
+        }))
+      }
+      const latest = kots.slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0]
+      if (latest) {
+        const summary = latest.items.map(item => `${item.quantity}× ${item.name}`).join(' · ')
+        setLastSentSummary(`${summary || 'Artículos sin detalle'}${latest.createdAt ? ` · ${new Date(latest.createdAt).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' })}` : ''}`)
+      }
+    }).catch(() => {
+      // Don't wipe existingItems on network error if we already had them from cache
+    }).finally(() => {
+      if (!cancelled) setLoadingExistingOrder(false)
+    })
+    return () => { cancelled = true }
+  }, [table?.currentOrderId])
   useEffect(() => {
     let cancelled = false
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -2621,7 +2711,16 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
             </div>
           )}
 
-          {!lines.length && !existingItems.length && (
+          {!lines.length && !existingItems.length && loadingExistingOrder && (
+            <div className="empty compact" style={{ padding: '2.5rem 1rem', background: 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+              <Clock size={32} style={{ color: 'var(--color-pos-primary)', animation: 'spin 1.5s linear infinite' }} />
+              <p style={{ color: 'var(--pos-text-secondary)', fontSize: '0.85rem', margin: 0, textAlign: 'center' }}>
+                Cargando comanda activa…
+              </p>
+            </div>
+          )}
+
+          {!lines.length && !existingItems.length && !loadingExistingOrder && (
             <div className="empty compact" style={{ padding: '2.5rem 1rem', background: 'transparent', borderColor: 'var(--pos-bg-surface-elevated)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
               <ClipboardList size={36} style={{ color: 'var(--pos-text-tertiary)' }} />
               <p style={{ color: 'var(--pos-text-secondary)', fontSize: '0.85rem', margin: 0, textAlign: 'center' }}>
