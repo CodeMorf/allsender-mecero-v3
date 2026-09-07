@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { api, ApiError, API_BASE_URL, normalizeAttendance } from './api/client'
-import type { AttendanceRecord, Branch, DeliveryExecutive, DeliverySettings, DeviceBinding, KitchenPlace, KitchenTicket, KitchenView, MenuItem, ModifierGroup, ModifierOption, NotificationSettings, OfflineOperation, OfflineStep, OfflineWorkflow, OrderDraft, OrderLine, OrderMode, PaymentMethodOption, RestaurantTable, Session, StaffRole, WaiterRequest } from './types'
+import type { AttendanceRecord, Branch, DeliveryExecutive, DeliverySettings, DeviceBinding, KitchenPlace, KitchenTicket, KitchenView, MenuItem, ModifierGroup, ModifierOption, NotificationSettings, OfflineOperation, OfflineStep, OfflineWorkflow, OrderDraft, OrderLine, OrderMode, PaymentMethodOption, ProductVariation, RestaurantTable, Session, StaffRole, WaiterRequest } from './types'
 import { clearSession, enqueue, getDeviceId, getStorageScope, listOutbox, newIdempotencyKey, readCache, readSession, removeOutbox, saveCache, saveSession, setStorageScope, updateOutbox } from './storage/offline'
 import { CustomerModal } from './CustomerModal'
-import { ArrowLeftFromLine, ArrowRightLeft, Banknote, BatteryCharging, BedDouble, Bell, BookOpen, CalendarDays, Check, ChefHat, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, CloudLightning, CloudOff, Clock, Coffee, ConciergeBell, CreditCard, Delete, Divide, Edit3, Flame, Flower2 as Spa, Globe, Globe2, History, LayoutGrid, Lock, LogOut, Map as LucideMap, Martini, Menu, Minus, Moon, Plus, Printer, Receipt, RefreshCw, Search, Send, ShieldCheck, SlidersHorizontal, ShoppingCart, Sun, Trash2, Truck, Unlock, UserCheck, UserCircle2, UserRound, Users, UsersRound, UserX, Utensils, UtensilsCrossed, Wallet, Wine, Wifi, X } from 'lucide-react'
+import { ArrowLeftFromLine, ArrowRightLeft, Banknote, BatteryCharging, BedDouble, Bell, BookOpen, CalendarDays, Check, ChefHat, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, CloudLightning, CloudOff, Clock, Coffee, ConciergeBell, CreditCard, Delete, Divide, Edit3, Flame, Flower2 as Spa, Globe, Globe2, History, LayoutGrid, Lock, LogOut, Map as LucideMap, Martini, Menu, Minus, Moon, Plus, Printer, Receipt, RefreshCw, Search, Send, ShieldCheck, SlidersHorizontal, ShoppingCart, Sun, Trash2, Truck, Unlock, UserCheck, UserCircle2, UserRound, Users, UsersRound, UserX, Utensils, UtensilsCrossed, Wallet, Wine, Wifi, X, XCircle } from 'lucide-react'
 import { Capacitor } from '@capacitor/core'
 import { Haptics } from '@capacitor/haptics'
 import { LocalNotifications } from '@capacitor/local-notifications'
@@ -504,11 +504,17 @@ export default function App() {
 
   async function submitOrder(lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) {
     if (!pinSession || !lines.length) return
-    // Production accepts the order reliably when the initial create is kept to
-    // its minimal contract. Table/waiter/KOT state is applied in the update
-    // step below; sending all of it in the create request currently triggers a
-    // generic 500 in the upstream controller.
-    const itemPayload = lines.map(line => ({ id: line.itemId, menu_item_id: line.itemId, quantity: line.quantity, price: line.price, note: [seatLabel(line.seatNumber), line.note].filter(Boolean).join(' · ') || undefined, seat_number: typeof line.seatNumber === 'number' ? line.seatNumber : undefined, modifiers: line.modifiers.map(m => ({ id: m.id, name: m.name, price: m.price })) }))
+    const itemPayload = lines.map(line => ({
+      id: line.itemId,
+      menu_item_id: line.itemId,
+      quantity: line.quantity,
+      price: line.price,
+      variation_id: line.variationId,
+      variation_name: line.variationName,
+      note: [seatLabel(line.seatNumber), line.note].filter(Boolean).join(' · ') || undefined,
+      seat_number: typeof line.seatNumber === 'number' ? line.seatNumber : undefined,
+      modifiers: line.modifiers.map(m => ({ id: m.id, name: m.name, price: m.price }))
+    }))
     const customerPayload = draft.customerName || draft.customerPhone || draft.customerEmail || draft.rncCedula || draft.fiscalName ? {
       name: draft.customerName,
       phone: draft.customerPhone,
@@ -516,7 +522,20 @@ export default function App() {
       rnc_cedula: draft.rncCedula,
       fiscal_name: draft.fiscalName,
     } : undefined
-    const body = { uuid: newIdempotencyKey(), order_type: draft.mode === 'delivery' ? 'Delivery' : draft.mode === 'pickup' ? 'Pickup' : 'Dine In', items: itemPayload, customer: customerPayload, customer_id: draft.customerId || undefined, delivery_address: draft.deliveryAddress || undefined, delivery_time: draft.deliveryTime ? new Date(draft.deliveryTime).toISOString() : undefined, delivery_fee: draft.deliveryFee !== undefined ? draft.deliveryFee : undefined, delivery_executive_id: draft.deliveryExecutiveId !== undefined ? draft.deliveryExecutiveId : undefined }
+    const body: Record<string, unknown> = {
+      uuid: newIdempotencyKey(),
+      order_type: draft.mode === 'delivery' ? 'Delivery' : draft.mode === 'pickup' ? 'Pickup' : 'Dine In',
+      items: itemPayload,
+      customer: customerPayload,
+      customer_id: draft.customerId || undefined,
+      delivery_address: draft.deliveryAddress || undefined,
+      delivery_time: draft.deliveryTime ? new Date(draft.deliveryTime).toISOString() : undefined,
+      delivery_fee: draft.deliveryFee !== undefined ? draft.deliveryFee : undefined,
+      delivery_executive_id: draft.deliveryExecutiveId !== undefined ? draft.deliveryExecutiveId : undefined
+    }
+    if (draft.mode === 'dine_in' && table) {
+      body.table_id = table.id
+    }
     if (draft.existingOrderId) {
       if (draft.existingOrderId < 0) {
         const appended = await appendToPendingLocalOrder(draft.existingOrderId, itemPayload)
@@ -533,14 +552,39 @@ export default function App() {
         if (draft.fiscalName) orderUpdate.fiscal_name = draft.fiscalName
         steps.push(makeStep('PUT', `/pos/orders/${draft.existingOrderId}`, orderUpdate))
       }
-      // The backend selects only order_items not already linked to a KOT, so a
-      // repeated sync cannot print the previous KOT a second time.
       steps.push(makeStep('POST', `/pos/orders/${draft.existingOrderId}/kot`, { note: 'Artículos adicionales desde RestaPP Mesero' }))
       const operation = makeWorkflow(steps, { remoteOrderId: draft.existingOrderId, label: 'append-order' })
       try {
         await queueAndRun(operation)
-        updateTableLocally(table?.id || 0, current => ({ ...current, status: 'waiting_kitchen', currentOrderTotal: Number(current.currentOrderTotal || 0) + lines.reduce((sum, line) => sum + (line.price + line.modifiers.reduce((m, value) => m + value.price, 0)) * line.quantity, 0), currentOrderDue: Number(current.currentOrderDue || 0) + lines.reduce((sum, line) => sum + (line.price + line.modifiers.reduce((m, value) => m + value.price, 0)) * line.quantity, 0), customerName: draft.customerName?.trim() || current.customerName, customerId: draft.customerId || current.customerId }))
+        const addedDelta = lines.reduce((sum, line) => sum + (line.price + line.modifiers.reduce((m, value) => m + value.price, 0)) * line.quantity, 0)
+        updateTableLocally(table?.id || 0, current => ({
+          ...current,
+          status: 'waiting_kitchen',
+          currentOrderTotal: Number(current.currentOrderTotal || 0) + addedDelta,
+          currentOrderDue: Number(current.currentOrderDue || 0) + addedDelta,
+          customerName: draft.customerName?.trim() || current.customerName,
+          customerId: draft.customerId || current.customerId
+        }))
+        const cached = readCache()
+        const orderKey = String(draft.existingOrderId)
+        const existingDetail = (cached.orderDetails?.[orderKey] || {}) as any
+        const currentItems = Array.isArray(existingDetail.items) ? existingDetail.items : []
+        const newItems = lines.map((l, idx) => ({
+          id: currentItems.length + idx + 1,
+          name: l.variationName ? `${l.name} (${l.variationName})` : l.name,
+          quantity: l.quantity,
+          amount: l.price * l.quantity
+        }))
+        saveCache({
+          orderDetails: {
+            ...(cached.orderDetails || {}),
+            [orderKey]: { ...existingDetail, items: [...currentItems, ...newItems] }
+          }
+        })
         setNotice(navigator.onLine ? `Artículos agregados a la orden n.º ${table?.currentOrderNumber || draft.existingOrderId} y enviados a cocina.` : `Artículos guardados para la orden n.º ${table?.currentOrderNumber || draft.existingOrderId}; se enviarán a cocina al restablecerse la conexión.`)
+        if (navigator.onLine && pinSessionRef.current) {
+          void hydrate(pinSessionRef.current)
+        }
       } catch (cause) {
         if (isRetryableOffline(cause)) setNotice(`Artículos guardados para la orden n.º ${table?.currentOrderNumber || draft.existingOrderId}; se reintentará al restablecerse la conexión.`)
         else throw cause
@@ -558,17 +602,111 @@ export default function App() {
     ], { localOrderId, label: 'create-order' })
     try {
       const result = await queueAndRun(operation)
+      const delta = lines.reduce((sum, line) => sum + (line.price + line.modifiers.reduce((m, value) => m + value.price, 0)) * line.quantity, 0)
       if (!navigator.onLine || !result.remoteOrderId) {
-        if (table && localOrderId) updateTableLocally(table.id, current => ({ ...current, status: 'waiting_kitchen', currentOrderId: localOrderId, currentOrderNumber: `P-${Math.abs(localOrderId) % 100000}`, currentOrderTotal: lines.reduce((sum, line) => sum + (line.price + line.modifiers.reduce((m, value) => m + value.price, 0)) * line.quantity, 0), currentOrderDue: lines.reduce((sum, line) => sum + (line.price + line.modifiers.reduce((m, value) => m + value.price, 0)) * line.quantity, 0), customerName: draft.customerName || current.customerName }))
+        if (table && localOrderId) updateTableLocally(table.id, current => ({ ...current, status: 'waiting_kitchen', currentOrderId: localOrderId, currentOrderNumber: `P-${Math.abs(localOrderId) % 100000}`, currentOrderTotal: delta, currentOrderDue: delta, customerName: draft.customerName || current.customerName, customerId: draft.customerId || current.customerId }))
         setNotice('Orden guardada localmente; la mesa y la comanda se sincronizarán al restablecerse la conexión.')
       } else {
         const data = responseData(result.firstResponse)
+        const newOrderId = result.remoteOrderId
+        if (table) {
+          updateTableLocally(table.id, current => ({
+            ...current,
+            status: 'waiting_kitchen',
+            currentOrderId: newOrderId,
+            currentOrderNumber: String(newOrderId),
+            currentOrderTotal: delta,
+            currentOrderDue: delta,
+            customerName: draft.customerName || current.customerName,
+            customerId: draft.customerId || current.customerId
+          }))
+          const cached = readCache()
+          const cachedItems = lines.map((l, idx) => ({
+            id: idx + 1,
+            name: l.variationName ? `${l.name} (${l.variationName})` : l.name,
+            quantity: l.quantity,
+            amount: l.price * l.quantity
+          }))
+          saveCache({
+            orderDetails: {
+              ...(cached.orderDetails || {}),
+              [String(newOrderId)]: { id: newOrderId, items: cachedItems, order_status: 'waiting_kitchen' }
+            }
+          })
+        }
         setNotice(`${draft.mode === 'delivery' ? 'Entrega a domicilio' : draft.mode === 'pickup' ? 'Retiro en el local' : 'Comanda'} n.º ${result.remoteOrderId} enviada a cocina.${formatFiscalSummary(data)}`)
+        if (pinSessionRef.current) {
+          void hydrate(pinSessionRef.current)
+        }
       }
     } catch (cause) {
       if (!isRetryableOffline(cause)) throw cause
-      if (table && localOrderId) updateTableLocally(table.id, current => ({ ...current, status: 'waiting_kitchen', currentOrderId: localOrderId, currentOrderNumber: `P-${Math.abs(localOrderId) % 100000}`, currentOrderTotal: lines.reduce((sum, line) => sum + (line.price + line.modifiers.reduce((m, value) => m + value.price, 0)) * line.quantity, 0), currentOrderDue: lines.reduce((sum, line) => sum + (line.price + line.modifiers.reduce((m, value) => m + value.price, 0)) * line.quantity, 0), customerName: draft.customerName || current.customerName }))
+      if (table && localOrderId) updateTableLocally(table.id, current => ({ ...current, status: 'waiting_kitchen', currentOrderId: localOrderId, currentOrderNumber: `P-${Math.abs(localOrderId) % 100000}`, currentOrderTotal: lines.reduce((sum, line) => sum + (line.price + line.modifiers.reduce((m, value) => m + value.price, 0)) * line.quantity, 0), currentOrderDue: lines.reduce((sum, line) => sum + (line.price + line.modifiers.reduce((m, value) => m + value.price, 0)) * line.quantity, 0), customerName: draft.customerName || current.customerName, customerId: draft.customerId || current.customerId }))
       setQueueCount((await safeOutbox()).length); setNotice('Orden guardada localmente; se enviará a cocina al restablecerse la conexión.')
+    }
+  }
+
+  async function cancelTableOrder(table: RestaurantTable, reason?: string) {
+    if (!pinSession || !table.currentOrderId) return { queued: false, message: 'La mesa no tiene una orden activa.' }
+    const orderId = table.currentOrderId
+    if (orderId < 0) {
+      const operations = await safeOutbox()
+      const op = operations.find(o => o.workflow?.localOrderId === orderId)
+      if (op) await removeOutbox(op.id)
+      updateTableLocally(table.id, current => ({
+        ...current,
+        status: 'available',
+        currentOrderId: undefined,
+        currentOrderNumber: undefined,
+        currentOrderTotal: undefined,
+        currentOrderDue: undefined,
+        customerName: undefined,
+        customerId: undefined
+      }))
+      setNotice(`Orden local de la Mesa ${table.number} cancelada.`)
+      return { queued: false, message: `Orden local de la Mesa ${table.number} cancelada.` }
+    }
+    const operation = makeWorkflow([
+      makeStep('PUT', `/pos/orders/${orderId}`, { actions: ['cancel'], reason: reason || 'Cancelada por el usuario' }, newIdempotencyKey())
+    ], { remoteOrderId: orderId, label: 'cancel-order' })
+    try {
+      const result = await queueAndRun(operation)
+      updateTableLocally(table.id, current => ({
+        ...current,
+        status: 'available',
+        currentOrderId: undefined,
+        currentOrderNumber: undefined,
+        currentOrderTotal: undefined,
+        currentOrderDue: undefined,
+        customerName: undefined,
+        customerId: undefined
+      }))
+      const cached = readCache()
+      if (cached.orderDetails?.[String(orderId)]) {
+        const nextOrderDetails = { ...cached.orderDetails }
+        delete nextOrderDetails[String(orderId)]
+        saveCache({ orderDetails: nextOrderDetails })
+      }
+      if (navigator.onLine && result.firstResponse && pinSessionRef.current) {
+        await hydrate(pinSessionRef.current)
+      }
+      const msg = navigator.onLine ? `Orden n.º ${orderId} cancelada y Mesa ${table.number} liberada.` : `Cancelación de orden guardada localmente.`
+      setNotice(msg)
+      return { queued: !navigator.onLine || !result.firstResponse, message: msg }
+    } catch (cause) {
+      if (!isRetryableOffline(cause)) throw cause
+      updateTableLocally(table.id, current => ({
+        ...current,
+        status: 'available',
+        currentOrderId: undefined,
+        currentOrderNumber: undefined,
+        currentOrderTotal: undefined,
+        currentOrderDue: undefined,
+        customerName: undefined,
+        customerId: undefined
+      }))
+      setQueueCount((await safeOutbox()).length)
+      return { queued: true, message: 'Cancelación guardada; se sincronizará al restablecerse la conexión.' }
     }
   }
 
@@ -773,7 +911,7 @@ export default function App() {
   if (screen === 'setup') return <SetupScreen loading={loading} error={error} defaultDeviceId={deviceId} onSubmit={handleAdminLogin} onDirectPin={handleDirectPin} theme={theme} onTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')} />
   if (screen === 'branches') return <BranchScreen branches={branches} loading={loading} error={error} offline={offline} onSelect={chooseBranch} onBack={() => { clearSession('admin'); setScreen('setup') }} />
   if (screen === 'pin') return <PinScreen brand={restaurantName} branch={activeBranch?.name || ''} role={staffRole} onRoleChange={setStaffRole} offline={offline} loading={loading} error={error} notice={notice} onSubmit={handlePin} canChangeBranch={Boolean(adminSession)} onBack={() => setScreen('branches')} theme={theme} onTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')} />
-  return <FloorScreen brand={restaurantName} branch={activeBranch?.name || ''} roleKey={pinSession?.roleKey || staffRole} userId={pinSession?.userId} deviceId={deviceId} permissions={pinSession?.permissions || {}} tables={tables} items={items} kitchenPlaces={kitchenPlaces} paymentMethods={paymentMethods} offline={offline} queueCount={queueCount} isSyncing={isSyncing} notice={notice} error={error} theme={theme} onTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')} onLogout={logout} onRefresh={() => pinSession && hydrate(pinSession)} onSubmitOrder={submitOrder} onSaveCustomer={saveTableCustomer} onRemoveOrderItem={removeOrderItem} onPrintPreBill={printPreBill} onPayOrder={payOrder} onTransferTable={transferTableOrder} onOpenCashSession={openCashSession} onCloseCashSession={closeCashSession} onApproveCashSession={approveCashSession} onRejectCashSession={rejectCashSession} onReopenCashSession={reopenCashSession} onCashMovement={cashMovement} onClockIn={clockInAttendance} onClockOut={clockOutAttendance} onUpdateKotStatus={updateKotStatus} onSelectTable={setActiveTable} activeTable={activeTable} />
+  return <FloorScreen brand={restaurantName} branch={activeBranch?.name || ''} roleKey={pinSession?.roleKey || staffRole} userId={pinSession?.userId} deviceId={deviceId} permissions={pinSession?.permissions || {}} tables={tables} items={items} kitchenPlaces={kitchenPlaces} paymentMethods={paymentMethods} offline={offline} queueCount={queueCount} isSyncing={isSyncing} notice={notice} error={error} theme={theme} onTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')} onLogout={logout} onRefresh={() => pinSession && hydrate(pinSession)} onSubmitOrder={submitOrder} onSaveCustomer={saveTableCustomer} onRemoveOrderItem={removeOrderItem} onPrintPreBill={printPreBill} onPayOrder={payOrder} onTransferTable={transferTableOrder} onCancelOrder={cancelTableOrder} onOpenCashSession={openCashSession} onCloseCashSession={closeCashSession} onApproveCashSession={approveCashSession} onRejectCashSession={rejectCashSession} onReopenCashSession={reopenCashSession} onCashMovement={cashMovement} onClockIn={clockInAttendance} onClockOut={clockOutAttendance} onUpdateKotStatus={updateKotStatus} onSelectTable={setActiveTable} activeTable={activeTable} />
 }
 
 function nextAdminRestaurantId(session: Session) { return session.restaurantId }
@@ -1243,7 +1381,7 @@ function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error,
   )
 }
 
-function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, tables, items, kitchenPlaces, paymentMethods, offline, queueCount, isSyncing, notice, error, theme, onTheme, onLogout, onRefresh, onSubmitOrder, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onOpenCashSession, onCloseCashSession, onApproveCashSession, onRejectCashSession, onReopenCashSession, onCashMovement, onClockIn, onClockOut, onUpdateKotStatus, onSelectTable, activeTable }: { brand: string; branch: string; roleKey: StaffRole; userId?: number; deviceId: string; permissions: Record<string, boolean>; tables: RestaurantTable[]; items: MenuItem[]; kitchenPlaces: KitchenPlace[]; paymentMethods: PaymentMethodOption[]; offline: boolean; queueCount: number; isSyncing?: boolean; notice: string; error: string; theme: 'light' | 'dark'; onTheme: () => void; onLogout: () => void; onRefresh: () => void; onSubmitOrder: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string) => Promise<void>; onRemoveOrderItem: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onOpenCashSession: (registerId: number, openingFloat: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCloseCashSession: (sessionId: number, countedCash: number, expectedCash: number | undefined, note: string, sendForApproval: boolean, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onApproveCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onRejectCashSession: (sessionId: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onReopenCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCashMovement: (movement: 'cash-in' | 'cash-out' | 'safe-drop', sessionId: number, amount: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onClockIn: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onClockOut: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onUpdateKotStatus: (kotId: number, status: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onSelectTable: (table: RestaurantTable | null) => void; activeTable: RestaurantTable | null }) {
+function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, tables, items, kitchenPlaces, paymentMethods, offline, queueCount, isSyncing, notice, error, theme, onTheme, onLogout, onRefresh, onSubmitOrder, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onCancelOrder, onOpenCashSession, onCloseCashSession, onApproveCashSession, onRejectCashSession, onReopenCashSession, onCashMovement, onClockIn, onClockOut, onUpdateKotStatus, onSelectTable, activeTable }: { brand: string; branch: string; roleKey: StaffRole; userId?: number; deviceId: string; permissions: Record<string, boolean>; tables: RestaurantTable[]; items: MenuItem[]; kitchenPlaces: KitchenPlace[]; paymentMethods: PaymentMethodOption[]; offline: boolean; queueCount: number; isSyncing?: boolean; notice: string; error: string; theme: 'light' | 'dark'; onTheme: () => void; onLogout: () => void; onRefresh: () => void; onSubmitOrder: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string) => Promise<void>; onRemoveOrderItem: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onCancelOrder?: (table: RestaurantTable, reason?: string) => Promise<{ queued: boolean; message: string }>; onOpenCashSession: (registerId: number, openingFloat: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCloseCashSession: (sessionId: number, countedCash: number, expectedCash: number | undefined, note: string, sendForApproval: boolean, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onApproveCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onRejectCashSession: (sessionId: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onReopenCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCashMovement: (movement: 'cash-in' | 'cash-out' | 'safe-drop', sessionId: number, amount: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onClockIn: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onClockOut: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onUpdateKotStatus: (kotId: number, status: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onSelectTable: (table: RestaurantTable | null) => void; activeTable: RestaurantTable | null }) {
   const [showMenu, setShowMenu] = useState(false); const [showQuick, setShowQuick] = useState(false); const [showOps, setShowOps] = useState(false); const [showKitchen, setShowKitchen] = useState(false); const [showCashier, setShowCashier] = useState(false); const [showAttendance, setShowAttendance] = useState(false); const [opsLoading, setOpsLoading] = useState(false); const [notifications, setNotifications] = useState<LiveNotification[]>([]); const [deliverySettings, setDeliverySettings] = useState<DeliverySettings | null>(null); const [deliveryExecutives, setDeliveryExecutives] = useState<DeliveryExecutive[]>([])
   const canCreate = permissions['orders.create'] === true
   const canDelivery = roleKey === 'cajero' && canCreate
@@ -1773,11 +1911,17 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
                     className="pos-product-card"
                     onClick={() => {
                       if (!table && !showQuick) {
-                        // Si no hay mesa activa, seleccionamos una mesa o abrimos quick
                         setActiveNavTab('tables')
                         return
                       }
                       setMobileDrawerOpen(true)
+                      const hasMods = Array.isArray(item.modifiers) && item.modifiers.length > 0
+                      const hasVars = Array.isArray(item.variations) && item.variations.length > 0
+                      if (hasMods || hasVars) {
+                        window.dispatchEvent(new CustomEvent('restapp:customize-item', { detail: item }))
+                      } else {
+                        window.dispatchEvent(new CustomEvent('restapp:quick-add-item', { detail: item }))
+                      }
                     }}
                   >
                     <div className="pos-product-image-wrap">
@@ -1800,8 +1944,13 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
                             return
                           }
                           setMobileDrawerOpen(true)
-                          // Trigger quick add si no requiere modificadores obligatorios
-                          window.dispatchEvent(new CustomEvent('restapp:quick-add-item', { detail: item }))
+                          const hasRequired = Array.isArray(item.modifiers) && item.modifiers.some((m: any) => m.required)
+                          const hasVars = Array.isArray(item.variations) && item.variations.length > 0
+                          if (hasRequired || hasVars) {
+                            window.dispatchEvent(new CustomEvent('restapp:customize-item', { detail: item }))
+                          } else {
+                            window.dispatchEvent(new CustomEvent('restapp:quick-add-item', { detail: item }))
+                          }
                         }}
                       >
                         <Plus size={18} />
@@ -1858,6 +2007,7 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
             onPrintPreBill={onPrintPreBill}
             onPayOrder={onPayOrder}
             onTransferTable={onTransferTable}
+            onCancelOrder={onCancelOrder}
           />
         )}
       </div>
@@ -2032,7 +2182,7 @@ function TablePaymentPanel({ table, payload, items, paymentMethods, offline, onC
   return <section className="table-payment-panel" aria-label={`Cobro de la mesa ${table.number}`}><div className="table-payment-header"><div><p className="eyebrow">COBRO DE LA MESA</p><h3>Mesa {table.number}</h3><small>El turno y la caja chica se administran por separado desde “Turno de caja”.</small></div><button className="icon-button" onClick={onClose} aria-label="Cerrar cobro"><X size={18} /></button></div>{offline && <Alert>Sin conexión: el cobro queda pendiente y se validará automáticamente al recuperar internet.</Alert>}{error && <Alert>{error}</Alert>}{status && <p className="table-payment-status" role="status">{status}</p>}<div className="table-payment-due"><span>Saldo pendiente</span><strong>{formatMoney(summary.due)}</strong></div>{enabledMethods.length ? <div className="table-payment-form"><label>Método<select value={selectedMethod} onChange={event => setMethod(event.target.value)}>{enabledMethods.map(value => <option value={value.code} key={value.code}>{value.label}</option>)}</select></label><label>Monto<input type="number" min="0.01" max={summary.due.toFixed(2)} step="0.01" value={amount} onChange={event => setAmount(event.target.value)} /></label></div> : <Alert>No hay metodos de pago configurados en esta sucursal.</Alert>}<footer><button className="button outline" onClick={onClose}>Cancelar</button><button className="button primary" disabled={busy || !enabledMethods.length || summary.due <= 0} onClick={() => void charge()}><CreditCard size={16} />{busy ? 'Registrando…' : 'Registrar cobro'}</button></footer></section>
 }
 
-function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKey, permissions, paymentMethods, canCharge, offline, deliverySettings, deliveryExecutives, items, onClose, onOpenMenu, onSubmit, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable }: { table: RestaurantTable | null; tables?: RestaurantTable[]; quick: boolean; mobileDrawerOpen?: boolean; isMenuOpen?: boolean; roleKey: StaffRole; permissions: Record<string, boolean>; paymentMethods: PaymentMethodOption[]; canCharge: boolean; offline: boolean; deliverySettings: DeliverySettings | null; deliveryExecutives: DeliveryExecutive[]; items: MenuItem[]; onClose: () => void; onOpenMenu?: () => void; onSubmit: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem?: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }> }) {
+function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKey, permissions, paymentMethods, canCharge, offline, deliverySettings, deliveryExecutives, items, onClose, onOpenMenu, onSubmit, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onCancelOrder }: { table: RestaurantTable | null; tables?: RestaurantTable[]; quick: boolean; mobileDrawerOpen?: boolean; isMenuOpen?: boolean; roleKey: StaffRole; permissions: Record<string, boolean>; paymentMethods: PaymentMethodOption[]; canCharge: boolean; offline: boolean; deliverySettings: DeliverySettings | null; deliveryExecutives: DeliveryExecutive[]; items: MenuItem[]; onClose: () => void; onOpenMenu?: () => void; onSubmit: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem?: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onCancelOrder?: (table: RestaurantTable, reason?: string) => Promise<{ queued: boolean; message: string }> }) {
   const canDelivery = roleKey === 'cajero' && permissions['orders.create'] === true
   const [mode, setMode] = useState<OrderMode>(table ? 'dine_in' : canDelivery ? 'pickup' : 'dine_in')
   const [customerId, setCustomerId] = useState<number | undefined>(table?.customerId)
@@ -2055,6 +2205,9 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
   const [showMenu, setShowMenu] = useState(true)
   const [preBillOpen, setPreBillOpen] = useState(false)
   const [paymentOpen, setPaymentOpen] = useState(false)
+  const [cancelModalOpen, setCancelModalOpen] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
+  const [cancelReason, setCancelReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [savingCustomer, setSavingCustomer] = useState(false)
   const [removingItemId, setRemovingItemId] = useState<number | null>(null)
@@ -2125,8 +2278,17 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
         modifiers: []
       })
     }
+    const handleCustomize = (e: any) => {
+      const item = e.detail
+      if (!item) return
+      setSelected(item)
+    }
     window.addEventListener('restapp:quick-add-item', handleQuickAdd)
-    return () => window.removeEventListener('restapp:quick-add-item', handleQuickAdd)
+    window.addEventListener('restapp:customize-item', handleCustomize)
+    return () => {
+      window.removeEventListener('restapp:quick-add-item', handleQuickAdd)
+      window.removeEventListener('restapp:customize-item', handleCustomize)
+    }
   }, [])
 
   function triggerAddLine(line: OrderLine) {
@@ -2254,6 +2416,17 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
                   title="Mover comanda a otra mesa"
                 >
                   <ArrowRightLeft size={14} />
+                </button>
+              )}
+              {onCancelOrder && permissions['orders.update'] && (
+                <button
+                  type="button"
+                  className="pos-category-chip"
+                  style={{ padding: '0.45rem 0.65rem', fontSize: '0.78rem', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ff6b6b', borderColor: 'rgba(255, 107, 107, 0.3)' }}
+                  onClick={() => setCancelModalOpen(true)}
+                  title="Cancelar comanda de la mesa"
+                >
+                  <XCircle size={14} />
                 </button>
               )}
             </div>
@@ -2598,6 +2771,65 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
             }}
           />
         )}
+        {cancelModalOpen && table?.currentOrderId && (
+          <div className="modal-backdrop" onClick={() => !cancelling && setCancelModalOpen(false)}>
+            <section className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
+              <header>
+                <div>
+                  <p className="eyebrow" style={{ color: '#ff6b6b' }}>CANCELAR ORDEN</p>
+                  <h2>Mesa {table.number}</h2>
+                  <small>Esta acción cancelará la orden #{table.currentOrderNumber || table.currentOrderId} y liberará la mesa inmediatamente.</small>
+                </div>
+                <button className="icon-button" onClick={() => setCancelModalOpen(false)} disabled={cancelling}><X size={18} /></button>
+              </header>
+              <div className="modal-content" style={{ gap: 12 }}>
+                <label>
+                  <span>Motivo de cancelación (opcional)</span>
+                  <input
+                    type="text"
+                    value={cancelReason}
+                    onChange={e => setCancelReason(e.target.value)}
+                    placeholder="Ej. Cliente se retiró, error al ordenar..."
+                    disabled={cancelling}
+                  />
+                </label>
+                <p className="muted" style={{ fontSize: 13, color: '#ff8a65' }}>
+                  Atención: Los artículos enviados a cocina se marcarán como cancelados en el sistema y la mesa quedará libre para nuevos clientes.
+                </p>
+              </div>
+              <footer style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button type="button" className="button outline" onClick={() => setCancelModalOpen(false)} disabled={cancelling}>
+                  Atrás
+                </button>
+                <button
+                  type="button"
+                  className="button"
+                  style={{ background: '#e53935', color: '#fff', borderColor: '#e53935' }}
+                  disabled={cancelling}
+                  onClick={async () => {
+                    if (!onCancelOrder || !table) return
+                    setCancelling(true)
+                    try {
+                      const res = await onCancelOrder(table, cancelReason)
+                      setCancelModalOpen(false)
+                      setCancelReason('')
+                      setExistingItems([])
+                      setOrderDetail(null)
+                      onClose()
+                    } catch (err) {
+                      setLocalError(normalizeError(err, 'No se pudo cancelar la orden.'))
+                    } finally {
+                      setCancelling(false)
+                    }
+                  }}
+                >
+                  <Trash2 size={16} />
+                  {cancelling ? 'Cancelando…' : 'Confirmar cancelación'}
+                </button>
+              </footer>
+            </section>
+          </div>
+        )}
       </section>
     </>
   )
@@ -2841,41 +3073,172 @@ const PRESET_KITCHEN_NOTES = [
 ];
 
 function ModifierModal({ item, seatCount, onClose, onAdd }: { item: MenuItem; seatCount?: number; onClose: () => void; onAdd: (line: OrderLine) => void }) {
-  const [groups, setGroups] = useState<ModifierGroup[]>(normalizeModifiers(item.modifiers)); const [selected, setSelected] = useState<Record<number, ModifierOption[]>>({}); const [seat, setSeat] = useState<OrderLine['seatNumber']>(); const [quantity, setQuantity] = useState(1); const [note, setNote] = useState(''); const [loading, setLoading] = useState(false)
-  // The loading flag intentionally changes when the asynchronous modifier request begins.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { if (!groups.length && item.modifiers === undefined) { setLoading(true); api.modifierGroups('pin', item.id).then(value => setGroups(normalizeModifiers(value))).catch(() => setGroups([])).finally(() => setLoading(false)) } }, [item.id, item.modifiers, groups.length])
-  // Seat tracking is useful when the table wants it, but it must never block a
-  // normal order. The server accepts an omitted seat number, so the default is
-  // intentionally "Sin asignar".
-  const valid = groups.every(group => !group.required || (selected[group.id]?.length || 0) >= group.minSelect)
-  function toggle(group: ModifierGroup, option: ModifierOption) { setSelected(prev => { const current = prev[group.id] || []; const has = current.some(value => value.id === option.id); const next = has ? current.filter(value => value.id !== option.id) : group.maxSelect === 1 ? [option] : current.length < group.maxSelect ? [...current, option] : current; return { ...prev, [group.id]: next } }) }
-  const modifiers = groups.flatMap(group => (selected[group.id] || []).map(option => ({ id: option.id, name: option.name, price: option.price, groupId: group.id })))
-  const seats = seatCount ? Array.from({ length: Math.max(1, Math.min(Math.round(seatCount), 12)) }, (_, index) => index + 1) : []
-  return <div className="modal-backdrop"><section className="modal"><header><div><p className="eyebrow">PERSONALIZAR</p><h2>{item.name}</h2></div><button className="icon-button" onClick={onClose}><X /></button></header><p className="price">{formatMoney(item.price)}</p><div className="modal-content">{seatCount ? <label>Asiento · opcional<select aria-label="Asiento · opcional" value={seat === undefined ? '' : String(seat)} onChange={e => setSeat(e.target.value === 'shared' ? e.target.value : e.target.value === '' ? undefined : Number(e.target.value))}><option value="">Sin asignar</option>{seats.map(value => <option key={value} value={value}>Silla {value}</option>)}<option value="shared">Compartir</option></select></label> : null}{loading && <p className="muted">Cargando opciones…</p>}{groups.map(group => <fieldset key={group.id}><legend>{group.name}{group.required ? ' · obligatorio' : ''}</legend><div className="option-grid">{group.options.filter(option => option.available).map(option => <button key={option.id} className={(selected[group.id] || []).some(value => value.id === option.id) ? 'selected' : ''} onClick={() => toggle(group, option)}>{option.name}{option.price ? ` +${formatMoney(option.price)}` : ''}</button>)}</div></fieldset>)}<label>Nota para cocina
-          <div className="preset-notes-chips" role="group" aria-label="Notas rápidas frecuentes">
-            {PRESET_KITCHEN_NOTES.map(preset => {
-              const active = note.includes(preset);
-              return (
-                <button
-                  key={preset}
-                  type="button"
-                  className={`preset-chip ${active ? 'active' : ''}`}
-                  onClick={() => {
-                    if (active) {
-                      setNote(prev => prev.replace(preset, '').replace(/^,?\s*|\s*,?\s*$/g, '').trim());
-                    } else {
-                      setNote(prev => prev ? `${prev.trim()}, ${preset}` : preset);
-                    }
-                  }}
-                >
-                  {active ? '✓ ' : '+ '}{preset}
-                </button>
-              );
-            })}
+  const [groups, setGroups] = useState<ModifierGroup[]>(normalizeModifiers(item.modifiers));
+  const [variations, setVariations] = useState<ProductVariation[]>(Array.isArray(item.variations) ? item.variations : []);
+  const [selectedVariation, setSelectedVariation] = useState<ProductVariation | null>(null);
+  const [selected, setSelected] = useState<Record<number, ModifierOption[]>>({});
+  const [seat, setSeat] = useState<OrderLine['seatNumber']>();
+  const [quantity, setQuantity] = useState(1);
+  const [note, setNote] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchModifiers = !groups.length && item.modifiers === undefined;
+    const fetchVars = !variations.length && item.variations === undefined;
+    if (fetchModifiers || fetchVars) {
+      setLoading(true);
+      Promise.all([
+        fetchModifiers ? api.modifierGroups('pin', item.id).catch(() => []) : Promise.resolve(null),
+        fetchVars ? api.itemVariations('pin', item.id).catch(() => []) : Promise.resolve(null),
+      ]).then(([mods, vars]) => {
+        if (cancelled) return;
+        if (mods) setGroups(normalizeModifiers(mods));
+        if (vars && Array.isArray(vars) && vars.length > 0) {
+          setVariations(vars);
+          setSelectedVariation(vars[0]);
+        }
+      }).finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    } else if (variations.length > 0 && !selectedVariation) {
+      setSelectedVariation(variations[0]);
+    }
+    return () => { cancelled = true; };
+  }, [item.id, item.modifiers, item.variations, groups.length, variations.length]);
+
+  const basePrice = selectedVariation?.price ?? item.price;
+  const modifiersTotal = groups.flatMap(group => (selected[group.id] || []).map(option => option.price)).reduce((sum, p) => sum + p, 0);
+  const unitPrice = basePrice + modifiersTotal;
+
+  const valid = groups.every(group => !group.required || (selected[group.id]?.length || 0) >= group.minSelect);
+
+  function toggle(group: ModifierGroup, option: ModifierOption) {
+    setSelected(prev => {
+      const current = prev[group.id] || [];
+      const has = current.some(value => value.id === option.id);
+      const next = has ? current.filter(value => value.id !== option.id) : group.maxSelect === 1 ? [option] : current.length < group.maxSelect ? [...current, option] : current;
+      return { ...prev, [group.id]: next };
+    });
+  }
+
+  const modifiers = groups.flatMap(group => (selected[group.id] || []).map(option => ({ id: option.id, name: option.name, price: option.price, groupId: group.id })));
+  const seats = seatCount ? Array.from({ length: Math.max(1, Math.min(Math.round(seatCount), 12)) }, (_, index) => index + 1) : [];
+
+  return (
+    <div className="modal-backdrop">
+      <section className="modal">
+        <header>
+          <div>
+            <p className="eyebrow">PERSONALIZAR</p>
+            <h2>{item.name}</h2>
           </div>
-          <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Escribir o pulsar las notas frecuentes arriba…" />
-        </label><div className="quantity"><button onClick={() => setQuantity(Math.max(1, quantity - 1))}><Minus /></button><b>{quantity}</b><button onClick={() => setQuantity(quantity + 1)}><Plus /></button></div></div><footer><button className="button outline" onClick={onClose}>Cancelar</button><button className="button primary" disabled={!valid} onClick={() => onAdd({ clientId: crypto.randomUUID(), itemId: item.id, name: item.name, price: item.price, quantity, seatNumber: seat, note, modifiers })}>{valid ? 'Agregar a la comanda' : 'Complete las opciones requeridas'}</button></footer></section></div>
+          <button className="icon-button" onClick={onClose}><X /></button>
+        </header>
+        <p className="price">
+          {formatMoney(unitPrice)}
+          {selectedVariation && <span style={{ fontSize: '0.85rem', color: 'var(--pos-text-secondary)', marginLeft: 8 }}>({selectedVariation.name})</span>}
+        </p>
+        <div className="modal-content">
+          {seatCount ? (
+            <label>Asiento · opcional
+              <select aria-label="Asiento · opcional" value={seat === undefined ? '' : String(seat)} onChange={e => setSeat(e.target.value === 'shared' ? e.target.value : e.target.value === '' ? undefined : Number(e.target.value))}>
+                <option value="">Sin asignar</option>
+                {seats.map(value => <option key={value} value={value}>Silla {value}</option>)}
+                <option value="shared">Compartir</option>
+              </select>
+            </label>
+          ) : null}
+          {loading && <p className="muted">Cargando opciones…</p>}
+          {variations.length > 0 && (
+            <fieldset>
+              <legend>Tamaño / Variación</legend>
+              <div className="option-grid">
+                {variations.map(v => (
+                  <button
+                    key={v.id}
+                    type="button"
+                    className={selectedVariation?.id === v.id ? 'selected' : ''}
+                    onClick={() => setSelectedVariation(v)}
+                  >
+                    {v.name} · {formatMoney(v.price)}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          )}
+          {groups.map(group => (
+            <fieldset key={group.id}>
+              <legend>{group.name}{group.required ? ' · obligatorio' : ''}</legend>
+              <div className="option-grid">
+                {group.options.filter(option => option.available).map(option => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    className={(selected[group.id] || []).some(value => value.id === option.id) ? 'selected' : ''}
+                    onClick={() => toggle(group, option)}
+                  >
+                    {option.name}{option.price ? ` +${formatMoney(option.price)}` : ''}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          ))}
+          <label>Nota para cocina
+            <div className="preset-notes-chips" role="group" aria-label="Notas rápidas frecuentes">
+              {PRESET_KITCHEN_NOTES.map(preset => {
+                const active = note.includes(preset);
+                return (
+                  <button
+                    key={preset}
+                    type="button"
+                    className={`preset-chip ${active ? 'active' : ''}`}
+                    onClick={() => {
+                      if (active) {
+                        setNote(prev => prev.replace(preset, '').replace(/^,?\s*|\s*,?\s*$/g, '').trim());
+                      } else {
+                        setNote(prev => prev ? `${prev.trim()}, ${preset}` : preset);
+                      }
+                    }}
+                  >
+                    {active ? '✓ ' : '+ '}{preset}
+                  </button>
+                );
+              })}
+            </div>
+            <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Escribir o pulsar las notas frecuentes arriba…" />
+          </label>
+          <div className="quantity">
+            <button type="button" onClick={() => setQuantity(Math.max(1, quantity - 1))}><Minus /></button>
+            <b>{quantity}</b>
+            <button type="button" onClick={() => setQuantity(quantity + 1)}><Plus /></button>
+          </div>
+        </div>
+        <footer>
+          <button type="button" className="button outline" onClick={onClose}>Cancelar</button>
+          <button
+            type="button"
+            className="button primary"
+            disabled={!valid}
+            onClick={() => onAdd({
+              clientId: crypto.randomUUID(),
+              itemId: item.id,
+              name: selectedVariation ? `${item.name} (${selectedVariation.name})` : item.name,
+              price: basePrice,
+              quantity,
+              seatNumber: seat,
+              note,
+              variationId: selectedVariation?.id,
+              variationName: selectedVariation?.name,
+              modifiers
+            })}
+          >
+            {valid ? 'Agregar a la comanda' : 'Complete las opciones requeridas'}
+          </button>
+        </footer>
+      </section>
+    </div>
+  );
 }
 
 function MenuPanel({ items, onClose }: { items: MenuItem[]; onClose: () => void }) { return <div className="modal-backdrop"><section className="modal wide"><header><div><p className="eyebrow">CATÁLOGO DEL RESTAURANTE</p><h2>Disponibilidad del menú</h2></div><button className="icon-button" onClick={onClose}><X /></button></header><div className="availability-list">{items.map(item => <div key={item.id} className="availability-row"><ProductPhoto item={item} compact /><span className={item.available ? 'availability-dot on' : 'availability-dot off'} /><div><strong>{item.name}</strong><small>{item.available ? 'Disponible' : `No disponible${item.availabilityReason ? ` · ${item.availabilityReason}` : ''}`}</small></div><b>{formatMoney(item.price)}</b></div>)}</div></section></div> }

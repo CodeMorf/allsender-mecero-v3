@@ -224,8 +224,23 @@ export class ApiClient {
   }
   async fiscalDocumentStatus(kind: TokenKind, orderId: number) { return this.request(`/pos/orders/${orderId}/fiscal`, { tokenKind: kind }) }
   async modifierGroups(kind: TokenKind, itemId: number): Promise<any[]> { return asArray<any>(await this.request(`/pos/items/${itemId}/modifier-groups`, { tokenKind: kind })) }
+  async itemVariations(kind: TokenKind, itemId: number): Promise<Array<{ id: number; name: string; price: number }>> {
+    return asArray<any>(await this.request(`/pos/items/${itemId}/variations`, { tokenKind: kind })).map((v: any) => ({
+      id: Number(v.id),
+      name: String(v.name || v.variation_name || v.title || 'Variación'),
+      price: Number(v.price ?? v.amount ?? 0),
+    })).filter(v => v.id > 0)
+  }
   async createOrder(kind: TokenKind, body: unknown, idempotencyKey: string) { return this.request('/pos/orders', { method: 'POST', tokenKind: kind, headers: { 'Idempotency-Key': idempotencyKey }, body: JSON.stringify(body) }) }
   async updateOrder(kind: TokenKind, orderId: number, body: unknown, idempotencyKey: string) { return this.request(`/pos/orders/${orderId}`, { method: 'PUT', tokenKind: kind, headers: { 'Idempotency-Key': idempotencyKey }, body: JSON.stringify(body) }) }
+  async updateOrderStatus(kind: TokenKind, orderId: number, status: string, idempotencyKey: string) { return this.request(`/pos/orders/${orderId}/status`, { method: 'POST', tokenKind: kind, headers: { 'Idempotency-Key': idempotencyKey }, body: JSON.stringify({ status }) }) }
+  async cancelOrder(kind: TokenKind, orderId: number, idempotencyKey: string) {
+    try {
+      return await this.updateOrder(kind, orderId, { actions: ['cancel'] }, idempotencyKey)
+    } catch {
+      return await this.updateOrderStatus(kind, orderId, 'cancelled', idempotencyKey)
+    }
+  }
   async updateOrderItems(kind: TokenKind, orderId: number, body: unknown, idempotencyKey: string) { return this.request(`/pos/orders/${orderId}/items`, { method: 'PUT', tokenKind: kind, headers: { 'Idempotency-Key': idempotencyKey }, body: JSON.stringify(body) }) }
   async createKot(kind: TokenKind, orderId: number, body: unknown, idempotencyKey: string) { return this.request(`/pos/orders/${orderId}/kot`, { method: 'POST', tokenKind: kind, headers: { 'Idempotency-Key': idempotencyKey }, body: JSON.stringify(body) }) }
   async orderKots(kind: TokenKind, orderId: number): Promise<KitchenTicket[]> { return asArray<any>(await this.request(`/pos/orders/${orderId}/kots`, { tokenKind: kind })).map(normalizeKitchenTicket) }

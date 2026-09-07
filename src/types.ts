@@ -129,6 +129,12 @@ export type ModifierGroup = {
   options: ModifierOption[]
 }
 
+export type ProductVariation = {
+  id: number
+  name: string
+  price: number
+}
+
 export type MenuItem = {
   id: number
   name: string
@@ -142,6 +148,7 @@ export type MenuItem = {
   allergens: string[]
   dietaryTags: string[]
   modifiers?: ModifierGroup[]
+  variations?: ProductVariation[]
 }
 
 export type OrderLine = {
@@ -152,6 +159,8 @@ export type OrderLine = {
   quantity: number
   seatNumber?: number | 'shared' | 'takeaway'
   note?: string
+  variationId?: number
+  variationName?: string
   modifiers: Array<{ id: number; name: string; price: number; groupId?: number }>
 }
 
