@@ -1784,8 +1784,9 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
                       {item.imageUrl ? (
                         <img src={item.imageUrl} alt={item.name} loading="lazy" />
                       ) : (
-                        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#22252A', color: '#6C7278', fontSize: '11px' }}>
-                          Sin imagen
+                        <div className="pos-product-placeholder-wrap">
+                          <Utensils size={28} style={{ opacity: 0.4 }} />
+                          <span>{item.categoryName || 'Plato'}</span>
                         </div>
                       )}
                       <button
