@@ -4,7 +4,7 @@ import { api, ApiError, API_BASE_URL, normalizeAttendance } from './api/client'
 import type { AttendanceRecord, Branch, DeliveryExecutive, DeliverySettings, DeviceBinding, KitchenPlace, KitchenTicket, KitchenView, MenuItem, ModifierGroup, ModifierOption, NotificationSettings, OfflineOperation, OfflineStep, OfflineWorkflow, OrderDraft, OrderLine, OrderMode, PaymentMethodOption, RestaurantTable, Session, StaffRole, WaiterRequest } from './types'
 import { clearSession, enqueue, getDeviceId, getStorageScope, listOutbox, newIdempotencyKey, readCache, readSession, removeOutbox, saveCache, saveSession, setStorageScope, updateOutbox } from './storage/offline'
 import { CustomerModal } from './CustomerModal'
-import { ArrowLeftFromLine, ArrowRightLeft, Bell, CalendarDays, Check, ChefHat, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, CloudOff, Clock, Coffee, ConciergeBell, CreditCard, Delete, Divide, Flower2 as Spa, Globe, Globe2, Lock, LogOut, Map, Martini, Menu, Minus, Moon, Plus, Printer, RefreshCw, Search, Sun, Truck, Unlock, UserCheck, UserCircle2, UserRound, UsersRound, UserX, Utensils, UtensilsCrossed, Wallet, Wine, Wifi, X } from 'lucide-react'
+import { ArrowLeftFromLine, ArrowRightLeft, BedDouble, Bell, CalendarDays, Check, ChefHat, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, CloudOff, Clock, Coffee, ConciergeBell, CreditCard, Delete, Divide, Flower2 as Spa, Globe, Globe2, Lock, LogOut, Map, Martini, Menu, Minus, Moon, Plus, Printer, RefreshCw, Search, ShieldCheck, Sun, Truck, Unlock, UserCheck, UserCircle2, UserRound, UsersRound, UserX, Utensils, UtensilsCrossed, Wallet, Wine, Wifi, X } from 'lucide-react'
 import { Capacitor } from '@capacitor/core'
 import { Haptics } from '@capacitor/haptics'
 import { LocalNotifications } from '@capacitor/local-notifications'
@@ -787,196 +787,198 @@ function BranchScreen({ branches, loading, error, offline, onSelect, onBack }: {
   return <main className="page padded"><header className="simple-header"><button className="icon-button" onClick={onBack}><ChevronLeft /></button><div><p className="eyebrow">AUTORIZACIÓN DEL DISPOSITIVO</p><h1>Seleccione la sucursal</h1></div>{offline && <CloudOff className="warning-icon" />}</header><div className="branch-grid">{branches.length ? branches.map(branch => <button className="branch-card" key={branch.id} onClick={() => onSelect(branch)} disabled={loading}><Map size={24} /><span>{branch.name}</span><small>Identificador {branch.id}</small></button>) : <div className="empty"><p>No hay sucursales disponibles.</p><button className="button outline" onClick={onBack}>Volver a configurar</button></div>}</div>{error && <Alert>{error}</Alert>}</main>
 }
 
-function RestaurantMark() {
-  return (
-    <div className="brand-mark brand-mark--restaurant" aria-hidden="true">
-      <Utensils size={31} strokeWidth={1.3} />
-    </div>
-  )
-}
-
-function HotelMark() {
-  return (
-    <div className="hotel-monogram" aria-hidden="true">
-      <span className="hotel-leaf">♧</span>
-      <span className="hotel-h">H</span>
-    </div>
-  )
-}
-
-function FooterCategories({ dark = false }: { dark?: boolean }) {
-  return (
-    <div className={`categories ${dark ? 'categories--dark' : ''}`}>
-      {!dark ? (
-        <>
-          <div><Utensils /><span>RESTAURANTES</span></div>
-          <i />
-          <div><Coffee /><span>CAFETERÍAS</span></div>
-          <i />
-          <div><Martini /><span>BARES</span></div>
-        </>
-      ) : (
-        <>
-          <div><ConciergeBell /><span>HOTELES</span></div>
-          <i />
-          <div><Spa /><span>SPA</span></div>
-          <i />
-          <div><UsersRound /><span>EVENTOS</span></div>
-        </>
-      )}
-    </div>
-  )
-}
-
 function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error, notice, onSubmit, canChangeBranch, onBack, theme, onTheme }: { brand: string; branch: string; role: StaffRole; onRoleChange: (role: StaffRole) => void; offline: boolean; loading: boolean; error: string; notice: string; onSubmit: (pin: string) => void; canChangeBranch: boolean; onBack: () => void; theme?: 'light' | 'dark'; onTheme?: () => void }) {
   const [pin, setPin] = useState('')
-  const press = (key: string) => {
+
+  const dots = useMemo(() => Array.from({ length: 4 }, (_, i) => i < pin.length), [pin])
+
+  const addDigit = (digit: string) => {
     if (loading) return
-    if (key === 'backspace') return setPin(p => p.slice(0, -1))
     if (pin.length < 4) {
-      const next = pin + key
+      const next = pin + digit
       setPin(next)
-      if (next.length === 4) window.setTimeout(() => onSubmit(next), 120)
+      if (next.length === 4) {
+        window.setTimeout(() => onSubmit(next), 120)
+      }
     }
   }
+
+  const removeDigit = () => {
+    if (loading) return
+    setPin(current => current.slice(0, -1))
+  }
+
   const clearPin = () => setPin('')
-  const isDark = theme === 'dark'
+
+  const signIn = () => {
+    if (loading) return
+    if (pin.length === 4) {
+      onSubmit(pin)
+    }
+  }
+
+  const profiles = ['Cajero', 'Mesero', 'Cocina', 'Supervisor', 'Repartidor']
 
   const roleDisplayMap: Record<StaffRole, string> = {
     cajero: 'Cajero',
     mesero: 'Mesero',
-    chef: 'Chef',
-    head: 'Gerente',
+    chef: 'Cocina',
+    head: 'Supervisor',
     repartidor: 'Repartidor',
   }
   const roleValueMap: Record<string, StaffRole> = {
     'Cajero': 'cajero',
     'Mesero': 'mesero',
-    'Chef': 'chef',
-    'Gerente': 'head',
+    'Cocina': 'chef',
+    'Supervisor': 'head',
     'Repartidor': 'repartidor',
-    'Recepción': 'cajero',
-    'Conserjería': 'mesero',
-    'Caja': 'cajero',
   }
 
-  const options = isDark
-    ? ['Recepción', 'Gerente', 'Conserjería', 'Caja']
-    : ['Cajero', 'Mesero', 'Chef', 'Gerente']
-
-  const keys = ['1','2','3','4','5','6','7','8','9','0','backspace']
+  const statusText = loading
+    ? 'Validando código personal…'
+    : error
+      ? 'Código incorrecto. Intente de nuevo.'
+      : notice || (offline ? 'Sin conexión · sesión local' : 'Sesión cerrada. Introduce el código del siguiente empleado.')
 
   return (
-    <main className="hospitality-shell">
-      {/* Top Floating Controls */}
-      <div className="hospitality-top-bar">
-        {canChangeBranch ? (
-          <button type="button" className="hospitality-pill-btn" onClick={onBack}>
-            <ChevronLeft size={16} /> Cambiar de sucursal
-          </button>
-        ) : <span />}
-        {onTheme && (
-          <button type="button" className="hospitality-pill-btn" onClick={onTheme} title={`Cambiar a modo ${isDark ? 'claro' : 'oscuro'}`} aria-label="Cambiar tema">
-            {isDark ? <Sun size={15} /> : <Moon size={15} />}
-            <span>{isDark ? 'Modo claro' : 'Modo oscuro'}</span>
-          </button>
-        )}
-      </div>
+    <main className={`login-shell theme-${theme || 'light'}`}>
+      <section className="hero-panel" aria-label="RestaPP Hospitality">
+        <div className="hero-overlay" />
 
-      <section className={`half ${isDark ? 'half--dark' : 'half--light'}`}>
-        <div className={`background-image ${isDark ? 'hotel-image' : 'restaurant-image'}`} />
-        
-        {!isDark ? (
-          <div className="side-copy side-copy--left">
-            <h1>Buena<br/>comida<br/>mejores<br/>historias</h1>
-            <span className="copy-rule"/>
-            <p>LA HOSPITALIDAD<br/>TAMBIÉN<br/>SE SIRVE</p>
+        <header className="brand-lockup">
+          <img src="/assets/restapp-logo.png" alt="RestaPP" className="brand-logo" />
+          <div>
+            <div className="brand-name">Resta<span>PP</span></div>
+            <div className="brand-subtitle">RESTAURANTES · HOTELES · BARES</div>
           </div>
-        ) : (
-          <div className="center-tag">
-            <span>HOSPITALIDAD</span>
-            <span>QUE INSPIRA</span>
-            <i/>
-          </div>
-        )}
+        </header>
 
-        <div className={`login-card ${isDark ? 'login-card--dark' : 'login-card--light'}`}>
-          <div className="card-language">
-            <Globe2 size={15} />
-            <span>ES</span>
-            <ChevronDown size={15} />
+        <div className="hero-copy">
+          <p className="eyebrow">HOSPITALIDAD QUE CONECTA</p>
+          <h1>
+            Buena comida,
+            <br />
+            mejores <em>historias</em>
+          </h1>
+          <div className="gold-rule" />
+          <p className="hero-description">Una experiencia premium desde el primer acceso.</p>
+        </div>
+
+        <div className="hospitality-list" aria-label="Sectores">
+          <div><UtensilsCrossed size={22} /><span>Restaurantes</span></div>
+          <div><BedDouble size={22} /><span>Hoteles</span></div>
+          <div><Martini size={22} /><span>Bares</span></div>
+          <div><Coffee size={22} /><span>Cafeterías</span></div>
+        </div>
+      </section>
+
+      <section className="access-side">
+        <div className="side-message side-message-top">
+          <ShieldCheck size={28} />
+          <span>PERSONAS QUE CREAN EXPERIENCIAS INOLVIDABLES</span>
+        </div>
+
+        <article className="login-card">
+          <div className="card-toolbar">
+            {canChangeBranch && (
+              <button className="branch-button" type="button" onClick={onBack} title="Cambiar de sucursal">
+                <ChevronLeft size={16} />
+                <span>Sucursal</span>
+              </button>
+            )}
+            <button className="language-button" type="button" aria-label="Idioma">
+              <Globe2 size={18} />
+              <span>ES</span>
+              <ChevronDown size={15} />
+            </button>
+            {onTheme && (
+              <button
+                className="theme-button"
+                type="button"
+                onClick={onTheme}
+                aria-label="Cambiar apariencia"
+                title={`Cambiar a modo ${theme === 'light' ? 'oscuro' : 'claro'}`}
+              >
+                {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+              </button>
+            )}
           </div>
 
-          <div className="brand-zone">
-            {isDark ? <HotelMark /> : <RestaurantMark />}
-            <div className={`brand-name ${isDark ? 'hotel-name' : ''}`}>
-              {brand ? brand.toUpperCase() : (isDark ? 'BELLAVISTA' : 'LA TAVOLA')}
-            </div>
-            <div className="brand-subtitle">{branch ? branch.toUpperCase() : (isDark ? 'HOTEL & SPA' : 'RESTAURANTE')}</div>
+          <div className="card-brand">
+            <img src="/assets/restapp-logo.png" alt="" />
+            <div className="card-brand-name">Resta<span>PP</span></div>
+            <div className="card-brand-subtitle">{branch ? `${brand ? brand.toUpperCase() : 'RESTAPP'} · ${branch.toUpperCase()}` : (brand ? brand.toUpperCase() : 'SISTEMA PARA HOSPITALIDAD')}</div>
           </div>
 
-          <div className="short-rule" />
-          <h2>Portal de acceso</h2>
-          <p className="card-kicker">{isDark ? 'Un gran servicio comienza aquí' : 'Nuestro equipo hace la diferencia'}</p>
+          <div className="welcome-copy">
+            <h2>Bienvenido</h2>
+            <p>Selecciona tu perfil e ingresa tu código</p>
+          </div>
 
           <label className="profile-select">
-            <UserRound size={25} strokeWidth={1.7} />
-            <span className="profile-copy">
+            <UserRound size={24} />
+            <span className="profile-text">
               <small>Seleccionar perfil</small>
-              <select
-                value={roleDisplayMap[role] || (isDark ? 'Recepción' : 'Cajero')}
-                disabled={offline || loading}
-                onChange={e => {
-                  clearPin()
-                  const selectedRole = roleValueMap[e.target.value] || 'mesero'
-                  onRoleChange(selectedRole)
-                }}
-              >
-                {options.map(o => <option key={o}>{o}</option>)}
-              </select>
+              <strong>{roleDisplayMap[role] || 'Cajero'}</strong>
             </span>
-            <ChevronDown size={20} className="select-chevron" />
+            <select
+              value={roleDisplayMap[role] || 'Cajero'}
+              disabled={offline || loading}
+              onChange={(event) => {
+                clearPin()
+                const selectedRole = roleValueMap[event.target.value] || 'mesero'
+                onRoleChange(selectedRole)
+              }}
+              aria-label="Seleccionar perfil"
+            >
+              {profiles.map((item) => (
+                <option key={item} value={item}>{item}</option>
+              ))}
+            </select>
+            <ChevronDown className="select-arrow" size={20} />
           </label>
 
-          <div className={`pin-dots ${error ? 'has-error' : ''} ${notice ? 'has-success' : ''}`} aria-label={`${pin.length} de 4 dígitos ingresados`}>
-            {[0, 1, 2, 3].map(i => <span key={i} className={i < pin.length ? 'active' : ''} />)}
-          </div>
-
-          <div className="keypad">
-            {keys.map(key => (
-              <button
-                type="button"
-                key={key}
-                disabled={loading}
-                className={`pin-key ${key === '0' ? 'pin-key--zero' : ''} ${key === 'backspace' ? 'pin-key--back' : ''}`}
-                onClick={() => press(key)}
-                aria-label={key === 'backspace' ? 'Borrar' : `Número ${key}`}
-              >
-                {key === 'backspace' ? <ArrowLeftFromLine size={22} strokeWidth={1.9} /> : key}
-              </button>
+          <div className={`pin-dots ${error ? 'has-error' : ''}`} aria-label={`${pin.length} dígitos ingresados`}>
+            {dots.map((filled, index) => (
+              <span key={index} className={filled ? 'filled' : ''} />
             ))}
           </div>
 
-          <div className="card-footer-rule" />
-          <p className="session-title">Sesión cerrada.</p>
-          <p className={`session-copy ${error ? 'error' : ''} ${notice ? 'success' : ''}`}>
-            {loading ? 'Validando código personal…' : error ? 'Código incorrecto. Intente de nuevo.' : notice || (offline ? 'Sin conexión · sesión local' : 'Introduce el código del siguiente empleado.')}
-          </p>
-        </div>
+          <div className="keypad" aria-label="Teclado numérico">
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => (
+              <button key={digit} type="button" disabled={loading} onClick={() => addDigit(String(digit))}>
+                {digit}
+              </button>
+            ))}
+            <span className="keypad-spacer" />
+            <button type="button" disabled={loading} onClick={() => addDigit('0')}>
+              0
+            </button>
+            <button type="button" disabled={loading} onClick={removeDigit} aria-label="Borrar">
+              <Delete size={24} />
+            </button>
+          </div>
 
-        {isDark ? (
-          <>
-            <div className="side-copy side-copy--right">
-              <h1>Personas<br/>que crean<br/>estancias<br/>inolvidables</h1>
-              <span className="copy-rule"/>
-              <p>HOTELERÍA<br/>ES ARTE<br/>EN CADA DETALLE</p>
-            </div>
-            <FooterCategories dark />
-            <div className="bottom-claim">GRANDES<br/>EXPERIENCIAS<br/>SIEMPRE</div>
-          </>
-        ) : (
-          <FooterCategories />
-        )}
+          <button className="primary-action" type="button" disabled={loading || pin.length !== 4} onClick={signIn}>
+            {loading ? 'Validando…' : 'Iniciar sesión'}
+            <span aria-hidden="true">→</span>
+          </button>
+
+          <div className={`status-message ${error ? 'has-error' : notice || (pin.length === 4 && !error) ? 'success' : ''}`} aria-live="polite">
+            {statusText}
+          </div>
+
+          <div className="trust-row">
+            <span>Seguridad</span><i />
+            <span>Control</span><i />
+            <span>Mejor servicio</span>
+          </div>
+        </article>
+
+        <div className="side-message side-message-bottom">
+          <ChefHat size={28} />
+          <span>LA GASTRONOMÍA NOS UNE</span>
+        </div>
       </section>
     </main>
   )
