@@ -2660,6 +2660,13 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
       const amount = Number(item.amount ?? item.total ?? item.price ?? 0)
       return { id: Number(item.id || item.order_item_id), name: String(item.name || item.menu_item_name || item.product_name || 'Producto'), quantity, amount: amount || Number(item.price || 0) * quantity }
     }).filter(item => Number.isInteger(item.id) && item.id > 0))
+    const cust = orderDetail?.customer || orderDetail?.data?.customer
+    if (cust?.rnc_cedula || cust?.rncCedula) {
+      setRncCedula(cust.rnc_cedula || cust.rncCedula || '')
+    }
+    if (cust?.fiscal_name || cust?.fiscalName) {
+      setFiscalName(cust.fiscal_name || cust.fiscalName || '')
+    }
   }, [orderDetail])
   useEffect(() => {
     const handleQuickAdd = (e: any) => {
