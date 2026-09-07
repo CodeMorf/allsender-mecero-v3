@@ -65,7 +65,7 @@ export function CustomerModal({ currentCustomer, offline, onClose, onSelect }: C
         setRncStatusMsg('RNC/Cédula no registrado previamente en el sistema.')
       }
     } catch {
-      setRncStatusMsg('No se pudo verificar el RNC con el servidor.')
+      setRncStatusMsg('No se pudo verificar el RNC en este momento. Verifique la conexión.')
     } finally {
       setSearchingRnc(false)
     }
