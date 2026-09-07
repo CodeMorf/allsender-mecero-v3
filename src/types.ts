@@ -198,6 +198,61 @@ export type ReceiptSettings = {
   [key: string]: unknown
 }
 
+export type FiscalTypeDetails = {
+  [code: string]: string
+}
+
+export type FiscalCapabilities = {
+  version?: string
+  scope?: {
+    restaurant_id?: number
+    branch_id?: number
+  }
+  country?: {
+    id?: number
+    code?: string
+    name?: string
+  }
+  traditional?: {
+    available: boolean
+    enabled: boolean
+    ready: boolean
+    types?: Record<string, string>
+    default_type?: string
+    sequences_configured?: number
+  }
+  electronic?: {
+    available: boolean
+    enabled: boolean
+    ready: boolean
+    acceptance_source?: string
+    certificate_configured?: boolean
+    commercial_status?: string
+    types?: Record<string, string>
+    type_map?: Record<string, string>
+    default_type?: string
+    readiness?: {
+      ready: boolean
+      status?: string
+      acceptance_source?: string
+      provider_class?: string
+      provider_configured?: boolean
+      acceptance_verified?: boolean
+      reasons?: Record<string, string>
+      checklist?: Array<{
+        id: string
+        label: string
+        complete: boolean
+      }>
+    }
+  }
+  rules?: {
+    source?: string
+    frontend_must_not_calculate?: boolean
+    preview_consumes_sequence?: boolean
+  }
+}
+
 export type PaymentMethodOption = {
   code: string
   label: string
@@ -326,6 +381,7 @@ export type AppCache = {
   deliverySettings?: DeliverySettings | null
   deliveryExecutives?: DeliveryExecutive[]
   receiptSettings?: ReceiptSettings | null
+  fiscalCapabilities?: FiscalCapabilities | null
   printers?: Printer[]
   modules?: string[]
   features?: Record<string, boolean>

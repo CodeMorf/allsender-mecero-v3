@@ -1,4 +1,4 @@
-import type { ApiErrorShape, AttendanceRecord, Branch, DeliveryExecutive, DeliverySettings, DeviceBinding, KitchenPlace, KitchenTicket, MenuItem, PaymentMethodOption, PosCustomer, Printer, ReceiptSettings, RestaurantTable, Session, StaffRole, StaffSchedule, TokenKind, WaiterRequest } from '../types'
+import type { ApiErrorShape, AttendanceRecord, Branch, DeliveryExecutive, DeliverySettings, DeviceBinding, FiscalCapabilities, KitchenPlace, KitchenTicket, MenuItem, PaymentMethodOption, PosCustomer, Printer, ReceiptSettings, RestaurantTable, Session, StaffRole, StaffSchedule, TokenKind, WaiterRequest } from '../types'
 
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'https://restapp.allsender.tech/api/application-integration').replace(/\/$/, '')
 
@@ -163,10 +163,6 @@ export class ApiClient {
     const value = unwrap<any>(await this.request('/platform/receipt-settings', { tokenKind: kind }))
     return value && typeof value === 'object' ? value as ReceiptSettings : null
   }
-  async fiscalCapabilities(kind: TokenKind): Promise<Record<string, unknown> | null> {
-    const value = unwrap<any>(await this.request('/platform/fiscal-capabilities', { tokenKind: kind }))
-    return value && typeof value === 'object' ? value as Record<string, unknown> : null
-  }
   async orderTypes(kind: TokenKind) { return asArray<any>(await this.request('/pos/order-types', { tokenKind: kind })) }
   async deliveryExecutives(kind: TokenKind): Promise<DeliveryExecutive[]> { return asArray<any>(await this.request('/pos/delivery-executives', { tokenKind: kind })).map((value: any) => ({ id: Number(value.id), name: String(value.name || `Repartidor ${value.id}`), phone: value.phone, status: value.status || value.status_raw })) }
   async deliverySettings(kind: TokenKind): Promise<DeliverySettings | null> { const value = await this.request<any>('/pos/delivery-settings', { tokenKind: kind }); const data = value?.data; if (!data) return null; return { ...data, is_enabled: data.is_enabled === true || data.is_enabled === 1 || data.is_enabled === '1', fixed_fee: data.fixed_fee == null ? null : Number(data.fixed_fee) } }
@@ -227,6 +223,13 @@ export class ApiClient {
         ecf_type: documentType === 'electronic' ? (ecfType || receiptType || 'E32') : undefined,
       }),
     })
+  }
+  async fiscalCapabilities(kind: TokenKind): Promise<FiscalCapabilities | null> {
+    try {
+      return unwrap<any>(await this.request('/platform/fiscal-capabilities', { tokenKind: kind })) as FiscalCapabilities
+    } catch {
+      return null
+    }
   }
   async fiscalDocumentStatus(kind: TokenKind, orderId: number) { return this.request(`/pos/orders/${orderId}/fiscal`, { tokenKind: kind }) }
   async modifierGroups(kind: TokenKind, itemId: number): Promise<any[]> { return asArray<any>(await this.request(`/pos/items/${itemId}/modifier-groups`, { tokenKind: kind })) }

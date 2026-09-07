@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Search, UserPlus, ChevronDown, ChevronUp, Check, X, Building, Phone, Mail, FileText, Pencil, UserCircle2 } from 'lucide-react'
-import type { PosCustomer } from './types'
+import type { PosCustomer, FiscalCapabilities } from './types'
 import { api } from './api/client'
 
 export interface CustomerModalProps {
@@ -16,21 +16,38 @@ export interface CustomerModalProps {
     receiptType?: string
   }
   canManageFiscal?: boolean
+  fiscalCapabilities?: FiscalCapabilities | null
   offline: boolean
   onClose: () => void
   onSelect: (customer: PosCustomer, receiptType?: string) => void
 }
 
-export function CustomerModal({ currentCustomer, canManageFiscal = true, offline, onClose, onSelect }: CustomerModalProps) {
+export function CustomerModal({ currentCustomer, canManageFiscal = true, fiscalCapabilities, offline, onClose, onSelect }: CustomerModalProps) {
+  const isElectronicReady = Boolean(fiscalCapabilities?.electronic?.ready || fiscalCapabilities?.electronic?.enabled)
+  const defaultFinalConsumer = isElectronicReady ? 'E32' : 'B02'
+  const defaultFiscalCredit = isElectronicReady ? 'E31' : 'B01'
+
   const [searchTerm, setSearchTerm] = useState('')
   const [searchResults, setSearchResults] = useState<PosCustomer[]>([])
   const [loading, setLoading] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [editingCustomerId, setEditingCustomerId] = useState<number | null>(null)
   const [showBilling, setShowBilling] = useState(false)
-  const [receiptType, setReceiptType] = useState(currentCustomer?.receiptType || 'E32')
+  const [receiptType, setReceiptType] = useState(() => {
+    if (currentCustomer?.receiptType) return currentCustomer.receiptType
+    if (currentCustomer?.rncCedula) return defaultFiscalCredit
+    return defaultFinalConsumer
+  })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  // Auto-switch to fiscal credit when customer has RNC
+  useEffect(() => {
+    if (currentCustomer?.rncCedula && !currentCustomer?.receiptType) {
+      setReceiptType(defaultFiscalCredit)
+      setShowBilling(true)
+    }
+  }, [currentCustomer?.rncCedula, defaultFiscalCredit])
 
   // Create / Edit form state
   const [name, setName] = useState('')
@@ -97,8 +114,12 @@ export function CustomerModal({ currentCustomer, canManageFiscal = true, offline
         if (!commercialName.trim() && (found.commercialName || found.name)) setCommercialName(found.commercialName || found.name)
         if (!phone.trim() && found.phone) setPhone(found.phone)
         if (!email.trim() && found.email) setEmail(found.email)
+        setReceiptType(defaultFiscalCredit)
+        setShowBilling(true)
         setRncStatusMsg(`✓ Registrado: ${found.fiscalName || found.name}`)
       } else {
+        setReceiptType(defaultFiscalCredit)
+        setShowBilling(true)
         setRncStatusMsg('RNC/Cédula no registrado previamente en el sistema.')
       }
     } catch {
@@ -291,7 +312,12 @@ export function CustomerModal({ currentCustomer, canManageFiscal = true, offline
                       <div
                         key={c.id}
                         className={`customer-item ${isSelected ? 'selected' : ''}`}
-                        onClick={() => onSelect(c, c.rncCedula ? (receiptType === 'B02' ? 'B01' : receiptType) : receiptType)}
+                        onClick={() => {
+                          const targetReceipt = c.rncCedula
+                            ? (receiptType === 'B02' || receiptType === 'E32' ? defaultFiscalCredit : receiptType)
+                            : receiptType
+                          onSelect(c, targetReceipt)
+                        }}
                       >
                         <div className="customer-item-info">
                           <div className="customer-name-row">
@@ -423,18 +449,37 @@ export function CustomerModal({ currentCustomer, canManageFiscal = true, offline
                             onChange={e => setReceiptType(e.target.value)}
                             style={{ marginTop: 4, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)' }}
                           >
-                            <optgroup label="Factura Electrónica (e-CF)">
-                              <option value="E32">E32 - Factura de Consumo Electrónica (Consumidor Final)</option>
-                              <option value="E31">E31 - Factura de Crédito Fiscal Electrónica</option>
-                              <option value="E44">E44 - Régimen Especial Electrónico</option>
-                              <option value="E45">E45 - Gubernamental Electrónico</option>
-                            </optgroup>
-                            <optgroup label="Comprobantes Tradicionales (NCF Serie B)">
-                              <option value="B02">B02 - Factura de Consumo (Consumidor Final)</option>
-                              <option value="B01">B01 - Factura de Crédito Fiscal</option>
-                              <option value="B14">B14 - Régimen Especial de Tributación</option>
-                              <option value="B15">B15 - Comprobante Gubernamental</option>
-                            </optgroup>
+                            {isElectronicReady ? (
+                              <>
+                                <optgroup label="Factura Electrónica (e-CF) · Activo en esta sucursal">
+                                  <option value="E32">E32 - Factura de Consumo Electrónica (Consumidor Final)</option>
+                                  <option value="E31">E31 - Factura de Crédito Fiscal Electrónica</option>
+                                  <option value="E44">E44 - Régimen Especial Electrónico</option>
+                                  <option value="E45">E45 - Gubernamental Electrónico</option>
+                                </optgroup>
+                                <optgroup label="Comprobantes Tradicionales (NCF Serie B)">
+                                  <option value="B02">B02 - Factura de Consumo (Consumidor Final)</option>
+                                  <option value="B01">B01 - Factura de Crédito Fiscal</option>
+                                  <option value="B14">B14 - Régimen Especial de Tributación</option>
+                                  <option value="B15">B15 - Comprobante Gubernamental</option>
+                                </optgroup>
+                              </>
+                            ) : (
+                              <>
+                                <optgroup label="Comprobantes Tradicionales (NCF Serie B) · Activo en esta sucursal">
+                                  <option value="B02">B02 - Factura de Consumo (Consumidor Final)</option>
+                                  <option value="B01">B01 - Factura de Crédito Fiscal</option>
+                                  <option value="B14">B14 - Régimen Especial de Tributación</option>
+                                  <option value="B15">B15 - Comprobante Gubernamental</option>
+                                </optgroup>
+                                <optgroup label="Factura Electrónica (e-CF)">
+                                  <option value="E32">E32 - Factura de Consumo Electrónica (Consumidor Final)</option>
+                                  <option value="E31">E31 - Factura de Crédito Fiscal Electrónica</option>
+                                  <option value="E44">E44 - Régimen Especial Electrónico</option>
+                                  <option value="E45">E45 - Gubernamental Electrónico</option>
+                                </optgroup>
+                              </>
+                            )}
                           </select>
                         </label>
                       </div>

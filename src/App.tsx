@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { api, ApiError, API_BASE_URL, normalizeAttendance } from './api/client'
-import type { AttendanceRecord, Branch, DeliveryExecutive, DeliverySettings, DeviceBinding, KitchenPlace, KitchenTicket, KitchenView, MenuItem, ModifierGroup, ModifierOption, NotificationSettings, OfflineOperation, OfflineStep, OfflineWorkflow, OrderDraft, OrderLine, OrderMode, PaymentMethodOption, ProductVariation, RestaurantTable, Session, StaffRole, WaiterRequest } from './types'
+import type { AttendanceRecord, Branch, DeliveryExecutive, DeliverySettings, DeviceBinding, FiscalCapabilities, KitchenPlace, KitchenTicket, KitchenView, MenuItem, ModifierGroup, ModifierOption, NotificationSettings, OfflineOperation, OfflineStep, OfflineWorkflow, OrderDraft, OrderLine, OrderMode, PaymentMethodOption, ProductVariation, RestaurantTable, Session, StaffRole, WaiterRequest } from './types'
 import { clearSession, enqueue, getDeviceId, getStorageScope, listOutbox, newIdempotencyKey, readCache, readSession, removeOutbox, saveCache, saveSession, setStorageScope, updateOutbox } from './storage/offline'
 import { CustomerModal } from './CustomerModal'
 import { ArrowLeftFromLine, ArrowRightLeft, Banknote, BatteryCharging, BedDouble, Bell, BookOpen, CalendarDays, Check, ChefHat, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, CloudLightning, CloudOff, Clock, Coffee, ConciergeBell, CreditCard, Delete, Divide, Edit3, FileText, Flame, Flower2 as Spa, Globe, Globe2, History, LayoutGrid, Lock, LogOut, Map as LucideMap, Martini, Menu, Minus, Moon, Plus, Printer, Receipt, RefreshCw, Search, Send, ShieldCheck, SlidersHorizontal, ShoppingCart, Sun, Trash2, Truck, Unlock, UserCheck, UserCircle2, UserRound, Users, UsersRound, UserX, Utensils, UtensilsCrossed, Wallet, Wine, Wifi, X, XCircle } from 'lucide-react'
@@ -138,6 +138,7 @@ export default function App() {
   const [items, setItems] = useState<MenuItem[]>([])
   const [kitchenPlaces, setKitchenPlaces] = useState<KitchenPlace[]>([])
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>(defaultPaymentMethods)
+  const [fiscalCapabilities, setFiscalCapabilities] = useState<FiscalCapabilities | null>(null)
   const [activeTable, setActiveTable] = useState<RestaurantTable | null>(null)
   const [offline, setOffline] = useState(!navigator.onLine)
   const [loading, setLoading] = useState(false)
@@ -234,6 +235,7 @@ export default function App() {
     setItems(cache.menuItems || [])
     setKitchenPlaces(cache.kotPlaces || [])
     if (Array.isArray(cache.paymentMethods) && cache.paymentMethods.length) setPaymentMethods(cache.paymentMethods)
+    if (cache.fiscalCapabilities) setFiscalCapabilities(cache.fiscalCapabilities)
     setRestaurantHash(cache.restaurantHash || '')
     setRestaurantName(cache.restaurantName || 'RestaPP')
     setQueueCount((await safeOutbox()).length)
@@ -283,7 +285,7 @@ export default function App() {
       // can create an order. Keep `null` on transport/auth failures so a
       // transient outage never erases a usable offline catalog.
       const canLoadCatalog = session.permissions['menu.view'] || session.permissions['orders.create']
-      const [remoteTables, remoteItems, config, remoteOrders, remoteKots, remoteKitchenPlaces, remoteNotifications, remoteReceiptSettings, remotePrinters, remotePaymentMethods] = await Promise.all([
+      const [remoteTables, remoteItems, config, remoteOrders, remoteKots, remoteKitchenPlaces, remoteNotifications, remoteReceiptSettings, remotePrinters, remotePaymentMethods, remoteFiscalCapabilities] = await Promise.all([
         session.permissions['tables.view'] ? api.tables('pin').catch(() => []) : Promise.resolve([]),
         canLoadCatalog ? api.menuItems('pin').catch(() => null) : Promise.resolve(null),
         api.config('pin').catch(() => null),
@@ -294,6 +296,7 @@ export default function App() {
         api.receiptSettings('pin').catch(() => null),
         api.printers('pin').catch(() => null),
         session.permissions['payments.charge'] ? api.paymentMethods('pin').catch(() => null) : Promise.resolve(null),
+        api.fiscalCapabilities('pin').catch(() => null),
       ])
       const enrichedItems = Array.isArray(remoteItems)
         ? await Promise.all(remoteItems.map(async item => {
@@ -318,6 +321,10 @@ export default function App() {
       if (Array.isArray(remotePaymentMethods)) {
         cachePatch.paymentMethods = remotePaymentMethods
         setPaymentMethods(remotePaymentMethods.length ? remotePaymentMethods : [])
+      }
+      if (remoteFiscalCapabilities) {
+        cachePatch.fiscalCapabilities = remoteFiscalCapabilities
+        setFiscalCapabilities(remoteFiscalCapabilities)
       }
       if (Array.isArray(config?.modules)) cachePatch.modules = config.modules.map((module: unknown) => String(typeof module === 'string' ? module : (module as any)?.name || '')).filter(Boolean)
       if (config?.features && typeof config.features === 'object') cachePatch.features = config.features
@@ -925,7 +932,7 @@ export default function App() {
   if (screen === 'setup') return <SetupScreen loading={loading} error={error} defaultDeviceId={deviceId} onSubmit={handleAdminLogin} onDirectPin={handleDirectPin} theme={theme} onTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')} />
   if (screen === 'branches') return <BranchScreen branches={branches} loading={loading} error={error} offline={offline} onSelect={chooseBranch} onBack={() => { clearSession('admin'); setScreen('setup') }} />
   if (screen === 'pin') return <PinScreen brand={restaurantName} branch={activeBranch?.name || ''} role={staffRole} onRoleChange={setStaffRole} offline={offline} loading={loading} error={error} notice={notice} onSubmit={handlePin} canChangeBranch={Boolean(adminSession)} onBack={() => setScreen('branches')} theme={theme} onTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')} />
-  return <FloorScreen brand={restaurantName} branch={activeBranch?.name || ''} roleKey={pinSession?.roleKey || staffRole} userId={pinSession?.userId} deviceId={deviceId} permissions={pinSession?.permissions || {}} tables={tables} items={items} kitchenPlaces={kitchenPlaces} paymentMethods={paymentMethods} offline={offline} queueCount={queueCount} isSyncing={isSyncing} notice={notice} error={error} theme={theme} onTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')} onLogout={logout} onRefresh={() => pinSession && hydrate(pinSession)} onSubmitOrder={submitOrder} onSaveCustomer={saveTableCustomer} onRemoveOrderItem={removeOrderItem} onPrintPreBill={printPreBill} onPayOrder={payOrder} onTransferTable={transferTableOrder} onCancelOrder={cancelTableOrder} onOpenCashSession={openCashSession} onCloseCashSession={closeCashSession} onApproveCashSession={approveCashSession} onRejectCashSession={rejectCashSession} onReopenCashSession={reopenCashSession} onCashMovement={cashMovement} onClockIn={clockInAttendance} onClockOut={clockOutAttendance} onUpdateKotStatus={updateKotStatus} onSelectTable={setActiveTable} activeTable={activeTable} />
+  return <FloorScreen brand={restaurantName} branch={activeBranch?.name || ''} roleKey={pinSession?.roleKey || staffRole} userId={pinSession?.userId} deviceId={deviceId} permissions={pinSession?.permissions || {}} tables={tables} items={items} kitchenPlaces={kitchenPlaces} paymentMethods={paymentMethods} fiscalCapabilities={fiscalCapabilities} offline={offline} queueCount={queueCount} isSyncing={isSyncing} notice={notice} error={error} theme={theme} onTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')} onLogout={logout} onRefresh={() => pinSession && hydrate(pinSession)} onSubmitOrder={submitOrder} onSaveCustomer={saveTableCustomer} onRemoveOrderItem={removeOrderItem} onPrintPreBill={printPreBill} onPayOrder={payOrder} onTransferTable={transferTableOrder} onCancelOrder={cancelTableOrder} onOpenCashSession={openCashSession} onCloseCashSession={closeCashSession} onApproveCashSession={approveCashSession} onRejectCashSession={rejectCashSession} onReopenCashSession={reopenCashSession} onCashMovement={cashMovement} onClockIn={clockInAttendance} onClockOut={clockOutAttendance} onUpdateKotStatus={updateKotStatus} onSelectTable={setActiveTable} activeTable={activeTable} />
 }
 
 function nextAdminRestaurantId(session: Session) { return session.restaurantId }
@@ -1395,7 +1402,7 @@ function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error,
   )
 }
 
-function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, tables, items, kitchenPlaces, paymentMethods, offline, queueCount, isSyncing, notice, error, theme, onTheme, onLogout, onRefresh, onSubmitOrder, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onCancelOrder, onOpenCashSession, onCloseCashSession, onApproveCashSession, onRejectCashSession, onReopenCashSession, onCashMovement, onClockIn, onClockOut, onUpdateKotStatus, onSelectTable, activeTable }: { brand: string; branch: string; roleKey: StaffRole; userId?: number; deviceId: string; permissions: Record<string, boolean>; tables: RestaurantTable[]; items: MenuItem[]; kitchenPlaces: KitchenPlace[]; paymentMethods: PaymentMethodOption[]; offline: boolean; queueCount: number; isSyncing?: boolean; notice: string; error: string; theme: 'light' | 'dark'; onTheme: () => void; onLogout: () => void; onRefresh: () => void; onSubmitOrder: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onCancelOrder?: (table: RestaurantTable, reason?: string) => Promise<{ queued: boolean; message: string }>; onOpenCashSession: (registerId: number, openingFloat: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCloseCashSession: (sessionId: number, countedCash: number, expectedCash: number | undefined, note: string, sendForApproval: boolean, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onApproveCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onRejectCashSession: (sessionId: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onReopenCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCashMovement: (movement: 'cash-in' | 'cash-out' | 'safe-drop', sessionId: number, amount: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onClockIn: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onClockOut: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onUpdateKotStatus: (kotId: number, status: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onSelectTable: (table: RestaurantTable | null) => void; activeTable: RestaurantTable | null }) {
+function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, tables, items, kitchenPlaces, paymentMethods, fiscalCapabilities, offline, queueCount, isSyncing, notice, error, theme, onTheme, onLogout, onRefresh, onSubmitOrder, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onCancelOrder, onOpenCashSession, onCloseCashSession, onApproveCashSession, onRejectCashSession, onReopenCashSession, onCashMovement, onClockIn, onClockOut, onUpdateKotStatus, onSelectTable, activeTable }: { brand: string; branch: string; roleKey: StaffRole; userId?: number; deviceId: string; permissions: Record<string, boolean>; tables: RestaurantTable[]; items: MenuItem[]; kitchenPlaces: KitchenPlace[]; paymentMethods: PaymentMethodOption[]; fiscalCapabilities?: FiscalCapabilities | null; offline: boolean; queueCount: number; isSyncing?: boolean; notice: string; error: string; theme: 'light' | 'dark'; onTheme: () => void; onLogout: () => void; onRefresh: () => void; onSubmitOrder: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onCancelOrder?: (table: RestaurantTable, reason?: string) => Promise<{ queued: boolean; message: string }>; onOpenCashSession: (registerId: number, openingFloat: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCloseCashSession: (sessionId: number, countedCash: number, expectedCash: number | undefined, note: string, sendForApproval: boolean, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onApproveCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onRejectCashSession: (sessionId: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onReopenCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCashMovement: (movement: 'cash-in' | 'cash-out' | 'safe-drop', sessionId: number, amount: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onClockIn: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onClockOut: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onUpdateKotStatus: (kotId: number, status: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onSelectTable: (table: RestaurantTable | null) => void; activeTable: RestaurantTable | null }) {
   const [showMenu, setShowMenu] = useState(false); const [showQuick, setShowQuick] = useState(false); const [showOps, setShowOps] = useState(false); const [showKitchen, setShowKitchen] = useState(false); const [showCashier, setShowCashier] = useState(false); const [showAttendance, setShowAttendance] = useState(false); const [opsLoading, setOpsLoading] = useState(false); const [notifications, setNotifications] = useState<LiveNotification[]>([]); const [deliverySettings, setDeliverySettings] = useState<DeliverySettings | null>(null); const [deliveryExecutives, setDeliveryExecutives] = useState<DeliveryExecutive[]>([])
   const canCreate = permissions['orders.create'] === true
   const canDelivery = roleKey === 'cajero' && canCreate
@@ -2008,6 +2015,7 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
             roleKey={roleKey}
             permissions={permissions}
             paymentMethods={paymentMethods}
+            fiscalCapabilities={fiscalCapabilities}
             canCharge={canCharge}
             offline={offline}
             deliverySettings={deliverySettings}
@@ -2184,6 +2192,7 @@ function TablePaymentPanel({
   payload,
   items,
   paymentMethods,
+  fiscalCapabilities,
   offline,
   onClose,
   onPay,
@@ -2193,6 +2202,7 @@ function TablePaymentPanel({
   payload: any
   items: Array<{ amount?: number }>
   paymentMethods: PaymentMethodOption[]
+  fiscalCapabilities?: FiscalCapabilities | null
   offline: boolean
   onClose: () => void
   onPay: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>
@@ -2206,8 +2216,15 @@ function TablePaymentPanel({
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
 
+  // Determine branch fiscal configuration
+  // Fallback to cache if not passed directly
+  const cachedCaps = fiscalCapabilities || readCache().fiscalCapabilities
+  const isElectronicActive = Boolean(cachedCaps?.electronic?.ready || (cachedCaps?.electronic?.enabled && !cachedCaps?.traditional?.enabled))
+  const defaultConsumerType = isElectronicActive ? 'E32' : 'B02'
+  const defaultCreditType = isElectronicActive ? 'E31' : 'B01'
+
   // Factura electrónica / Comprobante fiscal
-  const [receiptType, setReceiptType] = useState('E32')
+  const [receiptType, setReceiptType] = useState(defaultConsumerType)
   const [rncCedula, setRncCedula] = useState('')
   const [fiscalName, setFiscalName] = useState('')
   const [searchingRnc, setSearchingRnc] = useState(false)
@@ -2217,13 +2234,18 @@ function TablePaymentPanel({
   // Initialize fiscal data from payload / customer
   useEffect(() => {
     const cust = payload?.customer || (payload?.data as any)?.customer
-    if (cust?.rnc_cedula) {
-      setRncCedula(cust.rnc_cedula)
-      setReceiptType('E31')
+    const currentRnc = cust?.rnc_cedula || cust?.rncCedula || ''
+    const currentFiscalName = cust?.fiscal_name || cust?.fiscalName || ''
+    if (currentRnc) {
+      setRncCedula(currentRnc)
+      // If customer has RNC, auto-select Crédito Fiscal (E31 or B01 according to branch setup)
+      setReceiptType(defaultCreditType)
       setShowFiscalDetails(true)
+    } else {
+      setReceiptType(defaultConsumerType)
     }
-    if (cust?.fiscal_name) setFiscalName(cust.fiscal_name)
-  }, [payload])
+    if (currentFiscalName) setFiscalName(currentFiscalName)
+  }, [payload, defaultCreditType, defaultConsumerType])
 
   const selectedMethod = enabledMethods.some(value => value.code === method) ? method : enabledMethods[0]?.code || ''
 
@@ -2240,8 +2262,13 @@ function TablePaymentPanel({
       const found = res?.find(c => (c.rncCedula || '').replace(/\D/g, '') === cleaned)
       if (found && (found.name || found.fiscalName)) {
         if (!fiscalName.trim()) setFiscalName(found.fiscalName || found.name)
+        // Auto-switch to credit fiscal because customer has registered RNC
+        setReceiptType(defaultCreditType)
+        setShowFiscalDetails(true)
         setRncStatusMsg(`✓ Válido: ${found.fiscalName || found.name}`)
       } else {
+        setReceiptType(defaultCreditType)
+        setShowFiscalDetails(true)
         setRncStatusMsg('RNC/Cédula sin registro previo en el sistema local.')
       }
     } catch {
@@ -2314,12 +2341,12 @@ function TablePaymentPanel({
         <Alert>No hay metodos de pago configurados en esta sucursal.</Alert>
       )}
 
-      {/* Selector de Comprobante / Factura Electrónica exclusivo de caja */}
+      {/* Selector de Comprobante / Factura Fiscal exclusivo de caja */}
       <div style={{ margin: '14px 0', padding: '12px 14px', borderRadius: 10, background: 'var(--pos-bg-surface-elevated, #202428)', border: '1px solid var(--pos-border, rgba(255,255,255,0.08))' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--pos-text-primary, #fff)', display: 'flex', alignItems: 'center', gap: 6 }}>
             <FileText size={15} style={{ color: 'var(--color-pos-primary, #5EDBAC)' }} />
-            Facturación DGII / e-CF
+            {isElectronicActive ? 'Factura Electrónica (DGII / e-CF)' : 'Comprobante Fiscal (DGII / NCF)'}
           </span>
           <button
             type="button"
@@ -2331,8 +2358,18 @@ function TablePaymentPanel({
           </button>
         </div>
 
+        {/* Indicador de si el cliente lleva comprobante fiscal por RNC */}
+        {rncCedula.trim() && (
+          <div style={{ marginBottom: 8, padding: '6px 10px', borderRadius: 6, background: 'rgba(94, 219, 172, 0.12)', border: '1px solid rgba(94, 219, 172, 0.3)', fontSize: '0.76rem', color: '#5EDBAC', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Check size={14} />
+            <span>Cliente con RNC detectado: Se asignó automáticamente <strong>Crédito Fiscal ({defaultCreditType})</strong>.</span>
+          </div>
+        )}
+
         <label style={{ display: 'block', fontSize: '0.82rem', marginBottom: 6 }}>
-          <span style={{ color: 'var(--pos-text-secondary, #aaa)', display: 'block', marginBottom: 4 }}>Tipo de Comprobante:</span>
+          <span style={{ color: 'var(--pos-text-secondary, #aaa)', display: 'block', marginBottom: 4 }}>
+            Tipo de Comprobante ({isElectronicActive ? 'Modalidad Electrónica Activa' : 'Modalidad Tradicional Activa'}):
+          </span>
           <select
             value={receiptType}
             onChange={e => {
@@ -2342,18 +2379,37 @@ function TablePaymentPanel({
             }}
             style={{ width: '100%', padding: '7px 10px', borderRadius: 6, background: 'var(--surface, #181a1d)', border: '1px solid var(--line, #333)', color: '#fff', fontSize: '0.84rem' }}
           >
-            <optgroup label="Factura Electrónica (e-CF)">
-              <option value="E32">E32 - Consumo Electrónica (Consumidor Final)</option>
-              <option value="E31">E31 - Crédito Fiscal Electrónica</option>
-              <option value="E44">E44 - Régimen Especial Electrónico</option>
-              <option value="E45">E45 - Gubernamental Electrónico</option>
-            </optgroup>
-            <optgroup label="Comprobantes Tradicionales (NCF)">
-              <option value="B02">B02 - Factura de Consumo (Consumidor Final)</option>
-              <option value="B01">B01 - Factura de Crédito Fiscal</option>
-              <option value="B14">B14 - Régimen Especial</option>
-              <option value="B15">B15 - Gubernamental</option>
-            </optgroup>
+            {isElectronicActive ? (
+              <>
+                <optgroup label="Factura Electrónica (e-CF) · Activo en esta sucursal">
+                  <option value="E32">E32 - Consumo Electrónica (Consumidor Final)</option>
+                  <option value="E31">E31 - Crédito Fiscal Electrónica</option>
+                  <option value="E44">E44 - Régimen Especial Electrónico</option>
+                  <option value="E45">E45 - Gubernamental Electrónico</option>
+                </optgroup>
+                <optgroup label="Comprobantes Tradicionales (NCF)">
+                  <option value="B02">B02 - Factura de Consumo (Consumidor Final)</option>
+                  <option value="B01">B01 - Factura de Crédito Fiscal</option>
+                  <option value="B14">B14 - Régimen Especial</option>
+                  <option value="B15">B15 - Gubernamental</option>
+                </optgroup>
+              </>
+            ) : (
+              <>
+                <optgroup label="Comprobantes Tradicionales (NCF) · Activo en esta sucursal">
+                  <option value="B02">B02 - Factura de Consumo (Consumidor Final)</option>
+                  <option value="B01">B01 - Factura de Crédito Fiscal</option>
+                  <option value="B14">B14 - Régimen Especial</option>
+                  <option value="B15">B15 - Gubernamental</option>
+                </optgroup>
+                <optgroup label="Factura Electrónica (e-CF)">
+                  <option value="E32">E32 - Consumo Electrónica (Consumidor Final)</option>
+                  <option value="E31">E31 - Crédito Fiscal Electrónica</option>
+                  <option value="E44">E44 - Régimen Especial Electrónico</option>
+                  <option value="E45">E45 - Gubernamental Electrónico</option>
+                </optgroup>
+              </>
+            )}
           </select>
         </label>
 
@@ -2368,7 +2424,14 @@ function TablePaymentPanel({
                   type="text"
                   placeholder="Ej: 101000000 o 001-0000000-0"
                   value={rncCedula}
-                  onChange={e => { setRncCedula(e.target.value); setRncStatusMsg('') }}
+                  onChange={e => {
+                    const nextVal = e.target.value
+                    setRncCedula(nextVal)
+                    setRncStatusMsg('')
+                    if (nextVal.trim().length >= 9 && (receiptType === 'B02' || receiptType === 'E32')) {
+                      setReceiptType(defaultCreditType)
+                    }
+                  }}
                   style={{ flex: 1, padding: '6px 10px', borderRadius: 6, background: 'var(--surface, #181a1d)', border: '1px solid var(--line, #333)', color: '#fff', fontSize: '0.82rem' }}
                 />
                 <button
@@ -2413,7 +2476,7 @@ function TablePaymentPanel({
   )
 }
 
-function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKey, permissions, paymentMethods, canCharge, offline, deliverySettings, deliveryExecutives, items, onClose, onOpenMenu, onSubmit, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onCancelOrder }: { table: RestaurantTable | null; tables?: RestaurantTable[]; quick: boolean; mobileDrawerOpen?: boolean; isMenuOpen?: boolean; roleKey: StaffRole; permissions: Record<string, boolean>; paymentMethods: PaymentMethodOption[]; canCharge: boolean; offline: boolean; deliverySettings: DeliverySettings | null; deliveryExecutives: DeliveryExecutive[]; items: MenuItem[]; onClose: () => void; onOpenMenu?: () => void; onSubmit: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem?: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onCancelOrder?: (table: RestaurantTable, reason?: string) => Promise<{ queued: boolean; message: string }> }) {
+function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKey, permissions, paymentMethods, fiscalCapabilities, canCharge, offline, deliverySettings, deliveryExecutives, items, onClose, onOpenMenu, onSubmit, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onCancelOrder }: { table: RestaurantTable | null; tables?: RestaurantTable[]; quick: boolean; mobileDrawerOpen?: boolean; isMenuOpen?: boolean; roleKey: StaffRole; permissions: Record<string, boolean>; paymentMethods: PaymentMethodOption[]; fiscalCapabilities?: FiscalCapabilities | null; canCharge: boolean; offline: boolean; deliverySettings: DeliverySettings | null; deliveryExecutives: DeliveryExecutive[]; items: MenuItem[]; onClose: () => void; onOpenMenu?: () => void; onSubmit: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem?: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onCancelOrder?: (table: RestaurantTable, reason?: string) => Promise<{ queued: boolean; message: string }> }) {
   const canDelivery = roleKey === 'cajero' && permissions['orders.create'] === true
   const [mode, setMode] = useState<OrderMode>(table ? 'dine_in' : canDelivery ? 'pickup' : 'dine_in')
   const [customerId, setCustomerId] = useState<number | undefined>(table?.customerId)
@@ -3122,6 +3185,7 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
                 payload={orderDetail}
                 items={existingItems}
                 paymentMethods={paymentMethods}
+                fiscalCapabilities={fiscalCapabilities}
                 offline={offline}
                 onClose={() => setPaymentOpen(false)}
                 onPay={onPayOrder}
@@ -3167,6 +3231,7 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
           <CustomerModal
             currentCustomer={{ id: customerId, name: customerName, phone: customerPhone, email: customerEmail, rncCedula, fiscalName }}
             canManageFiscal={roleKey === 'cajero' || roleKey === 'head' || permissions['payments.charge'] === true}
+            fiscalCapabilities={fiscalCapabilities}
             offline={offline}
             onClose={() => setCustomerModalOpen(false)}
             onSelect={customer => {
