@@ -4,7 +4,7 @@ import { api, ApiError, API_BASE_URL, normalizeAttendance } from './api/client'
 import type { AttendanceRecord, Branch, DeliveryExecutive, DeliverySettings, DeviceBinding, KitchenPlace, KitchenTicket, KitchenView, MenuItem, ModifierGroup, ModifierOption, NotificationSettings, OfflineOperation, OfflineStep, OfflineWorkflow, OrderDraft, OrderLine, OrderMode, PaymentMethodOption, ProductVariation, RestaurantTable, Session, StaffRole, WaiterRequest } from './types'
 import { clearSession, enqueue, getDeviceId, getStorageScope, listOutbox, newIdempotencyKey, readCache, readSession, removeOutbox, saveCache, saveSession, setStorageScope, updateOutbox } from './storage/offline'
 import { CustomerModal } from './CustomerModal'
-import { ArrowLeftFromLine, ArrowRightLeft, Banknote, BatteryCharging, BedDouble, Bell, BookOpen, CalendarDays, Check, ChefHat, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, CloudLightning, CloudOff, Clock, Coffee, ConciergeBell, CreditCard, Delete, Divide, Edit3, Flame, Flower2 as Spa, Globe, Globe2, History, LayoutGrid, Lock, LogOut, Map as LucideMap, Martini, Menu, Minus, Moon, Plus, Printer, Receipt, RefreshCw, Search, Send, ShieldCheck, SlidersHorizontal, ShoppingCart, Sun, Trash2, Truck, Unlock, UserCheck, UserCircle2, UserRound, Users, UsersRound, UserX, Utensils, UtensilsCrossed, Wallet, Wine, Wifi, X, XCircle } from 'lucide-react'
+import { ArrowLeftFromLine, ArrowRightLeft, Banknote, BatteryCharging, BedDouble, Bell, BookOpen, CalendarDays, Check, ChefHat, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, CloudLightning, CloudOff, Clock, Coffee, ConciergeBell, CreditCard, Delete, Divide, Edit3, FileText, Flame, Flower2 as Spa, Globe, Globe2, History, LayoutGrid, Lock, LogOut, Map as LucideMap, Martini, Menu, Minus, Moon, Plus, Printer, Receipt, RefreshCw, Search, Send, ShieldCheck, SlidersHorizontal, ShoppingCart, Sun, Trash2, Truck, Unlock, UserCheck, UserCircle2, UserRound, Users, UsersRound, UserX, Utensils, UtensilsCrossed, Wallet, Wine, Wifi, X, XCircle } from 'lucide-react'
 import { Capacitor } from '@capacitor/core'
 import { Haptics } from '@capacitor/haptics'
 import { LocalNotifications } from '@capacitor/local-notifications'
@@ -2179,7 +2179,25 @@ function PreBillPanel({ table, payload, items, onClose, onAddMore, onPrint, prin
   return <section className="prebill-panel" aria-label={`Precuenta de la mesa ${table.number}`}><header><div><p className="eyebrow">VISTA PRELIMINAR · SIN COBRO</p><h3>Precuenta · Mesa {table.number}</h3><small>{summary.customer ? `Cliente: ${summary.customer}` : 'Cliente no identificado'}</small></div><button className="icon-button no-print" onClick={onClose} aria-label="Cerrar precuenta"><X size={18} /></button></header><div className="prebill-print-config"><strong>{receiptTitle}</strong><small>{printer ? `Impresora: ${printer.name}${printer.printFormat ? ` · ${printer.printFormat}` : ''}` : 'La impresión usa la configuración de la sucursal.'}</small></div>{items.length ? <div className="prebill-lines">{items.map(item => <div className="prebill-line" key={item.id}><span><strong>{item.quantity}× {item.name}</strong></span>{item.amount ? <b>{formatMoney(item.amount)}</b> : null}</div>)}</div> : <div className="prebill-empty">No hay detalle de articulos disponible para esta orden.</div>}<div className="prebill-totals"><div><span>Subtotal</span><b>{preBillMoney(summary.subtotal)}</b></div><div><span>Impuestos</span><b>{preBillMoney(summary.tax)}</b></div>{summary.tip !== null && summary.tip > 0 && <div><span>Propina legal</span><b>{formatMoney(summary.tip)}</b></div>}{summary.discount !== null && summary.discount > 0 && <div><span>Descuento</span><b>-{formatMoney(summary.discount)}</b></div>}<div className="prebill-total"><span>Total</span><strong>{formatMoney(summary.total)}</strong></div><div className="prebill-due"><span>{summary.due > 0 ? 'Pendiente de pago' : 'Estado de pago'}</span><strong>{summary.due > 0 ? formatMoney(summary.due) : 'Pagada'}</strong></div></div>{summary.breakdownMissing && <p className="prebill-warning">El desglose detallado de impuestos no esta disponible completo; se muestra el total confirmado de la comanda.</p>}{printStatus && <p className="prebill-print-status" role="status">{printStatus}</p>}<p className="prebill-note">Esta precuenta es informativa: no cobra, no cierra la mesa y permite agregar más artículos. Al imprimir, se envia directamente a la impresora asignada a la sucursal.</p>{receiptFooter && <small className="prebill-footer-note">{receiptFooter}</small>}<footer className="prebill-actions no-print"><button className="button outline" onClick={onClose}>Volver a la orden</button><button className="button outline" onClick={() => void onPrint()} disabled={printing}><Printer size={16} /> {printing ? 'Enviando…' : 'Imprimir precuenta'}</button><button className="button primary" onClick={onAddMore}>Agregar artículos</button></footer></section>
 }
 
-function TablePaymentPanel({ table, payload, items, paymentMethods, offline, onClose, onPay }: { table: RestaurantTable; payload: any; items: Array<{ amount?: number }>; paymentMethods: PaymentMethodOption[]; offline: boolean; onClose: () => void; onPay: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }> }) {
+function TablePaymentPanel({
+  table,
+  payload,
+  items,
+  paymentMethods,
+  offline,
+  onClose,
+  onPay,
+  onSaveCustomer,
+}: {
+  table: RestaurantTable
+  payload: any
+  items: Array<{ amount?: number }>
+  paymentMethods: PaymentMethodOption[]
+  offline: boolean
+  onClose: () => void
+  onPay: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>
+  onSaveCustomer?: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>
+}) {
   const summary = normalizePreBill(payload, table, items)
   const enabledMethods = paymentMethods.filter(value => value.enabled)
   const [method, setMethod] = useState(enabledMethods[0]?.code || 'cash')
@@ -2187,14 +2205,73 @@ function TablePaymentPanel({ table, payload, items, paymentMethods, offline, onC
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
+
+  // Factura electrónica / Comprobante fiscal
+  const [receiptType, setReceiptType] = useState('E32')
+  const [rncCedula, setRncCedula] = useState('')
+  const [fiscalName, setFiscalName] = useState('')
+  const [searchingRnc, setSearchingRnc] = useState(false)
+  const [rncStatusMsg, setRncStatusMsg] = useState('')
+  const [showFiscalDetails, setShowFiscalDetails] = useState(false)
+
+  // Initialize fiscal data from payload / customer
+  useEffect(() => {
+    const cust = payload?.customer || (payload?.data as any)?.customer
+    if (cust?.rnc_cedula) {
+      setRncCedula(cust.rnc_cedula)
+      setReceiptType('E31')
+      setShowFiscalDetails(true)
+    }
+    if (cust?.fiscal_name) setFiscalName(cust.fiscal_name)
+  }, [payload])
+
   const selectedMethod = enabledMethods.some(value => value.code === method) ? method : enabledMethods[0]?.code || ''
+
+  async function verifyRnc() {
+    const cleaned = rncCedula.replace(/[^0-9]/g, '').trim()
+    if (cleaned.length < 9) {
+      setRncStatusMsg('El RNC debe tener 9 dígitos o la Cédula 11 dígitos.')
+      return
+    }
+    setSearchingRnc(true)
+    setRncStatusMsg('Consultando datos fiscales…')
+    try {
+      const res = await api.customers('pin', cleaned)
+      const found = res?.find(c => (c.rncCedula || '').replace(/\D/g, '') === cleaned)
+      if (found && (found.name || found.fiscalName)) {
+        if (!fiscalName.trim()) setFiscalName(found.fiscalName || found.name)
+        setRncStatusMsg(`✓ Válido: ${found.fiscalName || found.name}`)
+      } else {
+        setRncStatusMsg('RNC/Cédula sin registro previo en el sistema local.')
+      }
+    } catch {
+      setRncStatusMsg('No se pudo verificar el RNC en este momento.')
+    } finally {
+      setSearchingRnc(false)
+    }
+  }
+
   async function charge() {
     const numericAmount = Number(amount)
     if (!table.currentOrderId || summary.due <= 0) { setError('Esta mesa no tiene saldo pendiente de pago.'); return }
     if (!Number.isFinite(numericAmount) || numericAmount <= 0 || numericAmount > summary.due + 0.01) { setError(`El monto debe estar entre ${formatMoney(0.01)} y ${formatMoney(summary.due)}.`); return }
     if (!enabledMethods.some(value => value.code === selectedMethod)) { setError('Este metodo de pago no esta habilitado para esta sucursal.'); return }
+    if ((receiptType === 'E31' || receiptType === 'B01') && !rncCedula.trim()) {
+      setError('Para comprobante con Crédito Fiscal (E31 / B01) debe ingresar el RNC o Cédula.')
+      return
+    }
     setBusy(true); setError(''); setStatus('')
     try {
+      // If fiscal data or receiptType provided, save to order/customer first
+      if (table.currentOrderId && onSaveCustomer && (rncCedula.trim() || fiscalName.trim())) {
+        await onSaveCustomer(
+          table,
+          table.customerName || fiscalName.trim() || 'Cliente Final',
+          table.customerId,
+          rncCedula.trim() || undefined,
+          fiscalName.trim() || undefined
+        ).catch(() => undefined)
+      }
       const result = await onPay(table.currentOrderId, numericAmount, selectedMethod, newIdempotencyKey())
       setStatus(result.message)
       if (!result.queued) onClose()
@@ -2202,7 +2279,138 @@ function TablePaymentPanel({ table, payload, items, paymentMethods, offline, onC
       setError(normalizeError(cause, 'No se pudo procesar el cobro. Verifique la conexion o el monto e intente de nuevo.'))
     } finally { setBusy(false) }
   }
-  return <section className="table-payment-panel" aria-label={`Cobro de la mesa ${table.number}`}><div className="table-payment-header"><div><p className="eyebrow">COBRO DE LA MESA</p><h3>Mesa {table.number}</h3><small>El turno y la caja chica se administran por separado desde “Turno de caja”.</small></div><button className="icon-button" onClick={onClose} aria-label="Cerrar cobro"><X size={18} /></button></div>{offline && <Alert>Sin conexión: el cobro queda pendiente y se validará automáticamente al recuperar internet.</Alert>}{error && <Alert>{error}</Alert>}{status && <p className="table-payment-status" role="status">{status}</p>}<div className="table-payment-due"><span>Saldo pendiente</span><strong>{formatMoney(summary.due)}</strong></div>{enabledMethods.length ? <div className="table-payment-form"><label>Método<select value={selectedMethod} onChange={event => setMethod(event.target.value)}>{enabledMethods.map(value => <option value={value.code} key={value.code}>{value.label}</option>)}</select></label><label>Monto<input type="number" min="0.01" max={summary.due.toFixed(2)} step="0.01" value={amount} onChange={event => setAmount(event.target.value)} /></label></div> : <Alert>No hay metodos de pago configurados en esta sucursal.</Alert>}<footer><button className="button outline" onClick={onClose}>Cancelar</button><button className="button primary" disabled={busy || !enabledMethods.length || summary.due <= 0} onClick={() => void charge()}><CreditCard size={16} />{busy ? 'Registrando…' : 'Registrar cobro'}</button></footer></section>
+
+  return (
+    <section className="table-payment-panel" aria-label={`Cobro de la mesa ${table.number}`}>
+      <div className="table-payment-header">
+        <div>
+          <p className="eyebrow">COBRO DE LA MESA</p>
+          <h3>Mesa {table.number}</h3>
+          <small>El turno y la caja chica se administran por separado desde “Turno de caja”.</small>
+        </div>
+        <button className="icon-button" onClick={onClose} aria-label="Cerrar cobro"><X size={18} /></button>
+      </div>
+      {offline && <Alert>Sin conexión: el cobro queda pendiente y se validará automáticamente al recuperar internet.</Alert>}
+      {error && <Alert>{error}</Alert>}
+      {status && <p className="table-payment-status" role="status">{status}</p>}
+      <div className="table-payment-due">
+        <span>Saldo pendiente</span>
+        <strong>{formatMoney(summary.due)}</strong>
+      </div>
+      {enabledMethods.length ? (
+        <div className="table-payment-form">
+          <label>
+            Método
+            <select value={selectedMethod} onChange={event => setMethod(event.target.value)}>
+              {enabledMethods.map(value => <option value={value.code} key={value.code}>{value.label}</option>)}
+            </select>
+          </label>
+          <label>
+            Monto
+            <input type="number" min="0.01" max={summary.due.toFixed(2)} step="0.01" value={amount} onChange={event => setAmount(event.target.value)} />
+          </label>
+        </div>
+      ) : (
+        <Alert>No hay metodos de pago configurados en esta sucursal.</Alert>
+      )}
+
+      {/* Selector de Comprobante / Factura Electrónica exclusivo de caja */}
+      <div style={{ margin: '14px 0', padding: '12px 14px', borderRadius: 10, background: 'var(--pos-bg-surface-elevated, #202428)', border: '1px solid var(--pos-border, rgba(255,255,255,0.08))' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--pos-text-primary, #fff)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <FileText size={15} style={{ color: 'var(--color-pos-primary, #5EDBAC)' }} />
+            Facturación DGII / e-CF
+          </span>
+          <button
+            type="button"
+            className="pos-category-chip"
+            style={{ padding: '2px 8px', fontSize: '0.72rem', height: 'auto' }}
+            onClick={() => setShowFiscalDetails(!showFiscalDetails)}
+          >
+            {showFiscalDetails ? 'Ocultar datos fiscales' : 'Editar RNC / Razón Social'}
+          </button>
+        </div>
+
+        <label style={{ display: 'block', fontSize: '0.82rem', marginBottom: 6 }}>
+          <span style={{ color: 'var(--pos-text-secondary, #aaa)', display: 'block', marginBottom: 4 }}>Tipo de Comprobante:</span>
+          <select
+            value={receiptType}
+            onChange={e => {
+              const val = e.target.value
+              setReceiptType(val)
+              if (val === 'E31' || val === 'B01') setShowFiscalDetails(true)
+            }}
+            style={{ width: '100%', padding: '7px 10px', borderRadius: 6, background: 'var(--surface, #181a1d)', border: '1px solid var(--line, #333)', color: '#fff', fontSize: '0.84rem' }}
+          >
+            <optgroup label="Factura Electrónica (e-CF)">
+              <option value="E32">E32 - Consumo Electrónica (Consumidor Final)</option>
+              <option value="E31">E31 - Crédito Fiscal Electrónica</option>
+              <option value="E44">E44 - Régimen Especial Electrónico</option>
+              <option value="E45">E45 - Gubernamental Electrónico</option>
+            </optgroup>
+            <optgroup label="Comprobantes Tradicionales (NCF)">
+              <option value="B02">B02 - Factura de Consumo (Consumidor Final)</option>
+              <option value="B01">B01 - Factura de Crédito Fiscal</option>
+              <option value="B14">B14 - Régimen Especial</option>
+              <option value="B15">B15 - Gubernamental</option>
+            </optgroup>
+          </select>
+        </label>
+
+        {showFiscalDetails && (
+          <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div>
+              <label style={{ fontSize: '0.8rem', color: 'var(--pos-text-secondary, #aaa)', display: 'block', marginBottom: 3 }}>
+                RNC o Cédula {(receiptType === 'E31' || receiptType === 'B01') && <span style={{ color: '#ff6b6b' }}>*</span>}
+              </label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input
+                  type="text"
+                  placeholder="Ej: 101000000 o 001-0000000-0"
+                  value={rncCedula}
+                  onChange={e => { setRncCedula(e.target.value); setRncStatusMsg('') }}
+                  style={{ flex: 1, padding: '6px 10px', borderRadius: 6, background: 'var(--surface, #181a1d)', border: '1px solid var(--line, #333)', color: '#fff', fontSize: '0.82rem' }}
+                />
+                <button
+                  type="button"
+                  className="button outline small"
+                  style={{ padding: '6px 10px', fontSize: '0.75rem', whiteSpace: 'nowrap' }}
+                  disabled={searchingRnc || offline}
+                  onClick={verifyRnc}
+                >
+                  {searchingRnc ? 'Verificando…' : 'Validar DGII'}
+                </button>
+              </div>
+              {rncStatusMsg && (
+                <small style={{ display: 'block', marginTop: 3, fontSize: '0.72rem', color: rncStatusMsg.startsWith('✓') ? '#16a34a' : '#ea580c' }}>
+                  {rncStatusMsg}
+                </small>
+              )}
+            </div>
+            <div>
+              <label style={{ fontSize: '0.8rem', color: 'var(--pos-text-secondary, #aaa)', display: 'block', marginBottom: 3 }}>
+                Razón Social / Nombre Fiscal
+              </label>
+              <input
+                type="text"
+                placeholder="Nombre formal en DGII"
+                value={fiscalName}
+                onChange={e => setFiscalName(e.target.value)}
+                style={{ width: '100%', padding: '6px 10px', borderRadius: 6, background: 'var(--surface, #181a1d)', border: '1px solid var(--line, #333)', color: '#fff', fontSize: '0.82rem' }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      <footer>
+        <button className="button outline" onClick={onClose}>Cancelar</button>
+        <button className="button primary" disabled={busy || !enabledMethods.length || summary.due <= 0} onClick={() => void charge()}>
+          <CreditCard size={16} />{busy ? 'Registrando…' : 'Registrar cobro'}
+        </button>
+      </footer>
+    </section>
+  )
 }
 
 function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKey, permissions, paymentMethods, canCharge, offline, deliverySettings, deliveryExecutives, items, onClose, onOpenMenu, onSubmit, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onCancelOrder }: { table: RestaurantTable | null; tables?: RestaurantTable[]; quick: boolean; mobileDrawerOpen?: boolean; isMenuOpen?: boolean; roleKey: StaffRole; permissions: Record<string, boolean>; paymentMethods: PaymentMethodOption[]; canCharge: boolean; offline: boolean; deliverySettings: DeliverySettings | null; deliveryExecutives: DeliveryExecutive[]; items: MenuItem[]; onClose: () => void; onOpenMenu?: () => void; onSubmit: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem?: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onCancelOrder?: (table: RestaurantTable, reason?: string) => Promise<{ queued: boolean; message: string }> }) {
@@ -2917,6 +3125,7 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
                 offline={offline}
                 onClose={() => setPaymentOpen(false)}
                 onPay={onPayOrder}
+                onSaveCustomer={onSaveCustomer}
               />
             </div>
           </div>
@@ -2957,6 +3166,7 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
         {customerModalOpen && (
           <CustomerModal
             currentCustomer={{ id: customerId, name: customerName, phone: customerPhone, email: customerEmail, rncCedula, fiscalName }}
+            canManageFiscal={roleKey === 'cajero' || roleKey === 'head' || permissions['payments.charge'] === true}
             offline={offline}
             onClose={() => setCustomerModalOpen(false)}
             onSelect={customer => {

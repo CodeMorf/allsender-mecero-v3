@@ -15,19 +15,20 @@ export interface CustomerModalProps {
     deliveryAddress?: string
     receiptType?: string
   }
+  canManageFiscal?: boolean
   offline: boolean
   onClose: () => void
   onSelect: (customer: PosCustomer, receiptType?: string) => void
 }
 
-export function CustomerModal({ currentCustomer, offline, onClose, onSelect }: CustomerModalProps) {
+export function CustomerModal({ currentCustomer, canManageFiscal = true, offline, onClose, onSelect }: CustomerModalProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [searchResults, setSearchResults] = useState<PosCustomer[]>([])
   const [loading, setLoading] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [editingCustomerId, setEditingCustomerId] = useState<number | null>(null)
   const [showBilling, setShowBilling] = useState(false)
-  const [receiptType, setReceiptType] = useState(currentCustomer?.receiptType || 'B02')
+  const [receiptType, setReceiptType] = useState(currentCustomer?.receiptType || 'E32')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -397,37 +398,46 @@ export function CustomerModal({ currentCustomer, offline, onClose, onSelect }: C
                 </label>
               </div>
 
-              {/* Collapsible Fiscal / Invoicing Section */}
-              <div className="fiscal-collapsible">
-                <button
-                  type="button"
-                  className="fiscal-collapse-btn"
-                  onClick={() => setShowBilling(!showBilling)}
-                >
-                  <div className="fiscal-collapse-title">
-                    <Building size={16} />
-                    <span>Datos de facturación (DGII / Fiscal)</span>
-                  </div>
-                  {showBilling ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                </button>
-
-                {showBilling && (
-                  <div className="fiscal-collapse-content">
-                    <div className="form-group">
-                      <label>
-                        Tipo de Comprobante Fiscal
-                        <select
-                          value={receiptType}
-                          onChange={e => setReceiptType(e.target.value)}
-                          style={{ marginTop: 4, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)' }}
-                        >
-                          <option value="B02">B02 - Consumidor Final</option>
-                          <option value="B01">B01 - Factura de Crédito Fiscal</option>
-                          <option value="B14">B14 - Régimen Especial de Tributación</option>
-                          <option value="B15">B15 - Comprobante Gubernamental</option>
-                        </select>
-                      </label>
+              {/* Collapsible Fiscal / Invoicing Section - Only for Cashier / Admin */}
+              {canManageFiscal && (
+                <div className="fiscal-collapsible">
+                  <button
+                    type="button"
+                    className="fiscal-collapse-btn"
+                    onClick={() => setShowBilling(!showBilling)}
+                  >
+                    <div className="fiscal-collapse-title">
+                      <Building size={16} />
+                      <span>Comprobante Fiscal / Factura Electrónica (DGII / e-CF)</span>
                     </div>
+                    {showBilling ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  </button>
+
+                  {showBilling && (
+                    <div className="fiscal-collapse-content">
+                      <div className="form-group">
+                        <label>
+                          Tipo de Comprobante / Factura Electrónica
+                          <select
+                            value={receiptType}
+                            onChange={e => setReceiptType(e.target.value)}
+                            style={{ marginTop: 4, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)' }}
+                          >
+                            <optgroup label="Factura Electrónica (e-CF)">
+                              <option value="E32">E32 - Factura de Consumo Electrónica (Consumidor Final)</option>
+                              <option value="E31">E31 - Factura de Crédito Fiscal Electrónica</option>
+                              <option value="E44">E44 - Régimen Especial Electrónico</option>
+                              <option value="E45">E45 - Gubernamental Electrónico</option>
+                            </optgroup>
+                            <optgroup label="Comprobantes Tradicionales (NCF Serie B)">
+                              <option value="B02">B02 - Factura de Consumo (Consumidor Final)</option>
+                              <option value="B01">B01 - Factura de Crédito Fiscal</option>
+                              <option value="B14">B14 - Régimen Especial de Tributación</option>
+                              <option value="B15">B15 - Comprobante Gubernamental</option>
+                            </optgroup>
+                          </select>
+                        </label>
+                      </div>
 
                     <div className="form-group">
                       <label>
@@ -485,6 +495,7 @@ export function CustomerModal({ currentCustomer, offline, onClose, onSelect }: C
                   </div>
                 )}
               </div>
+              )}
 
               <div className="customer-form-actions">
                 <button
