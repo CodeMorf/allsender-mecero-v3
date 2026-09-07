@@ -93,6 +93,8 @@ export type RestaurantTable = {
   customerId?: number
   customerName?: string
   customerPhone?: string
+  customerRnc?: string
+  customerFiscalName?: string
   guestCount?: number
   kitchenStatus?: string
   position?: { x: number; y: number; rotation?: number }

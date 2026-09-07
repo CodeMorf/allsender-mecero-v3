@@ -100,19 +100,41 @@ const notificationSoundUrls: Record<Exclude<NotificationSettings['sound'], 'none
   'service-bell-strikes': '/sounds/service-bell-strikes.mp3',
 }
 
-async function playWaiterAlert(settings: NotificationSettings = defaultNotificationSettings, title = 'Llamada de mesa', body = 'Hay una llamada pendiente en sala.') {
+async function playWaiterAlert(settings: NotificationSettings = defaultNotificationSettings, title = '¡Llamada de mesa!', body = 'Hay una llamada pendiente en sala.') {
   if (settings.sound !== 'none') {
-    const audio = new Audio(notificationSoundUrls[settings.sound])
-    audio.volume = Math.max(0, Math.min(1, Number(settings.volume ?? defaultNotificationSettings.volume)))
-    void audio.play().catch(() => { /* el navegador puede exigir una interacción previa para reproducir audio */ })
+    try {
+      const audioUrl = notificationSoundUrls[settings.sound] || '/sounds/service-bell.mp3'
+      const audio = new Audio(audioUrl)
+      audio.volume = Math.max(0, Math.min(1, Number(settings.volume ?? defaultNotificationSettings.volume)))
+      void audio.play().catch(() => { /* el navegador puede exigir interacción previa para reproducir audio */ })
+    } catch { /* ignorar error de reproducción web */ }
   }
-  if (settings.vibration && typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate([180, 80, 180])
+  if (settings.vibration && typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+    try { navigator.vibrate([300, 150, 300, 150, 500]) } catch { /* ignorar */ }
+  }
   if (!Capacitor.isNativePlatform()) return
   try {
-    if (settings.vibration) await Haptics.vibrate({ duration: 360 })
-    const permission = await LocalNotifications.checkPermissions()
-    if (permission.display !== 'granted') return
-    await LocalNotifications.schedule({ notifications: [{ id: Date.now() % 2147483647, title, body, channelId: 'waiter-calls', sound: settings.sound === 'none' ? undefined : 'service_bell.mp3' }] })
+    if (settings.vibration) {
+      await Haptics.vibrate({ duration: 600 }).catch(() => undefined)
+    }
+    let permission = await LocalNotifications.checkPermissions()
+    if (permission.display !== 'granted') {
+      permission = await LocalNotifications.requestPermissions()
+    }
+    if (permission.display === 'granted') {
+      await LocalNotifications.schedule({
+        notifications: [{
+          id: Math.floor(Date.now() % 2147483647),
+          title,
+          body,
+          channelId: 'waiter-calls',
+          sound: settings.sound === 'none' ? undefined : 'service_bell.mp3',
+          smallIcon: 'ic_stat_mesero',
+          iconColor: '#f59e0b',
+          schedule: { at: new Date(Date.now() + 50) }
+        }]
+      })
+    }
   } catch {
     // El sonido web y navigator.vibrate siguen siendo el respaldo en Android/web.
   }
@@ -121,9 +143,20 @@ async function playWaiterAlert(settings: NotificationSettings = defaultNotificat
 async function prepareNativeFeatures() {
   if (!Capacitor.isNativePlatform()) return
   try {
-    await LocalNotifications.createChannel({ id: 'waiter-calls', name: 'Llamadas de mesa', description: 'Avisos de llamadas nuevas desde las mesas.', importance: 5, sound: 'service_bell.mp3', vibration: true, lights: true })
+    await LocalNotifications.createChannel({
+      id: 'waiter-calls',
+      name: 'Llamadas de mesa',
+      description: 'Avisos y alertas prioritarias cuando los clientes llaman al mesero desde la mesa.',
+      importance: 5,
+      sound: 'service_bell.mp3',
+      vibration: true,
+      lights: true,
+      visibility: 1
+    })
     const permissions = await LocalNotifications.checkPermissions()
-    if (permissions.display === 'prompt') await LocalNotifications.requestPermissions()
+    if (permissions.display !== 'granted') {
+      await LocalNotifications.requestPermissions()
+    }
   } catch {
     // Android/web sin el permiso aún conserva el flujo de sonido configurable.
   }
@@ -1523,8 +1556,16 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
     }
     void loadWaiterAlerts()
     if (offline) return () => { cancelled = true }
-    const timer = window.setInterval(() => void loadWaiterAlerts(), 4_000)
-    return () => { cancelled = true; window.clearInterval(timer) }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void loadWaiterAlerts()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    const timer = window.setInterval(() => void loadWaiterAlerts(), 2_500)
+    return () => {
+      cancelled = true
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      window.clearInterval(timer)
+    }
   }, [offline, roleKey])
   useEffect(() => {
     if (!canDelivery) return
@@ -2195,6 +2236,10 @@ function TablePaymentPanel({
   paymentMethods,
   fiscalCapabilities,
   offline,
+  customerRnc,
+  customerFiscalName,
+  customerName,
+  customerId,
   onClose,
   onPay,
   onSaveCustomer,
@@ -2205,6 +2250,10 @@ function TablePaymentPanel({
   paymentMethods: PaymentMethodOption[]
   fiscalCapabilities?: FiscalCapabilities | null
   offline: boolean
+  customerRnc?: string
+  customerFiscalName?: string
+  customerName?: string
+  customerId?: number
   onClose: () => void
   onPay: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>
   onSaveCustomer?: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>
@@ -2224,29 +2273,62 @@ function TablePaymentPanel({
   const defaultConsumerType = isElectronicActive ? 'E32' : 'B02'
   const defaultCreditType = isElectronicActive ? 'E31' : 'B01'
 
+  const cust = payload?.customer || (payload?.data as any)?.customer
+  const initialRnc = (customerRnc || cust?.rnc_cedula || cust?.rncCedula || payload?.rnc_cedula || table?.customerRnc || '').trim()
+  const initialFiscalName = (customerFiscalName || cust?.fiscal_name || cust?.fiscalName || payload?.fiscal_name || table?.customerFiscalName || '').trim()
+  const effectiveCustName = (customerName || cust?.name || payload?.customer_name || table?.customerName || '').trim()
+  const effectiveCustId = customerId ?? cust?.id ?? payload?.customer_id ?? table?.customerId
+
   // Factura electrónica / Comprobante fiscal
-  const [receiptType, setReceiptType] = useState(defaultConsumerType)
-  const [rncCedula, setRncCedula] = useState('')
-  const [fiscalName, setFiscalName] = useState('')
+  const [receiptType, setReceiptType] = useState(initialRnc ? defaultCreditType : defaultConsumerType)
+  const [rncCedula, setRncCedula] = useState(initialRnc)
+  const [fiscalName, setFiscalName] = useState(initialFiscalName)
   const [searchingRnc, setSearchingRnc] = useState(false)
   const [rncStatusMsg, setRncStatusMsg] = useState('')
-  const [showFiscalDetails, setShowFiscalDetails] = useState(false)
+  const [showFiscalDetails, setShowFiscalDetails] = useState(Boolean(initialRnc || initialFiscalName))
 
   // Initialize fiscal data from payload / customer
   useEffect(() => {
-    const cust = payload?.customer || (payload?.data as any)?.customer
-    const currentRnc = cust?.rnc_cedula || cust?.rncCedula || ''
-    const currentFiscalName = cust?.fiscal_name || cust?.fiscalName || ''
+    const activeCust = payload?.customer || (payload?.data as any)?.customer
+    const currentRnc = (customerRnc || activeCust?.rnc_cedula || activeCust?.rncCedula || payload?.rnc_cedula || table?.customerRnc || '').trim()
+    const currentFiscalName = (customerFiscalName || activeCust?.fiscal_name || activeCust?.fiscalName || payload?.fiscal_name || table?.customerFiscalName || '').trim()
     if (currentRnc) {
       setRncCedula(currentRnc)
       // If customer has RNC, auto-select Crédito Fiscal (E31 or B01 according to branch setup)
       setReceiptType(defaultCreditType)
       setShowFiscalDetails(true)
-    } else {
-      setReceiptType(defaultConsumerType)
     }
     if (currentFiscalName) setFiscalName(currentFiscalName)
-  }, [payload, defaultCreditType, defaultConsumerType])
+  }, [payload, customerRnc, customerFiscalName, defaultCreditType, table?.customerRnc, table?.customerFiscalName])
+
+  // Auto-lookup registered customer RNC if customer has a profile with RNC
+  useEffect(() => {
+    let active = true
+    if (!rncCedula && (effectiveCustId || effectiveCustName) && !offline) {
+      const searchTarget = effectiveCustName.trim() || (effectiveCustId ? String(effectiveCustId) : '')
+      if (searchTarget) {
+        api.customers('pin', searchTarget)
+          .then(results => {
+            if (!active) return
+            const matchWithRnc = results.find(c =>
+              (c.rncCedula && c.rncCedula.trim().length >= 9) &&
+              (c.id === effectiveCustId || (effectiveCustName && c.name?.toLowerCase().trim() === effectiveCustName.toLowerCase().trim()))
+            )
+            if (matchWithRnc && matchWithRnc.rncCedula) {
+              setRncCedula(matchWithRnc.rncCedula)
+              if (matchWithRnc.fiscalName) setFiscalName(matchWithRnc.fiscalName)
+              setReceiptType(defaultCreditType)
+              setShowFiscalDetails(true)
+              if (table.currentOrderId && onSaveCustomer) {
+                void onSaveCustomer(table, matchWithRnc.name, matchWithRnc.id, matchWithRnc.rncCedula, matchWithRnc.fiscalName).catch(() => undefined)
+              }
+            }
+          })
+          .catch(() => undefined)
+      }
+    }
+    return () => { active = false }
+  }, [effectiveCustId, effectiveCustName, rncCedula, defaultCreditType, offline, table, onSaveCustomer])
 
   const selectedMethod = enabledMethods.some(value => value.code === method) ? method : enabledMethods[0]?.code || ''
 
@@ -2294,8 +2376,8 @@ function TablePaymentPanel({
       if (table.currentOrderId && onSaveCustomer && (rncCedula.trim() || fiscalName.trim())) {
         await onSaveCustomer(
           table,
-          table.customerName || fiscalName.trim() || 'Cliente Final',
-          table.customerId,
+          effectiveCustName || table.customerName || fiscalName.trim() || 'Cliente Final',
+          effectiveCustId || table.customerId,
           rncCedula.trim() || undefined,
           fiscalName.trim() || undefined
         ).catch(() => undefined)
@@ -2484,8 +2566,8 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
   const [customerName, setCustomerName] = useState(table?.customerName || '')
   const [customerPhone, setCustomerPhone] = useState(table?.customerPhone || '')
   const [customerEmail, setCustomerEmail] = useState('')
-  const [rncCedula, setRncCedula] = useState('')
-  const [fiscalName, setFiscalName] = useState('')
+  const [rncCedula, setRncCedula] = useState(table?.customerRnc || '')
+  const [fiscalName, setFiscalName] = useState(table?.customerFiscalName || '')
   const [customerModalOpen, setCustomerModalOpen] = useState(false)
   const [deliveryAddress, setDeliveryAddress] = useState('')
   const [deliveryTime, setDeliveryTime] = useState('')
@@ -2651,6 +2733,25 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
     return () => { cancelled = true }
   }, [table?.currentOrderId])
   useEffect(() => {
+    const cust = orderDetail?.customer || orderDetail?.data?.customer
+    const orderRnc = (cust?.rnc_cedula || cust?.rncCedula || orderDetail?.rnc_cedula || table?.customerRnc || '').trim()
+    const orderFiscalName = (cust?.fiscal_name || cust?.fiscalName || orderDetail?.fiscal_name || table?.customerFiscalName || '').trim()
+    const orderCustName = (cust?.name || orderDetail?.customer_name || table?.customerName || '').trim()
+    const orderCustId = cust?.id ?? orderDetail?.customer_id ?? table?.customerId
+
+    if (orderRnc) {
+      setRncCedula(orderRnc)
+    }
+    if (orderFiscalName) {
+      setFiscalName(orderFiscalName)
+    }
+    if (orderCustName && !customerName) {
+      setCustomerName(orderCustName)
+    }
+    if (orderCustId && !customerId) {
+      setCustomerId(Number(orderCustId))
+    }
+
     const values = extractOrderItems(orderDetail)
     if (!values.length) return
     // The order detail arrives asynchronously from the API and is normalized
@@ -2661,14 +2762,30 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
       const amount = Number(item.amount ?? item.total ?? item.price ?? 0)
       return { id: Number(item.id || item.order_item_id), name: String(item.name || item.menu_item_name || item.product_name || 'Producto'), quantity, amount: amount || Number(item.price || 0) * quantity }
     }).filter(item => Number.isInteger(item.id) && item.id > 0))
-    const cust = orderDetail?.customer || orderDetail?.data?.customer
-    if (cust?.rnc_cedula || cust?.rncCedula) {
-      setRncCedula(cust.rnc_cedula || cust.rncCedula || '')
+  }, [orderDetail, table?.customerRnc, table?.customerFiscalName, table?.customerName, table?.customerId, customerName, customerId])
+
+  // Auto-resolve customer RNC if customer is known but RNC not yet populated
+  useEffect(() => {
+    let active = true
+    const searchTarget = (customerName || table?.customerName || '').trim()
+    if (!rncCedula && searchTarget && !offline) {
+      api.customers('pin', searchTarget)
+        .then(results => {
+          if (!active) return
+          const matchWithRnc = results.find(c =>
+            (c.rncCedula && c.rncCedula.trim().length >= 9) &&
+            (c.name?.toLowerCase().trim() === searchTarget.toLowerCase().trim() || (customerId && c.id === customerId))
+          )
+          if (matchWithRnc && matchWithRnc.rncCedula) {
+            setRncCedula(matchWithRnc.rncCedula)
+            if (matchWithRnc.fiscalName) setFiscalName(matchWithRnc.fiscalName)
+            if (!customerId && matchWithRnc.id) setCustomerId(matchWithRnc.id)
+          }
+        })
+        .catch(() => undefined)
     }
-    if (cust?.fiscal_name || cust?.fiscalName) {
-      setFiscalName(cust.fiscal_name || cust.fiscalName || '')
-    }
-  }, [orderDetail])
+    return () => { active = false }
+  }, [customerName, customerId, rncCedula, table?.customerName, offline])
   useEffect(() => {
     const handleQuickAdd = (e: any) => {
       const item = e.detail
@@ -3195,6 +3312,10 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
                 paymentMethods={paymentMethods}
                 fiscalCapabilities={fiscalCapabilities}
                 offline={offline}
+                customerRnc={rncCedula || table.customerRnc}
+                customerFiscalName={fiscalName || table.customerFiscalName}
+                customerName={customerName || table.customerName}
+                customerId={customerId || table.customerId}
                 onClose={() => setPaymentOpen(false)}
                 onPay={onPayOrder}
                 onSaveCustomer={onSaveCustomer}
