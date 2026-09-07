@@ -1147,3 +1147,110 @@ h2 { margin-bottom: 0; font-size: 22px; letter-spacing: -.02em; }
   margin: 0;
 }
 
+/* Envoltorio de producto con botón +1 rápido */
+.product-card-wrap {
+  position: relative;
+  display: flex;
+}
+.product-card-wrap .product-card {
+  width: 100%;
+}
+.quick-add-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  box-shadow: 0 3px 8px rgba(8, 127, 140, 0.35);
+  cursor: pointer;
+  z-index: 2;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.quick-add-btn:hover {
+  transform: scale(1.12);
+  background: var(--primary-hover, #066973);
+}
+.quick-add-btn:active {
+  transform: scale(0.92);
+}
+
+/* Chips predefinidos de notas de cocina */
+.preset-notes-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  margin-bottom: 8px;
+}
+.preset-chip {
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.preset-chip:hover {
+  border-color: var(--primary);
+  color: var(--ink);
+}
+.preset-chip.active {
+  background: rgba(8, 127, 140, 0.12);
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 800;
+}
+
+/* Pastillas de filtro de mesas en sala */
+.table-status-filter-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 2px 0;
+}
+.table-filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.table-filter-pill:hover {
+  border-color: var(--primary);
+  color: var(--ink);
+}
+.table-filter-pill.active {
+  background: var(--surface-soft);
+  border-color: var(--primary);
+  color: var(--ink);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+.table-filter-pill .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.table-filter-pill .dot.green { background: #2db773; }
+.table-filter-pill .dot.red { background: #e3535d; }
+.table-filter-pill .dot.blue { background: #3b82f6; }
+
