@@ -856,28 +856,21 @@ function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error,
         <div className="hero-copy">
           <p className="eyebrow">HOSPITALIDAD QUE CONECTA</p>
           <h1>
-            Buena comida,
-            <br />
-            mejores <em>historias</em>
+            Buena<br />comida,<br />mejores <em>historias</em>
           </h1>
           <div className="gold-rule" />
-          <p className="hero-description">Una experiencia premium desde el primer acceso.</p>
+          <p className="hero-subclaim">LA HOSPITALIDAD<br />TAMBIÉN<br />SE SIRVE</p>
         </div>
 
         <div className="hospitality-list" aria-label="Sectores">
-          <div><UtensilsCrossed size={22} /><span>Restaurantes</span></div>
-          <div><BedDouble size={22} /><span>Hoteles</span></div>
-          <div><Martini size={22} /><span>Bares</span></div>
-          <div><Coffee size={22} /><span>Cafeterías</span></div>
+          <div><UtensilsCrossed size={22} strokeWidth={1.5} /><span>Restaurantes</span></div>
+          <div><BedDouble size={22} strokeWidth={1.5} /><span>Hoteles</span></div>
+          <div><Martini size={22} strokeWidth={1.5} /><span>Bares</span></div>
+          <div><Coffee size={22} strokeWidth={1.5} /><span>Cafeterías</span></div>
         </div>
       </section>
 
       <section className="access-side">
-        <div className="side-message side-message-top">
-          <ShieldCheck size={28} />
-          <span>PERSONAS QUE CREAN EXPERIENCIAS INOLVIDABLES</span>
-        </div>
-
         <article className="login-card">
           <div className="card-toolbar">
             {canChangeBranch && (
@@ -887,9 +880,9 @@ function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error,
               </button>
             )}
             <button className="language-button" type="button" aria-label="Idioma">
-              <Globe2 size={18} />
+              <Globe2 size={17} />
               <span>ES</span>
-              <ChevronDown size={15} />
+              <ChevronDown size={14} />
             </button>
             {onTheme && (
               <button
@@ -899,13 +892,13 @@ function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error,
                 aria-label="Cambiar apariencia"
                 title={`Cambiar a modo ${theme === 'light' ? 'oscuro' : 'claro'}`}
               >
-                {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+                {theme === 'light' ? <Moon size={17} /> : <Sun size={17} />}
               </button>
             )}
           </div>
 
           <div className="card-brand">
-            <img src="/assets/restapp-logo.png" alt="" />
+            <img src="/assets/restapp-logo.png" alt="RestaPP" />
             <div className="card-brand-name">Resta<span>PP</span></div>
             <div className="card-brand-subtitle">{branch ? `${brand ? brand.toUpperCase() : 'RESTAPP'} · ${branch.toUpperCase()}` : (brand ? brand.toUpperCase() : 'SISTEMA PARA HOSPITALIDAD')}</div>
           </div>
@@ -916,7 +909,7 @@ function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error,
           </div>
 
           <label className="profile-select">
-            <UserRound size={24} />
+            <UserRound size={22} />
             <span className="profile-text">
               <small>Seleccionar perfil</small>
               <strong>{roleDisplayMap[role] || 'Cajero'}</strong>
@@ -935,7 +928,7 @@ function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error,
                 <option key={item} value={item}>{item}</option>
               ))}
             </select>
-            <ChevronDown className="select-arrow" size={20} />
+            <ChevronDown className="select-arrow" size={18} />
           </label>
 
           <div className={`pin-dots ${error ? 'has-error' : ''}`} aria-label={`${pin.length} dígitos ingresados`}>
@@ -955,7 +948,7 @@ function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error,
               0
             </button>
             <button type="button" disabled={loading} onClick={removeDigit} aria-label="Borrar">
-              <Delete size={24} />
+              <Delete size={22} />
             </button>
           </div>
 
@@ -969,16 +962,30 @@ function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error,
           </div>
 
           <div className="trust-row">
-            <span>Seguridad</span><i />
-            <span>Control</span><i />
-            <span>Mejor servicio</span>
+            <span>Seguridad</span><i>•</i>
+            <span>Control</span><i>•</i>
+            <span>Mejor Servicio</span>
           </div>
         </article>
 
-        <div className="side-message side-message-bottom">
-          <ChefHat size={28} />
-          <span>LA GASTRONOMÍA NOS UNE</span>
-        </div>
+        <aside className="side-strip">
+          <div className="side-message side-message-top">
+            <ShieldCheck size={28} strokeWidth={1.5} />
+            <span>PERSONAS<br />QUE CREAN<br />EXPERIENCIAS<br />INOLVIDABLES</span>
+          </div>
+
+          <div className="side-rule" />
+
+          <div className="side-message side-message-bottom">
+            <ChefHat size={28} strokeWidth={1.5} />
+            <span>LA<br />GASTRONOMÍA<br />NOS UNE</span>
+          </div>
+
+          <div className="side-version">
+            <strong>RestaPP</strong>
+            <span>V 1.0.0</span>
+          </div>
+        </aside>
       </section>
     </main>
   )
