@@ -4,7 +4,7 @@ import { api, ApiError, API_BASE_URL, normalizeAttendance } from './api/client'
 import type { AttendanceRecord, Branch, DeliveryExecutive, DeliverySettings, DeviceBinding, KitchenPlace, KitchenTicket, KitchenView, MenuItem, ModifierGroup, ModifierOption, NotificationSettings, OfflineOperation, OfflineStep, OfflineWorkflow, OrderDraft, OrderLine, OrderMode, PaymentMethodOption, RestaurantTable, Session, StaffRole, WaiterRequest } from './types'
 import { clearSession, enqueue, getDeviceId, getStorageScope, listOutbox, newIdempotencyKey, readCache, readSession, removeOutbox, saveCache, saveSession, setStorageScope, updateOutbox } from './storage/offline'
 import { CustomerModal } from './CustomerModal'
-import { ArrowLeftFromLine, ArrowRightLeft, BedDouble, Bell, CalendarDays, Check, ChefHat, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, CloudOff, Clock, Coffee, ConciergeBell, CreditCard, Delete, Divide, Flower2 as Spa, Globe, Globe2, Lock, LogOut, Map, Martini, Menu, Minus, Moon, Plus, Printer, RefreshCw, Search, ShieldCheck, Sun, Truck, Unlock, UserCheck, UserCircle2, UserRound, UsersRound, UserX, Utensils, UtensilsCrossed, Wallet, Wine, Wifi, X } from 'lucide-react'
+import { ArrowLeftFromLine, ArrowRightLeft, BedDouble, Bell, CalendarDays, Check, ChefHat, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, CloudOff, Clock, Coffee, ConciergeBell, CreditCard, Delete, Divide, Flower2 as Spa, Globe, Globe2, Lock, LogOut, Map as LucideMap, Martini, Menu, Minus, Moon, Plus, Printer, RefreshCw, Search, ShieldCheck, Sun, Truck, Unlock, UserCheck, UserCircle2, UserRound, UsersRound, UserX, Utensils, UtensilsCrossed, Wallet, Wine, Wifi, X } from 'lucide-react'
 import { Capacitor } from '@capacitor/core'
 import { Haptics } from '@capacitor/haptics'
 import { LocalNotifications } from '@capacitor/local-notifications'
@@ -1013,7 +1013,7 @@ function SetupScreen({
 }
 
 function BranchScreen({ branches, loading, error, offline, onSelect, onBack }: { branches: Branch[]; loading: boolean; error: string; offline: boolean; onSelect: (branch: Branch) => void; onBack: () => void }) {
-  return <main className="page padded"><header className="simple-header"><button className="icon-button" onClick={onBack}><ChevronLeft /></button><div><p className="eyebrow">AUTORIZACIÓN DEL DISPOSITIVO</p><h1>Seleccione la sucursal</h1></div>{offline && <CloudOff className="warning-icon" />}</header><div className="branch-grid">{branches.length ? branches.map(branch => <button className="branch-card" key={branch.id} onClick={() => onSelect(branch)} disabled={loading}><Map size={24} /><span>{branch.name}</span><small>Identificador {branch.id}</small></button>) : <div className="empty"><p>No hay sucursales disponibles.</p><button className="button outline" onClick={onBack}>Volver a configurar</button></div>}</div>{error && <Alert>{error}</Alert>}</main>
+  return <main className="page padded"><header className="simple-header"><button className="icon-button" onClick={onBack}><ChevronLeft /></button><div><p className="eyebrow">AUTORIZACIÓN DEL DISPOSITIVO</p><h1>Seleccione la sucursal</h1></div>{offline && <CloudOff className="warning-icon" />}</header><div className="branch-grid">{branches.length ? branches.map(branch => <button className="branch-card" key={branch.id} onClick={() => onSelect(branch)} disabled={loading}><LucideMap size={24} /><span>{branch.name}</span><small>Identificador {branch.id}</small></button>) : <div className="empty"><p>No hay sucursales disponibles.</p><button className="button outline" onClick={onBack}>Volver a configurar</button></div>}</div>{error && <Alert>{error}</Alert>}</main>
 }
 
 function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error, notice, onSubmit, canChangeBranch, onBack, theme, onTheme }: { brand: string; branch: string; role: StaffRole; onRoleChange: (role: StaffRole) => void; offline: boolean; loading: boolean; error: string; notice: string; onSubmit: (pin: string) => void; canChangeBranch: boolean; onBack: () => void; theme?: 'light' | 'dark'; onTheme?: () => void }) {
@@ -1253,9 +1253,48 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
   const canKitchen = permissions['kitchen.manage'] === true
   const table = activeTable
   const [tableFilter, setTableFilter] = useState<'all' | 'available' | 'occupied' | 'prebill'>('all')
+  const [waiterRequests, setWaiterRequests] = useState<WaiterRequest[]>(() => readCache().waiterRequests || [])
+  const [attendingRequestId, setAttendingRequestId] = useState<number | null>(null)
   const waiterSeenIds = useRef<Set<number> | null>(null)
   const seenNotificationIds = useRef<Set<string> | null>(null)
   const unreadNotifications = notifications.filter(notification => notification.unread).length
+
+  async function handleDismissWaiterRequest(request: WaiterRequest, e?: React.MouseEvent) {
+    if (e) e.stopPropagation()
+    if (attendingRequestId !== null) return
+    setAttendingRequestId(request.id)
+    try {
+      const idempotencyKey = newIdempotencyKey()
+      if (offline) {
+        await enqueue({ id: crypto.randomUUID(), scope: getStorageScope(), method: 'PUT', path: `/pos/waiter-requests/${request.id}/status`, body: { status: 'completed' }, idempotencyKey, createdAt: new Date().toISOString() })
+      } else {
+        await api.updateWaiterRequestStatus('pin', request.id, 'completed', idempotencyKey)
+      }
+      const next = waiterRequests.filter(r => r.id !== request.id)
+      setWaiterRequests(next)
+      saveCache({ waiterRequests: next })
+    } catch {
+      // Si falla, abrimos el panel de operaciones
+      setShowOps(true)
+    } finally {
+      setAttendingRequestId(null)
+    }
+  }
+
+  // Mapa rápido de mesas que están llamando para destacar su tarjeta visual
+  const callingTableMap = useMemo(() => {
+    const map = new Map<number | string, WaiterRequest>()
+    for (const req of waiterRequests) {
+      if (req.tableId) map.set(req.tableId, req)
+      if (req.tableName) {
+        map.set(req.tableName, req)
+        const clean = req.tableName.toLowerCase().replace(/^(mesa|table)\s*/i, '').trim()
+        if (clean) map.set(clean, req)
+      }
+    }
+    return map
+  }, [waiterRequests])
+
   async function markNotificationRead(notification: LiveNotification) {
     if (!notification.unread) return
     const next = notifications.map(value => value.id === notification.id ? { ...value, unread: false } : value)
@@ -1304,7 +1343,9 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
     const loadWaiterAlerts = async () => {
       if (offline) {
         const cached = readCache()
-        waiterSeenIds.current = new Set((cached.waiterRequests || []).map(request => request.id))
+        const rows = cached.waiterRequests || []
+        waiterSeenIds.current = new Set(rows.map(request => request.id))
+        setWaiterRequests(rows)
         return
       }
       try {
@@ -1312,14 +1353,17 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
         if (cancelled) return
         const nextIds = new Set(rows.map(request => request.id))
         const previousIds = waiterSeenIds.current
-        if (previousIds && rows.some(request => !previousIds.has(request.id))) playWaiterAlert(readCache().notificationSettings || defaultNotificationSettings)
+        if (previousIds && rows.some(request => !previousIds.has(request.id))) {
+          playWaiterAlert(readCache().notificationSettings || defaultNotificationSettings, '¡Llamada de Mesa!', `${rows.length === 1 ? rows[0].tableName : `${rows.length} mesas`} solicitan atención.`)
+        }
         waiterSeenIds.current = nextIds
+        setWaiterRequests(rows)
         saveCache({ waiterRequests: rows })
       } catch { /* un perfil sin este permiso simplemente no recibe llamadas */ }
     }
     void loadWaiterAlerts()
     if (offline) return () => { cancelled = true }
-    const timer = window.setInterval(() => void loadWaiterAlerts(), 5_000)
+    const timer = window.setInterval(() => void loadWaiterAlerts(), 4_000)
     return () => { cancelled = true; window.clearInterval(timer) }
   }, [offline, roleKey])
   useEffect(() => {
@@ -1351,21 +1395,77 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
   if (roleKey === 'chef') {
     return <main className="app-shell kitchen-only-app"><header className="app-header"><div className="brand-inline"><div className="brand-mini"><ChefHat size={19} /></div><div><strong>{brand}</strong><small>{branch} · cocina</small></div></div><div className="header-actions"><span className={offline ? 'status-pill offline' : 'status-pill'}>{offline ? <CloudOff size={15} /> : <Wifi size={15} />}{offline ? 'Sin conexión' : 'Con conexión'}</span>{isSyncing && <span className="syncing-pill"><RefreshCw size={14} className="spin-icon" /> Sincronizando…</span>}{queueCount > 0 && <span className="queue-pill">{queueCount} pendiente{queueCount > 1 ? 's' : ''}</span>}<button className="icon-button" onClick={onRefresh} title="Actualizar cocina"><Wifi size={19} /></button><button className="icon-button" onClick={onTheme} title="Cambiar tema">{theme === 'light' ? <Moon size={19} /> : <Sun size={19} />}</button><button className="icon-button" onClick={onLogout} title="Cerrar sesión"><LogOut size={19} /></button></div></header>{(notice || error) && <div className="toast-stack">{notice && <div className="toast success"><Check size={16} />{notice}</div>}{error && <div className="toast error"><X size={16} />{error}</div>}</div>}<section className="kitchen-only-workspace"><div className="kitchen-only-heading"><div><p className="eyebrow">OPERACIÓN DE COCINA · {branch.toUpperCase()}</p><h1>Tablero de preparación</h1><p className="muted">Toque una comanda para avanzar su estado. Las nuevas órdenes avisan con sonido y vibración.</p></div><ChefHat size={36} /></div>{canKitchen ? <KitchenPanel offline={offline} places={kitchenPlaces} standalone allowAll={false} viewScope="chef" onClose={() => undefined} onUpdateStatus={onUpdateKotStatus} /> : <div className="kitchen-permission-block"><ChefHat size={34} /><h2>Acceso a cocina no asignado</h2><p>El código personal fue reconocido, pero este usuario aún no tiene asignado el permiso de gestión de cocina en esta sucursal. Solicite al encargado que habilite el acceso a cocina.</p></div>}</section></main>
   }
-  return <main className="app-shell"><header className="app-header"><div className="brand-inline"><div className="brand-mini"><img src="/branding/mesero-app-icon.png" alt={brand || 'RestaPP'} /></div><div><strong>{brand}</strong><small>{branch} · {roleLabel(roleKey)}</small></div></div><div className="header-actions"><span className={offline ? 'status-pill offline' : 'status-pill'}>{offline ? <CloudOff size={15} /> : <Wifi size={15} />}{offline ? 'Sin conexión' : 'Con conexión'}</span>{isSyncing && <span className="syncing-pill"><RefreshCw size={14} className="spin-icon" /> Sincronizando…</span>}{queueCount > 0 && <span className="queue-pill">{queueCount} pendiente{queueCount > 1 ? 's' : ''}</span>}<button className="icon-button header-notification-button" onClick={() => setShowOps(true)} title="Avisos" aria-label={`Avisos${unreadNotifications ? ` (${unreadNotifications} sin leer)` : ''}`}><Bell size={19} />{unreadNotifications > 0 && <span className="notification-badge">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>}</button><button className="icon-button" onClick={onRefresh} title="Actualizar"><Wifi size={19} /></button><button className="icon-button" onClick={onTheme}>{theme === 'light' ? <Moon size={19} /> : <Sun size={19} />}</button><button className="icon-button" onClick={onLogout}><LogOut size={19} /></button></div></header>{(notice || error) && <div className="toast-stack">{notice && <div className="toast success"><Check size={16} />{notice}</div>}{error && <div className="toast error"><X size={16} />{error}</div>}</div>}<section className="workspace"><div className="section-heading"><div><p className="eyebrow">OPERACIÓN DIARIA · {roleLabel(roleKey).toUpperCase()}</p><h1>Mapa de mesas</h1></div><div className="heading-actions"><div className="table-status-filter-pills" role="tablist" aria-label="Filtrar mesas"><button type="button" role="tab" aria-selected={tableFilter === 'all'} className={`table-filter-pill ${tableFilter === 'all' ? 'active' : ''}`} onClick={() => setTableFilter('all')}>Todas ({tables.length})</button><button type="button" role="tab" aria-selected={tableFilter === 'available'} className={`table-filter-pill green ${tableFilter === 'available' ? 'active' : ''}`} onClick={() => setTableFilter('available')}><i className="dot green" /> Libres ({tables.filter(t => t.status === 'available').length})</button><button type="button" role="tab" aria-selected={tableFilter === 'occupied'} className={`table-filter-pill red ${tableFilter === 'occupied' ? 'active' : ''}`} onClick={() => setTableFilter('occupied')}><i className="dot red" /> Ocupadas ({tables.filter(t => t.status === 'occupied' || t.status === 'waiting_kitchen' || t.status === 'food_ready').length})</button><button type="button" role="tab" aria-selected={tableFilter === 'prebill'} className={`table-filter-pill blue ${tableFilter === 'prebill' ? 'active' : ''}`} onClick={() => setTableFilter('prebill')}><i className="dot blue" /> En cuenta ({tables.filter(t => t.status === 'bill_requested').length})</button></div>{canQuickSale && <button className="button primary" onClick={() => setShowQuick(true)}><Plus size={17} /> Venta directa</button>}</div></div><div className="floor-grid">{(() => {
+  return <main className="app-shell"><header className="app-header"><div className="brand-inline"><div className="brand-mini"><img src="/branding/mesero-app-icon.png" alt={brand || 'RestaPP'} /></div><div><strong>{brand}</strong><small>{branch} · {roleLabel(roleKey)}</small></div></div><div className="header-actions">{waiterRequests.length > 0 && <button className="header-waiter-pulse-pill" onClick={() => setShowOps(true)} title="Llamadas de mesa pendientes" aria-label={`${waiterRequests.length} llamadas de mesa pendientes`}><Bell size={15} className="bell-ringing-icon" /><span>{waiterRequests.length} llamada{waiterRequests.length > 1 ? 's' : ''}</span></button>}<span className={offline ? 'status-pill offline' : 'status-pill'}>{offline ? <CloudOff size={15} /> : <Wifi size={15} />}{offline ? 'Sin conexión' : 'Con conexión'}</span>{isSyncing && <span className="syncing-pill"><RefreshCw size={14} className="spin-icon" /> Sincronizando…</span>}{queueCount > 0 && <span className="queue-pill">{queueCount} pendiente{queueCount > 1 ? 's' : ''}</span>}<button className="icon-button header-notification-button" onClick={() => setShowOps(true)} title="Avisos" aria-label={`Avisos${unreadNotifications ? ` (${unreadNotifications} sin leer)` : ''}`}><Bell size={19} />{unreadNotifications > 0 && <span className="notification-badge">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>}</button><button className="icon-button" onClick={onRefresh} title="Actualizar"><Wifi size={19} /></button><button className="icon-button" onClick={onTheme}>{theme === 'light' ? <Moon size={19} /> : <Sun size={19} />}</button><button className="icon-button" onClick={onLogout}><LogOut size={19} /></button></div></header>{/* FLOATING PERSISTENT WAITER CALL BANNER AT ROOT LEVEL - ALWAYS VISIBLE */}{waiterRequests.length > 0 && (
+    <div className="waiter-call-floating-dock" role="alert" aria-live="assertive">
+      <div className="waiter-call-floating-card">
+        <div className="waiter-call-floating-icon">
+          <Bell size={22} className="bell-ringing-icon" />
+          <span className="waiter-pulse-halo" />
+        </div>
+        <div className="waiter-call-floating-content">
+          <strong>
+            {waiterRequests.length === 1 ? `¡${waiterRequests[0].tableName} llama al mesero!` : `¡${waiterRequests.length} mesas llaman al mesero!`}
+          </strong>
+          <small>
+            {waiterRequests.map(r => r.tableName).join(' · ')}
+          </small>
+        </div>
+        <div className="waiter-call-floating-actions">
+          {waiterRequests.length === 1 ? (
+            <button
+              type="button"
+              className="waiter-floating-btn primary"
+              disabled={attendingRequestId === waiterRequests[0].id}
+              onClick={(e) => void handleDismissWaiterRequest(waiterRequests[0], e)}
+            >
+              {attendingRequestId === waiterRequests[0].id ? 'Atendiendo…' : 'Marcar atendida'}
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="waiter-floating-btn primary"
+                disabled={attendingRequestId === waiterRequests[0].id}
+                onClick={(e) => void handleDismissWaiterRequest(waiterRequests[0], e)}
+              >
+                {attendingRequestId === waiterRequests[0].id ? 'Atendiendo…' : `Atender ${waiterRequests[0].tableName}`}
+              </button>
+              <button
+                type="button"
+                className="waiter-floating-btn outline"
+                onClick={() => setShowOps(true)}
+              >
+                Ver todas ({waiterRequests.length})
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )}{(notice || error) && <div className="toast-stack">{notice && <div className="toast success"><Check size={16} />{notice}</div>}{error && <div className="toast error"><X size={16} />{error}</div>}</div>}<section className="workspace"><div className="section-heading"><div><p className="eyebrow">OPERACIÓN DIARIA · {roleLabel(roleKey).toUpperCase()}</p><h1>Mapa de mesas</h1></div><div className="heading-actions"><div className="table-status-filter-pills" role="tablist" aria-label="Filtrar mesas"><button type="button" role="tab" aria-selected={tableFilter === 'all'} className={`table-filter-pill ${tableFilter === 'all' ? 'active' : ''}`} onClick={() => setTableFilter('all')}>Todas ({tables.length})</button><button type="button" role="tab" aria-selected={tableFilter === 'available'} className={`table-filter-pill green ${tableFilter === 'available' ? 'active' : ''}`} onClick={() => setTableFilter('available')}><i className="dot green" /> Libres ({tables.filter(t => t.status === 'available').length})</button><button type="button" role="tab" aria-selected={tableFilter === 'occupied'} className={`table-filter-pill red ${tableFilter === 'occupied' ? 'active' : ''}`} onClick={() => setTableFilter('occupied')}><i className="dot red" /> Ocupadas ({tables.filter(t => t.status === 'occupied' || t.status === 'waiting_kitchen' || t.status === 'food_ready').length})</button><button type="button" role="tab" aria-selected={tableFilter === 'prebill'} className={`table-filter-pill blue ${tableFilter === 'prebill' ? 'active' : ''}`} onClick={() => setTableFilter('prebill')}><i className="dot blue" /> En cuenta ({tables.filter(t => t.status === 'bill_requested').length})</button></div>{canQuickSale && <button className="button primary" onClick={() => setShowQuick(true)}><Plus size={17} /> Venta directa</button>}</div></div><div className="floor-grid">{(() => {
           const visibleTables = tables.filter(item => {
             if (tableFilter === 'available') return item.status === 'available';
             if (tableFilter === 'occupied') return item.status === 'occupied' || item.status === 'waiting_kitchen' || item.status === 'food_ready';
             if (tableFilter === 'prebill') return item.status === 'bill_requested';
             return true;
           });
-          return visibleTables.length ? visibleTables.map(item => (
-            <button key={item.id} className={`floor-table ${statusColors[item.status]}`} onClick={() => onSelectTable(item)}>
-              <TableVisual table={item} />
-              <span className="table-number">{item.number}</span>
-              <strong>{statusLabels[item.status]}</strong>
-              <small>{item.capacity} sillas{item.currentOrderNumber ? ` · n.º ${item.currentOrderNumber}` : ''}{item.customerName ? ` · ${item.customerName}` : ''}</small>
-            </button>
-          )) : (
+          return visibleTables.length ? visibleTables.map(item => {
+            const callingRequest = callingTableMap.get(item.id) || callingTableMap.get(item.name) || callingTableMap.get(item.number)
+            return (
+              <button key={item.id} className={`floor-table ${statusColors[item.status]} ${callingRequest ? 'table-is-calling' : ''}`} onClick={() => onSelectTable(item)}>
+                {callingRequest && (
+                  <div className="table-calling-badge" aria-label="¡Llamando al mesero!">
+                    <Bell size={12} className="bell-ringing-icon" />
+                    <span>¡Llamando!</span>
+                  </div>
+                )}
+                <TableVisual table={item} isCalling={Boolean(callingRequest)} />
+                <span className="table-number">{item.number}</span>
+                <strong>{statusLabels[item.status]}</strong>
+                <small>{item.capacity} sillas{item.currentOrderNumber ? ` · n.º ${item.currentOrderNumber}` : ''}{item.customerName ? ` · ${item.customerName}` : ''}</small>
+              </button>
+            )
+          }) : (
             <div className="empty" style={{ gridColumn: '1 / -1' }}>
               <ClipboardList size={40} />
               <p>{tableFilter === 'all' ? 'No hay mesas configuradas.' : 'No hay mesas con el estado seleccionado.'}</p>
@@ -1790,9 +1890,21 @@ function ProductPhoto({ item, compact = false }: { item: MenuItem; compact?: boo
   return <div className={`product-photo ${compact ? 'compact' : ''}`} aria-label={`Imagen de ${item.name}`}>{item.imageUrl && !failed ? <img src={item.imageUrl} alt={`Fotografía de ${item.name}`} loading="lazy" onError={() => setFailed(true)} /> : <div className="product-photo-empty"><span>Sin fotografía publicada</span><small>{item.imageUrl ? 'No fue posible cargar la imagen' : 'El propietario debe cargarla en el catálogo'}</small></div>}</div>
 }
 
-function TableVisual({ table }: { table: RestaurantTable }) {
+function TableVisual({ table, isCalling = false }: { table: RestaurantTable; isCalling?: boolean }) {
   const chairCount = Math.max(1, Math.min(Math.round(table.capacity) || 2, 12))
-  return <div className="table-visual" aria-label={`${table.number}: ${statusLabels[table.status]} · ${chairCount} sillas`}>{Array.from({ length: chairCount }, (_, index) => <span className="table-chair" key={index} style={chairStyle(index, chairCount)} aria-hidden="true" />)}<span className="table-top" aria-hidden="true"><i /></span></div>
+  return (
+    <div
+      className={`table-visual ${isCalling ? 'is-calling-table' : ''}`}
+      aria-label={`${table.number}: ${statusLabels[table.status]} · ${chairCount} sillas${isCalling ? ' · ¡Llamando al mesero!' : ''}`}
+    >
+      {Array.from({ length: chairCount }, (_, index) => (
+        <span className="table-chair" key={index} style={chairStyle(index, chairCount)} aria-hidden="true" />
+      ))}
+      <span className="table-top" aria-hidden="true">
+        <i />
+      </span>
+    </div>
+  )
 }
 
 function chairStyle(index: number, count: number): CSSProperties {

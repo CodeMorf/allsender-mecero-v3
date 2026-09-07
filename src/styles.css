@@ -2024,3 +2024,241 @@ h2 { margin-bottom: 0; font-size: 22px; letter-spacing: -.02em; }
 .table-filter-pill .dot.red { background: #e3535d; }
 .table-filter-pill .dot.blue { background: #3b82f6; }
 
+/* =========================================================
+   SISTEMA DE NOTIFICACIÓN PERSISTENTE DE LLAMADA DE MESERO
+   ========================================================= */
+
+/* 1. Header Pulse Badge / Pill */
+.header-waiter-pulse-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 13px;
+  border-radius: 999px;
+  border: 1px solid #e38814;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow: 0 3px 12px rgba(217, 119, 6, 0.4);
+  animation: waiterHeaderPulse 1.8s infinite ease-in-out;
+  transition: transform 0.15s ease;
+}
+.header-waiter-pulse-pill:hover {
+  transform: scale(1.05);
+}
+@keyframes waiterHeaderPulse {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.6); }
+  50% { transform: scale(1.04); box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+
+/* Icono campana con animación de tintineo */
+.bell-ringing-icon {
+  display: inline-block;
+  transform-origin: top center;
+  animation: bellRing 1.6s infinite ease-in-out;
+}
+@keyframes bellRing {
+  0%, 100% { transform: rotate(0deg); }
+  15% { transform: rotate(16deg); }
+  30% { transform: rotate(-14deg); }
+  45% { transform: rotate(10deg); }
+  60% { transform: rotate(-8deg); }
+  75% { transform: rotate(0deg); }
+}
+
+/* 2. Top Floating Dock (Siempre a la vista) */
+.waiter-call-floating-dock {
+  position: fixed;
+  top: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  width: min(680px, calc(100% - 28px));
+  pointer-events: auto;
+  animation: slideDownToast 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes slideDownToast {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -24px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+.waiter-call-floating-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 20px;
+  background: linear-gradient(100deg, #2a1f0a 0%, #3d2b0e 100%);
+  border: 1.5px solid #dfaa53;
+  border-radius: 20px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45), 0 0 25px rgba(223, 170, 83, 0.3);
+  color: #fcf8f2;
+}
+:root[data-theme="dark"] .waiter-call-floating-card {
+  background: linear-gradient(100deg, #1f1606 0%, #2e2009 100%);
+  border-color: #dfaa53;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.65), 0 0 28px rgba(223, 170, 83, 0.35);
+}
+.waiter-call-floating-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #d97706, #b45309);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.45);
+}
+.waiter-pulse-halo {
+  position: absolute;
+  inset: -4px;
+  border-radius: 18px;
+  border: 2px solid #dfaa53;
+  animation: haloPulse 1.8s infinite ease-out;
+  pointer-events: none;
+}
+@keyframes haloPulse {
+  0% { transform: scale(1); opacity: 0.9; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+.waiter-call-floating-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.waiter-call-floating-content strong {
+  font-size: 15px;
+  font-weight: 850;
+  color: #ffdf8c;
+  letter-spacing: -0.01em;
+}
+.waiter-call-floating-content small {
+  font-size: 12px;
+  color: #ecd9b5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.waiter-call-floating-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.waiter-floating-btn {
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.waiter-floating-btn.primary {
+  background: linear-gradient(90deg, #d97706, #b45309);
+  border: 1px solid #f59e0b;
+  color: #ffffff;
+  box-shadow: 0 3px 10px rgba(217, 119, 6, 0.4);
+}
+.waiter-floating-btn.primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+  box-shadow: 0 5px 14px rgba(217, 119, 6, 0.55);
+}
+.waiter-floating-btn.outline {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(223, 170, 83, 0.5);
+  color: #f7e6c4;
+}
+.waiter-floating-btn.outline:hover {
+  background: rgba(223, 170, 83, 0.18);
+  border-color: #dfaa53;
+  color: #ffffff;
+}
+
+/* 3. Indicador de Mesa Llamando en el Mapa */
+.floor-table.table-is-calling {
+  border-color: #e38814 !important;
+  box-shadow: 0 0 0 3px rgba(227, 136, 20, 0.35), 0 8px 24px rgba(227, 136, 20, 0.25) !important;
+  animation: tableCallingBorderPulse 2s infinite ease-in-out;
+}
+@keyframes tableCallingBorderPulse {
+  0%, 100% {
+    border-color: #e38814;
+    box-shadow: 0 0 0 3px rgba(227, 136, 20, 0.35), 0 8px 24px rgba(227, 136, 20, 0.25);
+  }
+  50% {
+    border-color: #f59e0b;
+    box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.55), 0 12px 30px rgba(245, 158, 11, 0.35);
+  }
+}
+.table-calling-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  background: linear-gradient(135deg, #ea580c, #c2410c);
+  color: #ffffff;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 850;
+  letter-spacing: 0.03em;
+  box-shadow: 0 3px 8px rgba(194, 65, 12, 0.45);
+  animation: badgePop 0.3s ease-out;
+}
+@keyframes badgePop {
+  from { transform: scale(0.6); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.table-visual.is-calling-table .table-top {
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.6);
+  border-color: #d97706;
+}
+
+@media (max-width: 640px) {
+  .waiter-call-floating-dock {
+    top: 64px;
+    width: calc(100% - 16px);
+  }
+  .waiter-call-floating-card {
+    padding: 10px 14px;
+    gap: 10px;
+    border-radius: 16px;
+  }
+  .waiter-call-floating-icon {
+    width: 38px;
+    height: 38px;
+  }
+  .waiter-call-floating-content strong {
+    font-size: 13px;
+  }
+  .waiter-call-floating-content small {
+    font-size: 11px;
+  }
+  .waiter-floating-btn {
+    height: 34px;
+    padding: 0 10px;
+    font-size: 11.5px;
+  }
+}
+
+
