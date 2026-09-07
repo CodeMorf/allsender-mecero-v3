@@ -195,6 +195,8 @@ export default function App() {
         setTables(remoteTables)
         setActiveTable(current => current ? remoteTables.find(t => t.id === current.id) || current : current)
         saveCache({ tables: remoteTables, branchId: pinSession.branchId, scopeKey: pinSession.scopeKey || tenantScope(pinSession) })
+        // Attempt background outbox sync to drain any lingering queued operations
+        void syncOutbox()
       } catch {
         // Fallback silencioso en segundo plano sin interrumpir la interfaz
       }
@@ -457,13 +459,23 @@ export default function App() {
       await updateOutbox({ ...operation, scope: operation.scope || getStorageScope(), workflow })
     }
     await removeOutbox(operation.id)
+    setQueueCount((await safeOutbox()).length)
     return { remoteOrderId: workflow.remoteOrderId, firstResponse }
   }
 
   async function queueAndRun(operation: OfflineOperation) {
     await enqueue(operation)
     setQueueCount((await safeOutbox()).length)
-    if (navigator.onLine && api.getToken('pin')) return executeWorkflow(operation)
+    if (navigator.onLine && api.getToken('pin')) {
+      try {
+        const res = await executeWorkflow(operation)
+        setQueueCount((await safeOutbox()).length)
+        return res
+      } catch (err) {
+        setQueueCount((await safeOutbox()).length)
+        throw err
+      }
+    }
     return { remoteOrderId: operation.workflow?.remoteOrderId }
   }
 
