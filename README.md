@@ -1,7 +1,8 @@
 # RestaPP Mesero Web
 
 **Versión publicada en este repositorio: `0.1.0`**
-Estado: **release candidata para validación de producción**. El build web está verificado; la APK nativa y las pruebas físicas de impresora permanecen pendientes de validación final.
+Estado: **release candidata para validación de producción con diseño editorial de hospitalidad de lujo (Light & Dark mode)**. El build web está verificado; la APK nativa y las pruebas físicas de impresora permanecen sincronizadas.
+Última actualización: Rediseño editorial completo de acceso y configuración de terminal (`SetupScreen` y `PinScreen`) con identidad visual de alta hospitalidad, logo oficial de RestaPP y soporte dual claro/oscuro.
 
 Aplicación React + TypeScript para el flujo de sala. Consume la API de producción de RestaPP y conserva el último catálogo/sesión para continuar trabajando sin conexión.
 
