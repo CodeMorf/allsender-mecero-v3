@@ -143,7 +143,14 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const [theme, setTheme] = useState<'light' | 'dark'>('light')
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    try {
+      const stored = localStorage.getItem('restapp:theme')
+      return stored === 'dark' || stored === 'light' ? stored : 'light'
+    } catch {
+      return 'light'
+    }
+  })
   const [queueCount, setQueueCount] = useState(0)
   const [restaurantName, setRestaurantName] = useState('RestaPP')
   const [restaurantHash, setRestaurantHash] = useState('')
@@ -172,7 +179,10 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  useEffect(() => { document.documentElement.dataset.theme = theme }, [theme])
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    try { localStorage.setItem('restapp:theme', theme) } catch { /* ignore */ }
+  }, [theme])
 
   useEffect(() => {
     if (screen !== 'floor' || !pinSession || offline) return
@@ -762,7 +772,7 @@ export default function App() {
 
   if (screen === 'setup') return <SetupScreen loading={loading} error={error} defaultDeviceId={deviceId} onSubmit={handleAdminLogin} onDirectPin={handleDirectPin} />
   if (screen === 'branches') return <BranchScreen branches={branches} loading={loading} error={error} offline={offline} onSelect={chooseBranch} onBack={() => { clearSession('admin'); setScreen('setup') }} />
-  if (screen === 'pin') return <PinScreen brand={restaurantName} branch={activeBranch?.name || ''} role={staffRole} onRoleChange={setStaffRole} offline={offline} loading={loading} error={error} notice={notice} onSubmit={handlePin} canChangeBranch={Boolean(adminSession)} onBack={() => setScreen('branches')} />
+  if (screen === 'pin') return <PinScreen brand={restaurantName} branch={activeBranch?.name || ''} role={staffRole} onRoleChange={setStaffRole} offline={offline} loading={loading} error={error} notice={notice} onSubmit={handlePin} canChangeBranch={Boolean(adminSession)} onBack={() => setScreen('branches')} theme={theme} onTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')} />
   return <FloorScreen brand={restaurantName} branch={activeBranch?.name || ''} roleKey={pinSession?.roleKey || staffRole} userId={pinSession?.userId} deviceId={deviceId} permissions={pinSession?.permissions || {}} tables={tables} items={items} kitchenPlaces={kitchenPlaces} paymentMethods={paymentMethods} offline={offline} queueCount={queueCount} isSyncing={isSyncing} notice={notice} error={error} theme={theme} onTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')} onLogout={logout} onRefresh={() => pinSession && hydrate(pinSession)} onSubmitOrder={submitOrder} onSaveCustomer={saveTableCustomer} onRemoveOrderItem={removeOrderItem} onPrintPreBill={printPreBill} onPayOrder={payOrder} onTransferTable={transferTableOrder} onOpenCashSession={openCashSession} onCloseCashSession={closeCashSession} onApproveCashSession={approveCashSession} onRejectCashSession={rejectCashSession} onReopenCashSession={reopenCashSession} onCashMovement={cashMovement} onClockIn={clockInAttendance} onClockOut={clockOutAttendance} onUpdateKotStatus={updateKotStatus} onSelectTable={setActiveTable} activeTable={activeTable} />
 }
 
@@ -777,22 +787,63 @@ function BranchScreen({ branches, loading, error, offline, onSelect, onBack }: {
   return <main className="page padded"><header className="simple-header"><button className="icon-button" onClick={onBack}><ChevronLeft /></button><div><p className="eyebrow">AUTORIZACIÓN DEL DISPOSITIVO</p><h1>Seleccione la sucursal</h1></div>{offline && <CloudOff className="warning-icon" />}</header><div className="branch-grid">{branches.length ? branches.map(branch => <button className="branch-card" key={branch.id} onClick={() => onSelect(branch)} disabled={loading}><Map size={24} /><span>{branch.name}</span><small>Identificador {branch.id}</small></button>) : <div className="empty"><p>No hay sucursales disponibles.</p><button className="button outline" onClick={onBack}>Volver a configurar</button></div>}</div>{error && <Alert>{error}</Alert>}</main>
 }
 
-function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error, notice, onSubmit, canChangeBranch, onBack }: { brand: string; branch: string; role: StaffRole; onRoleChange: (role: StaffRole) => void; offline: boolean; loading: boolean; error: string; notice: string; onSubmit: (pin: string) => void; canChangeBranch: boolean; onBack: () => void }) {
+function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error, notice, onSubmit, canChangeBranch, onBack, theme, onTheme }: { brand: string; branch: string; role: StaffRole; onRoleChange: (role: StaffRole) => void; offline: boolean; loading: boolean; error: string; notice: string; onSubmit: (pin: string) => void; canChangeBranch: boolean; onBack: () => void; theme?: 'light' | 'dark'; onTheme?: () => void }) {
   const [pin, setPin] = useState('')
   const press = (digit: string) => { if (loading || pin.length >= 4) return; const next = pin + digit; setPin(next); if (next.length === 4) window.setTimeout(() => onSubmit(next), 120) }
   const clearPin = () => setPin('')
   const backspace = () => { if (!loading) setPin(current => current.slice(0, -1)) }
-  const statusText = loading ? 'Validando código personal…' : error ? 'Código incorrecto. Intente de nuevo.' : notice || (offline ? 'Sin conexión · sesión local' : `Introduzca su código personal de ${roleLabel(role)}`)
+  const statusText = loading ? 'Validando código personal…' : error ? 'Código incorrecto. Intente de nuevo.' : notice || (offline ? 'Sin conexión · sesión local' : 'Introduce el código del empleado')
   return <main className="pin-shell pin-shell-modern">
-    {canChangeBranch && <button className="pin-back" onClick={onBack}><ChevronLeft /> Cambiar de sucursal</button>}
+    <div className="pin-top-actions">
+      {canChangeBranch ? (
+        <button type="button" className="pin-back" onClick={onBack}><ChevronLeft size={17} /> Cambiar de sucursal</button>
+      ) : <span />}
+      {onTheme && (
+        <button type="button" className="pin-theme-toggle" onClick={onTheme} title={`Cambiar a modo ${theme === 'light' ? 'oscuro' : 'claro'}`} aria-label="Cambiar tema">
+          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          <span className="pin-theme-toggle-label">{theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}</span>
+        </button>
+      )}
+    </div>
     <section className="pin-card pin-card-modern">
-      <div className="pin-brand-block"><div className="brand-mark"><img src="/branding/mesero-app-icon.png" alt="RestaPP" /></div><div className="pin-business-type"><UtensilsCrossed size={15} /> RESTAURANTE</div><h1>{brand || 'RestaPP'}</h1><p>{branch || 'Sucursal autorizada'}</p></div>
-      <label className="pin-role pin-role-modern"><span><UserCircle2 size={15} /> Seleccionar perfil</span><select value={role} disabled={offline || loading} onChange={e => { clearPin(); onRoleChange(e.target.value as StaffRole) }}><option value="mesero">Mesero</option><option value="chef">Cocina</option><option value="cajero">Cajero</option><option value="head">Encargado</option><option value="repartidor">Repartidor</option></select></label>
+      <div className="pin-brand-block">
+        <div className="brand-mark"><img src="/branding/mesero-app-icon.png" alt="RestaPP" /></div>
+        <h1 className="pin-brand-name">{brand || 'RestaPP'}</h1>
+        <p className="pin-brand-sub">{branch || 'RESTAURANTE & BAR'}</p>
+        <div className="pin-portal-title">
+          <strong>Portal de acceso</strong>
+          <small>Personal de servicio y sala</small>
+        </div>
+      </div>
+      <label className="pin-role pin-role-modern">
+        <span className="pin-role-label"><UserCircle2 size={16} /> Seleccionar perfil</span>
+        <select value={role} disabled={offline || loading} onChange={e => { clearPin(); onRoleChange(e.target.value as StaffRole) }}>
+          <option value="mesero">Mesero</option>
+          <option value="chef">Cocina</option>
+          <option value="cajero">Cajero</option>
+          <option value="head">Encargado</option>
+          <option value="repartidor">Repartidor</option>
+        </select>
+      </label>
       <div className={`pin-status-dots ${error ? 'has-error' : ''} ${notice ? 'has-success' : ''}`} aria-label={`${pin.length} de 4 dígitos`}>
         {[0, 1, 2, 3].map(i => <span key={i} className={i < pin.length ? 'filled' : ''} />)}
       </div>
-      <div className="keypad pin-keypad-modern">{['1','2','3','4','5','6','7','8','9','','0','⌫'].map((key, i) => key ? <button key={i} disabled={loading} aria-label={key === '⌫' ? 'Borrar' : key} onClick={() => key === '⌫' ? backspace() : press(key)}>{key === '⌫' ? <Delete size={24} /> : key}</button> : <span key={i} />)}</div>
-      <p className={`pin-login-status ${error ? 'error' : ''} ${notice ? 'success' : ''}`}>{statusText}</p>
+      <div className="keypad pin-keypad-modern">
+        {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((key, i) => key ? (
+          <button
+            key={i}
+            type="button"
+            disabled={loading}
+            aria-label={key === '⌫' ? 'Borrar' : key}
+            onClick={() => key === '⌫' ? backspace() : press(key)}
+          >
+            {key === '⌫' ? <Delete size={22} /> : key}
+          </button>
+        ) : <span key={i} className="keypad-spacer" />)}
+      </div>
+      <div className="pin-footer-status">
+        <p className={`pin-login-status ${error ? 'error' : ''} ${notice ? 'success' : ''}`}>{statusText}</p>
+      </div>
     </section>
   </main>
 }
