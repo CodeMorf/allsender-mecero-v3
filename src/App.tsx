@@ -4,7 +4,7 @@ import { api, ApiError, API_BASE_URL, normalizeAttendance } from './api/client'
 import type { AttendanceRecord, Branch, DeliveryExecutive, DeliverySettings, DeviceBinding, KitchenPlace, KitchenTicket, KitchenView, MenuItem, ModifierGroup, ModifierOption, NotificationSettings, OfflineOperation, OfflineStep, OfflineWorkflow, OrderDraft, OrderLine, OrderMode, PaymentMethodOption, RestaurantTable, Session, StaffRole, WaiterRequest } from './types'
 import { clearSession, enqueue, getDeviceId, getStorageScope, listOutbox, newIdempotencyKey, readCache, readSession, removeOutbox, saveCache, saveSession, setStorageScope, updateOutbox } from './storage/offline'
 import { CustomerModal } from './CustomerModal'
-import { ArrowLeftFromLine, ArrowRightLeft, BedDouble, Bell, CalendarDays, Check, ChefHat, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, CloudOff, Clock, Coffee, ConciergeBell, CreditCard, Delete, Divide, Flower2 as Spa, Globe, Globe2, Lock, LogOut, Map as LucideMap, Martini, Menu, Minus, Moon, Plus, Printer, RefreshCw, Search, ShieldCheck, Sun, Truck, Unlock, UserCheck, UserCircle2, UserRound, UsersRound, UserX, Utensils, UtensilsCrossed, Wallet, Wine, Wifi, X } from 'lucide-react'
+import { ArrowLeftFromLine, ArrowRightLeft, Banknote, BatteryCharging, BedDouble, Bell, BookOpen, CalendarDays, Check, ChefHat, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, CloudLightning, CloudOff, Clock, Coffee, ConciergeBell, CreditCard, Delete, Divide, Edit3, Flame, Flower2 as Spa, Globe, Globe2, History, LayoutGrid, Lock, LogOut, Map as LucideMap, Martini, Menu, Minus, Moon, Plus, Printer, Receipt, RefreshCw, Search, Send, ShieldCheck, SlidersHorizontal, ShoppingCart, Sun, Trash2, Truck, Unlock, UserCheck, UserCircle2, UserRound, Users, UsersRound, UserX, Utensils, UtensilsCrossed, Wallet, Wine, Wifi, X } from 'lucide-react'
 import { Capacitor } from '@capacitor/core'
 import { Haptics } from '@capacitor/haptics'
 import { LocalNotifications } from '@capacitor/local-notifications'
@@ -1392,86 +1392,513 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
     window.addEventListener('restapp:open-waiter-alerts', openWaiterAlerts)
     return () => window.removeEventListener('restapp:open-waiter-alerts', openWaiterAlerts)
   }, [])
-  if (roleKey === 'chef') {
-    return <main className="app-shell kitchen-only-app"><header className="app-header"><div className="brand-inline"><div className="brand-mini"><ChefHat size={19} /></div><div><strong>{brand}</strong><small>{branch} · cocina</small></div></div><div className="header-actions"><span className={offline ? 'status-pill offline' : 'status-pill'}>{offline ? <CloudOff size={15} /> : <Wifi size={15} />}{offline ? 'Sin conexión' : 'Con conexión'}</span>{isSyncing && <span className="syncing-pill"><RefreshCw size={14} className="spin-icon" /> Sincronizando…</span>}{queueCount > 0 && <span className="queue-pill">{queueCount} pendiente{queueCount > 1 ? 's' : ''}</span>}<button className="icon-button" onClick={onRefresh} title="Actualizar cocina"><Wifi size={19} /></button><button className="icon-button" onClick={onTheme} title="Cambiar tema">{theme === 'light' ? <Moon size={19} /> : <Sun size={19} />}</button><button className="icon-button" onClick={onLogout} title="Cerrar sesión"><LogOut size={19} /></button></div></header>{(notice || error) && <div className="toast-stack">{notice && <div className="toast success"><Check size={16} />{notice}</div>}{error && <div className="toast error"><X size={16} />{error}</div>}</div>}<section className="kitchen-only-workspace"><div className="kitchen-only-heading"><div><p className="eyebrow">OPERACIÓN DE COCINA · {branch.toUpperCase()}</p><h1>Tablero de preparación</h1><p className="muted">Toque una comanda para avanzar su estado. Las nuevas órdenes avisan con sonido y vibración.</p></div><ChefHat size={36} /></div>{canKitchen ? <KitchenPanel offline={offline} places={kitchenPlaces} standalone allowAll={false} viewScope="chef" onClose={() => undefined} onUpdateStatus={onUpdateKotStatus} /> : <div className="kitchen-permission-block"><ChefHat size={34} /><h2>Acceso a cocina no asignado</h2><p>El código personal fue reconocido, pero este usuario aún no tiene asignado el permiso de gestión de cocina en esta sucursal. Solicite al encargado que habilite el acceso a cocina.</p></div>}</section></main>
-  }
-  return <main className="app-shell"><header className="app-header"><div className="brand-inline"><div className="brand-mini"><img src="/branding/mesero-app-icon.png" alt={brand || 'RestaPP'} /></div><div><strong>{brand}</strong><small>{branch} · {roleLabel(roleKey)}</small></div></div><div className="header-actions">{waiterRequests.length > 0 && <button className="header-waiter-pulse-pill" onClick={() => setShowOps(true)} title="Llamadas de mesa pendientes" aria-label={`${waiterRequests.length} llamadas de mesa pendientes`}><Bell size={15} className="bell-ringing-icon" /><span>{waiterRequests.length} llamada{waiterRequests.length > 1 ? 's' : ''}</span></button>}<span className={offline ? 'status-pill offline' : 'status-pill'}>{offline ? <CloudOff size={15} /> : <Wifi size={15} />}{offline ? 'Sin conexión' : 'Con conexión'}</span>{isSyncing && <span className="syncing-pill"><RefreshCw size={14} className="spin-icon" /> Sincronizando…</span>}{queueCount > 0 && <span className="queue-pill">{queueCount} pendiente{queueCount > 1 ? 's' : ''}</span>}<button className="icon-button header-notification-button" onClick={() => setShowOps(true)} title="Avisos" aria-label={`Avisos${unreadNotifications ? ` (${unreadNotifications} sin leer)` : ''}`}><Bell size={19} />{unreadNotifications > 0 && <span className="notification-badge">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>}</button><button className="icon-button" onClick={onRefresh} title="Actualizar"><Wifi size={19} /></button><button className="icon-button" onClick={onTheme}>{theme === 'light' ? <Moon size={19} /> : <Sun size={19} />}</button><button className="icon-button" onClick={onLogout}><LogOut size={19} /></button></div></header>{/* FLOATING PERSISTENT WAITER CALL BANNER AT ROOT LEVEL - ALWAYS VISIBLE */}{waiterRequests.length > 0 && (
-    <div className="waiter-call-floating-dock" role="alert" aria-live="assertive">
-      <div className="waiter-call-floating-card">
-        <div className="waiter-call-floating-icon">
-          <Bell size={22} className="bell-ringing-icon" />
-          <span className="waiter-pulse-halo" />
+  // Enterprise POS Layout State
+  const [activeNavTab, setActiveNavTab] = useState<'tables' | 'menu' | 'cashier' | 'ops'>('tables')
+  const [productSearch, setProductSearch] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState('Todos')
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
+  const [clockTime, setClockTime] = useState(() => new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }))
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setClockTime(new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }))
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const menuCategories = useMemo(() => {
+    const list = Array.from(new Set(items.map(item => item.categoryName).filter(Boolean))).sort()
+    return ['Todos', ...list]
+  }, [items])
+
+  const filteredMenuItems = useMemo(() => {
+    const q = productSearch.trim().toLowerCase()
+    return items.filter(item => {
+      const matchCat = selectedCategory === 'Todos' || item.categoryName === selectedCategory
+      const matchSearch = !q || item.name.toLowerCase().includes(q) || (item.code && item.code.toLowerCase().includes(q))
+      return matchCat && matchSearch
+    })
+  }, [items, selectedCategory, productSearch])
+
+  const totalFreeTables = useMemo(() => tables.filter(t => t.status === 'available').length, [tables])
+  const totalOccupiedTables = useMemo(() => tables.filter(t => t.status === 'occupied' || t.status === 'waiting_kitchen' || t.status === 'food_ready').length, [tables])
+  const totalBillTables = useMemo(() => tables.filter(t => t.status === 'bill_requested').length, [tables])
+
+  return (
+    <div className="pos-app-shell">
+      {/* 1. System Status Bar (Enterprise POS Top Bar) */}
+      <div className="system-status-bar">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <span className={offline ? 'sync-offline' : 'sync-ok'}>
+            <CloudLightning size={13} /> {offline ? 'Modo Offline' : isSyncing ? 'Sincronizando…' : 'Sync OK'}
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#A1A5AB' }}>
+            <ChefHat size={13} /> {brand} · {branch}
+          </span>
         </div>
-        <div className="waiter-call-floating-content">
-          <strong>
-            {waiterRequests.length === 1 ? `¡${waiterRequests[0].tableName} llama al mesero!` : `¡${waiterRequests.length} mesas llaman al mesero!`}
-          </strong>
-          <small>
-            {waiterRequests.map(r => r.tableName).join(' · ')}
-          </small>
-        </div>
-        <div className="waiter-call-floating-actions">
-          {waiterRequests.length === 1 ? (
-            <button
-              type="button"
-              className="waiter-floating-btn primary"
-              disabled={attendingRequestId === waiterRequests[0].id}
-              onClick={(e) => void handleDismissWaiterRequest(waiterRequests[0], e)}
-            >
-              {attendingRequestId === waiterRequests[0].id ? 'Atendiendo…' : 'Marcar atendida'}
-            </button>
-          ) : (
-            <>
-              <button
-                type="button"
-                className="waiter-floating-btn primary"
-                disabled={attendingRequestId === waiterRequests[0].id}
-                onClick={(e) => void handleDismissWaiterRequest(waiterRequests[0], e)}
-              >
-                {attendingRequestId === waiterRequests[0].id ? 'Atendiendo…' : `Atender ${waiterRequests[0].tableName}`}
-              </button>
-              <button
-                type="button"
-                className="waiter-floating-btn outline"
-                onClick={() => setShowOps(true)}
-              >
-                Ver todas ({waiterRequests.length})
-              </button>
-            </>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          {queueCount > 0 && (
+            <span style={{ color: '#FFD54F', fontSize: '0.7rem', fontWeight: 700 }}>
+              {queueCount} cola offline
+            </span>
           )}
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            {offline ? <CloudOff size={13} style={{ color: '#FF8A65' }} /> : <Wifi size={13} style={{ color: '#5EDBAC' }} />}
+            <span className="hidden sm:inline">{offline ? 'Sin red' : 'Terminal 01'}</span>
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <BatteryCharging size={13} style={{ color: '#5EDBAC' }} />
+            <span className="hidden sm:inline">100%</span>
+          </span>
+          <span style={{ fontFamily: 'monospace', color: '#fff', fontSize: '13px', marginLeft: 4, fontWeight: 700 }}>
+            {clockTime}
+          </span>
         </div>
       </div>
-    </div>
-  )}{(notice || error) && <div className="toast-stack">{notice && <div className="toast success"><Check size={16} />{notice}</div>}{error && <div className="toast error"><X size={16} />{error}</div>}</div>}<section className="workspace"><div className="section-heading"><div><p className="eyebrow">OPERACIÓN DIARIA · {roleLabel(roleKey).toUpperCase()}</p><h1>Mapa de mesas</h1></div><div className="heading-actions"><div className="table-status-filter-pills" role="tablist" aria-label="Filtrar mesas"><button type="button" role="tab" aria-selected={tableFilter === 'all'} className={`table-filter-pill ${tableFilter === 'all' ? 'active' : ''}`} onClick={() => setTableFilter('all')}>Todas ({tables.length})</button><button type="button" role="tab" aria-selected={tableFilter === 'available'} className={`table-filter-pill green ${tableFilter === 'available' ? 'active' : ''}`} onClick={() => setTableFilter('available')}><i className="dot green" /> Libres ({tables.filter(t => t.status === 'available').length})</button><button type="button" role="tab" aria-selected={tableFilter === 'occupied'} className={`table-filter-pill red ${tableFilter === 'occupied' ? 'active' : ''}`} onClick={() => setTableFilter('occupied')}><i className="dot red" /> Ocupadas ({tables.filter(t => t.status === 'occupied' || t.status === 'waiting_kitchen' || t.status === 'food_ready').length})</button><button type="button" role="tab" aria-selected={tableFilter === 'prebill'} className={`table-filter-pill blue ${tableFilter === 'prebill' ? 'active' : ''}`} onClick={() => setTableFilter('prebill')}><i className="dot blue" /> En cuenta ({tables.filter(t => t.status === 'bill_requested').length})</button></div>{canQuickSale && <button className="button primary" onClick={() => setShowQuick(true)}><Plus size={17} /> Venta directa</button>}</div></div><div className="floor-grid">{(() => {
-          const visibleTables = tables.filter(item => {
-            if (tableFilter === 'available') return item.status === 'available';
-            if (tableFilter === 'occupied') return item.status === 'occupied' || item.status === 'waiting_kitchen' || item.status === 'food_ready';
-            if (tableFilter === 'prebill') return item.status === 'bill_requested';
-            return true;
-          });
-          return visibleTables.length ? visibleTables.map(item => {
-            const callingRequest = callingTableMap.get(item.id) || callingTableMap.get(item.name) || callingTableMap.get(item.number)
-            return (
-              <button key={item.id} className={`floor-table ${statusColors[item.status]} ${callingRequest ? 'table-is-calling' : ''}`} onClick={() => onSelectTable(item)}>
-                {callingRequest && (
-                  <div className="table-calling-badge" aria-label="¡Llamando al mesero!">
-                    <Bell size={12} className="bell-ringing-icon" />
-                    <span>¡Llamando!</span>
-                  </div>
-                )}
-                <TableVisual table={item} isCalling={Boolean(callingRequest)} />
-                <span className="table-number">{item.number}</span>
-                <strong>{statusLabels[item.status]}</strong>
-                <small>{item.capacity} sillas{item.currentOrderNumber ? ` · n.º ${item.currentOrderNumber}` : ''}{item.customerName ? ` · ${item.customerName}` : ''}</small>
-              </button>
-            )
-          }) : (
-            <div className="empty" style={{ gridColumn: '1 / -1' }}>
-              <ClipboardList size={40} />
-              <p>{tableFilter === 'all' ? 'No hay mesas configuradas.' : 'No hay mesas con el estado seleccionado.'}</p>
+
+      {/* FLOATING PERSISTENT WAITER CALL BANNER AT ROOT LEVEL - ALWAYS VISIBLE */}
+      {waiterRequests.length > 0 && (
+        <div className="waiter-call-floating-dock" role="alert" aria-live="assertive">
+          <div className="waiter-call-floating-card">
+            <div className="waiter-call-floating-icon">
+              <Bell size={22} className="bell-ringing-icon" />
+              <span className="waiter-pulse-halo" />
             </div>
-          );
-        })()}</div><ActiveOrdersPanel tables={tables} onSelectTable={onSelectTable} /><div className="quick-panels"><button className="quick-panel" onClick={() => setShowMenu(true)}><Menu /><span><strong>Comandas</strong><small>{items.length} productos guardados</small></span></button>{canKitchen ? <button className="quick-panel" onClick={() => setShowKitchen(true)}><ChefHat /><span><strong>Cocina</strong><small>Pedidos activos y en preparación</small></span></button> : <button className="quick-panel" onClick={() => setShowOps(true)}><ChefHat /><span><strong>Cocina</strong><small>Estados y avisos de cocina</small></span></button>}<button className="quick-panel" onClick={() => setShowOps(true)}><Bell /><span><strong>Avisos</strong><small>{unreadNotifications ? `${unreadNotifications} sin leer` : notifications.length ? `${notifications.length} avisos disponibles` : 'Platos listos y disponibilidad'}</small></span></button><button className="quick-panel" onClick={() => setShowAttendance(true)}><Clock /><span><strong>Jornada</strong><small>Entrada, salida y horas trabajadas</small></span></button>{canCashier && <button className="quick-panel" onClick={() => setShowCashier(true)}><Wallet /><span><strong>Turno de caja</strong><small>Fondo inicial, movimientos y cierre</small></span></button>}</div></section>{(table || (showQuick && canQuickSale)) && <OrderPanel key={`${table?.id || 'quick'}-${table?.currentOrderId || 'new'}`} table={table} tables={tables} quick={showQuick} roleKey={roleKey} permissions={permissions} paymentMethods={paymentMethods} canCharge={canCharge} offline={offline} deliverySettings={deliverySettings} deliveryExecutives={deliveryExecutives} items={items} onClose={() => { onSelectTable(null); setShowQuick(false) }} onSubmit={onSubmitOrder} onSaveCustomer={onSaveCustomer} onRemoveOrderItem={onRemoveOrderItem} onPrintPreBill={onPrintPreBill} onPayOrder={onPayOrder} onTransferTable={onTransferTable} />}{showMenu && <MenuPanel items={items} onClose={() => setShowMenu(false)} />}{showOps && <OperationsPanel notifications={notifications} loading={opsLoading} offline={offline} permissions={permissions} roleKey={roleKey} onClose={() => setShowOps(false)} onMarkNotificationRead={markNotificationRead} />}{showKitchen && canKitchen && <KitchenPanel offline={offline} places={kitchenPlaces} viewScope="supervisor" onClose={() => setShowKitchen(false)} onUpdateStatus={onUpdateKotStatus} />}{showAttendance && <JornadaPanel offline={offline} userId={userId} deviceId={deviceId} onClose={() => setShowAttendance(false)} onClockIn={onClockIn} onClockOut={onClockOut} />}{showCashier && canCashier && <CashierPanel offline={offline} permissions={permissions} onClose={() => setShowCashier(false)} onOpenSession={onOpenCashSession} onCloseSession={onCloseCashSession} onApproveSession={onApproveCashSession} onRejectSession={onRejectCashSession} onReopenSession={onReopenCashSession} onCashMovement={onCashMovement} />}</main>
+            <div className="waiter-call-floating-content">
+              <strong>
+                {waiterRequests.length === 1 ? `¡${waiterRequests[0].tableName} llama al mesero!` : `¡${waiterRequests.length} mesas llaman al mesero!`}
+              </strong>
+              <small>
+                {waiterRequests.map(r => r.tableName).join(' · ')}
+              </small>
+            </div>
+            <div className="waiter-call-floating-actions">
+              {waiterRequests.length === 1 ? (
+                <button
+                  type="button"
+                  className="waiter-floating-btn primary"
+                  disabled={attendingRequestId === waiterRequests[0].id}
+                  onClick={(e) => void handleDismissWaiterRequest(waiterRequests[0], e)}
+                >
+                  {attendingRequestId === waiterRequests[0].id ? 'Atendiendo…' : 'Marcar atendida'}
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="waiter-floating-btn primary"
+                    disabled={attendingRequestId === waiterRequests[0].id}
+                    onClick={(e) => void handleDismissWaiterRequest(waiterRequests[0], e)}
+                  >
+                    {attendingRequestId === waiterRequests[0].id ? 'Atendiendo…' : `Atender ${waiterRequests[0].tableName}`}
+                  </button>
+                  <button
+                    type="button"
+                    className="waiter-floating-btn outline"
+                    onClick={() => setShowOps(true)}
+                  >
+                    Ver todas ({waiterRequests.length})
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {(notice || error) && (
+        <div className="toast-stack">
+          {notice && <div className="toast success"><Check size={16} />{notice}</div>}
+          {error && <div className="toast error"><X size={16} />{error}</div>}
+        </div>
+      )}
+
+      {/* 2. Main POS Application Layout with Sidebar + View Layers */}
+      <div className="pos-app-layout">
+        {/* Left Sidebar (Desktop fixed left 82px / Mobile bottom bar) */}
+        <nav className="pos-main-sidebar" aria-label="Navegación principal">
+          <div className="pos-sidebar-logo">
+            <ChefHat size={26} color="#ffffff" />
+          </div>
+
+          <div className="pos-sidebar-nav">
+            <button
+              type="button"
+              className={`pos-nav-btn ${activeNavTab === 'tables' ? 'active' : ''}`}
+              onClick={() => setActiveNavTab('tables')}
+              title="Salón Principal"
+            >
+              <LayoutGrid className="nav-icon" />
+              <span className="nav-label">SALÓN</span>
+            </button>
+
+            <button
+              type="button"
+              className={`pos-nav-btn ${activeNavTab === 'menu' ? 'active' : ''}`}
+              onClick={() => setActiveNavTab('menu')}
+              title="Catálogo de Menú"
+            >
+              <BookOpen className="nav-icon" />
+              <span className="nav-label">MENÚ</span>
+            </button>
+
+            <button
+              type="button"
+              className={`pos-nav-btn ${activeNavTab === 'cashier' ? 'active' : ''}`}
+              onClick={() => {
+                if (canCashier) setShowCashier(true)
+                else setShowOps(true)
+              }}
+              title="Módulo de Caja"
+            >
+              <Banknote className="nav-icon" />
+              <span className="nav-label">CAJA</span>
+              <span className="active-indicator-dot" />
+            </button>
+
+            <button
+              type="button"
+              className={`pos-nav-btn ${activeNavTab === 'ops' ? 'active' : ''}`}
+              onClick={() => setShowOps(true)}
+              title="Avisos y Operaciones"
+            >
+              <History className="nav-icon" />
+              <span className="nav-label">AVISOS</span>
+              {unreadNotifications > 0 && (
+                <span className="notification-badge" style={{ position: 'absolute', top: 4, right: 8 }}>
+                  {unreadNotifications}
+                </span>
+              )}
+            </button>
+          </div>
+
+          <div className="pos-sidebar-profile">
+            <button
+              type="button"
+              className="pos-profile-avatar"
+              onClick={onLogout}
+              title={`Cerrar sesión · ${roleLabel(roleKey)}`}
+            >
+              <LogOut size={18} />
+            </button>
+          </div>
+        </nav>
+
+        {/* Main Content Area: Vistas con transición */}
+        <main className="pos-main-content">
+          {/* VIEW: TABLES / SALÓN */}
+          <div className={`pos-view-layer ${activeNavTab === 'tables' ? 'view-active' : 'view-hidden'}`}>
+            <header className="pos-view-header">
+              <div className="pos-view-title">
+                <h1>Salón Principal</h1>
+                <p>
+                  <span><span style={{ color: '#5EDBAC' }}>●</span> {totalFreeTables} Libres</span>
+                  <span><span style={{ color: '#FF8A65' }}>●</span> {totalOccupiedTables} Ocupadas</span>
+                  <span><span style={{ color: '#7986CB' }}>●</span> {totalBillTables} Cuenta</span>
+                </p>
+              </div>
+              <div className="pos-view-actions">
+                <button
+                  type="button"
+                  className={`pos-filter-pill-btn ${tableFilter === 'all' ? 'active' : ''}`}
+                  onClick={() => setTableFilter(prev => prev === 'all' ? 'available' : prev === 'available' ? 'occupied' : prev === 'occupied' ? 'prebill' : 'all')}
+                >
+                  <SlidersHorizontal size={14} style={{ color: '#A1A5AB' }} />
+                  <span>{tableFilter === 'all' ? 'Todas' : tableFilter === 'available' ? 'Libres' : tableFilter === 'occupied' ? 'Ocupadas' : 'Cuentas'}</span>
+                </button>
+                {canQuickSale && (
+                  <button
+                    type="button"
+                    className="pos-btn-primary"
+                    style={{ padding: '0.5rem 1rem', fontSize: '0.82rem', borderRadius: 9999, width: 'auto' }}
+                    onClick={() => {
+                      setShowQuick(true)
+                      setMobileDrawerOpen(true)
+                    }}
+                  >
+                    <Plus size={15} /> Venta directa
+                  </button>
+                )}
+              </div>
+            </header>
+
+            {/* Grid de Mesas Estilo POS */}
+            <div className="pos-tables-grid">
+              {(() => {
+                const visibleTables = tables.filter(item => {
+                  if (tableFilter === 'available') return item.status === 'available'
+                  if (tableFilter === 'occupied') return item.status === 'occupied' || item.status === 'waiting_kitchen' || item.status === 'food_ready'
+                  if (tableFilter === 'prebill') return item.status === 'bill_requested'
+                  return true
+                })
+                if (!visibleTables.length) {
+                  return (
+                    <div className="empty" style={{ gridColumn: '1 / -1', minHeight: 220 }}>
+                      <ClipboardList size={40} style={{ color: 'var(--pos-text-tertiary)' }} />
+                      <p style={{ color: 'var(--pos-text-secondary)', marginTop: 8 }}>
+                        {tableFilter === 'all' ? 'No hay mesas configuradas.' : 'No hay mesas con el estado seleccionado.'}
+                      </p>
+                    </div>
+                  )
+                }
+                return visibleTables.map(item => {
+                  const callingRequest = callingTableMap.get(item.id) || callingTableMap.get(item.name) || callingTableMap.get(item.number)
+                  const isAvailable = item.status === 'available'
+                  const isKitchen = item.status === 'waiting_kitchen'
+                  const isBill = item.status === 'bill_requested'
+                  const isOccupied = !isAvailable && !isKitchen && !isBill
+
+                  const cardStatusClass = isAvailable ? 'status-free' : isKitchen ? 'status-kitchen' : isBill ? 'status-bill' : 'status-occupied'
+                  const statusBadgeLabel = isAvailable ? 'Libre' : isKitchen ? 'Cocina' : isBill ? 'Cuenta' : 'Ocupada'
+
+                  return (
+                    <div
+                      key={item.id}
+                      className={`pos-table-card ${cardStatusClass} ${callingRequest ? 'table-is-calling' : ''}`}
+                      onClick={() => {
+                        onSelectTable(item)
+                        setMobileDrawerOpen(true)
+                      }}
+                    >
+                      {callingRequest && (
+                        <div className="table-calling-badge" aria-label="¡Llamando al mesero!">
+                          <Bell size={12} className="bell-ringing-icon" />
+                          <span>¡Llamando!</span>
+                        </div>
+                      )}
+                      <div className="pos-table-header">
+                        <span className="pos-table-number">{item.number}</span>
+                        {isAvailable ? (
+                          <Users size={19} className="pos-table-icon" />
+                        ) : isKitchen ? (
+                          <Flame size={19} className="pos-table-icon" />
+                        ) : isBill ? (
+                          <Receipt size={19} className="pos-table-icon" />
+                        ) : (
+                          <Utensils size={19} className="pos-table-icon" />
+                        )}
+                      </div>
+
+                      <div className="pos-table-footer">
+                        <div className="pos-table-meta-text">
+                          {item.customerName ? item.customerName : item.currentOrderTotal ? formatMoney(item.currentOrderTotal) : `${item.capacity} Personas`}
+                        </div>
+                        <div className="pos-table-subrow">
+                          <div className="pos-status-badge">
+                            {statusBadgeLabel}
+                          </div>
+                          <span className="pos-time-badge">
+                            {isAvailable ? `Cap: ${item.capacity}` : item.currentOrderDue ? formatMoney(item.currentOrderDue) : 'Activa'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })
+              })()}
+            </div>
+          </div>
+
+          {/* VIEW: MENU / CATÁLOGO */}
+          <div className={`pos-view-layer ${activeNavTab === 'menu' ? 'view-active' : 'view-hidden'}`}>
+            <header className="pos-view-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <button
+                  type="button"
+                  className="pos-filter-pill-btn"
+                  onClick={() => setActiveNavTab('tables')}
+                  style={{ width: 38, height: 38, padding: 0, justifyContent: 'center' }}
+                >
+                  <ChevronLeft size={20} />
+                </button>
+                <div className="pos-view-title">
+                  <h1>{table ? `Mesa ${table.number} · Menú` : 'Menú General'}</h1>
+                  <p>{filteredMenuItems.length} productos disponibles</p>
+                </div>
+              </div>
+
+              <div className="pos-view-actions">
+                <div style={{ position: 'relative', width: 220 }}>
+                  <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#6C7278' }} />
+                  <input
+                    type="text"
+                    placeholder="Buscar plato…"
+                    value={productSearch}
+                    onChange={e => setProductSearch(e.target.value)}
+                    style={{
+                      background: 'var(--pos-bg-surface)',
+                      borderColor: 'var(--pos-bg-surface-elevated)',
+                      color: '#fff',
+                      borderRadius: 9999,
+                      paddingLeft: 34,
+                      height: 38,
+                      fontSize: '0.82rem'
+                    }}
+                  />
+                </div>
+                {/* Mobile Comanda Button */}
+                <button
+                  type="button"
+                  className="md:hidden pos-btn-primary"
+                  style={{ width: 40, height: 40, padding: 0, borderRadius: 9999 }}
+                  onClick={() => setMobileDrawerOpen(true)}
+                  title="Ver comanda"
+                >
+                  <ShoppingCart size={18} />
+                </button>
+              </div>
+            </header>
+
+            {/* Categorías (Chips horizontales) */}
+            <div className="pos-category-bar">
+              {menuCategories.map(cat => (
+                <button
+                  key={cat}
+                  type="button"
+                  className={`pos-category-chip ${selectedCategory === cat ? 'active' : ''}`}
+                  onClick={() => setSelectedCategory(cat)}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            {/* Grid de Productos */}
+            <div className="pos-products-grid">
+              {filteredMenuItems.map(item => {
+                const hasRequiredMods = Array.isArray(item.modifiers) && item.modifiers.some((m: any) => m.required)
+                return (
+                  <div
+                    key={item.id}
+                    className="pos-product-card"
+                    onClick={() => {
+                      if (!table && !showQuick) {
+                        // Si no hay mesa activa, seleccionamos una mesa o abrimos quick
+                        setActiveNavTab('tables')
+                        return
+                      }
+                      setMobileDrawerOpen(true)
+                    }}
+                  >
+                    <div className="pos-product-image-wrap">
+                      {item.imageUrl ? (
+                        <img src={item.imageUrl} alt={item.name} loading="lazy" />
+                      ) : (
+                        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#22252A', color: '#6C7278', fontSize: '11px' }}>
+                          Sin imagen
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        className="pos-product-add-btn"
+                        title={`Agregar ${item.name}`}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (!table && !showQuick) {
+                            setActiveNavTab('tables')
+                            return
+                          }
+                          setMobileDrawerOpen(true)
+                          // Trigger quick add si no requiere modificadores obligatorios
+                          window.dispatchEvent(new CustomEvent('restapp:quick-add-item', { detail: item }))
+                        }}
+                      >
+                        <Plus size={18} />
+                      </button>
+                    </div>
+                    <div className="pos-product-body">
+                      <div className="pos-product-name">{item.name}</div>
+                      <div className="pos-product-price">{formatMoney(item.price)}</div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </main>
+
+        {/* 3. Right Enterprise Order Drawer (Slide over on Mobile) */}
+        <div
+          className={`pos-drawer-overlay ${mobileDrawerOpen && (table || showQuick) ? 'is-visible' : ''}`}
+          onClick={() => setMobileDrawerOpen(false)}
+        />
+      </div>
+
+      {/* RENDER ACTIVE ORDER DRAWER / MODALS */}
+      {(table || (showQuick && canQuickSale)) && (
+        <OrderPanel
+          key={`${table?.id || 'quick'}-${table?.currentOrderId || 'new'}`}
+          table={table}
+          tables={tables}
+          quick={showQuick}
+          roleKey={roleKey}
+          permissions={permissions}
+          paymentMethods={paymentMethods}
+          canCharge={canCharge}
+          offline={offline}
+          deliverySettings={deliverySettings}
+          deliveryExecutives={deliveryExecutives}
+          items={items}
+          onClose={() => {
+            onSelectTable(null)
+            setShowQuick(false)
+            setMobileDrawerOpen(false)
+          }}
+          onSubmit={onSubmitOrder}
+          onSaveCustomer={onSaveCustomer}
+          onRemoveOrderItem={onRemoveOrderItem}
+          onPrintPreBill={onPrintPreBill}
+          onPayOrder={onPayOrder}
+          onTransferTable={onTransferTable}
+        />
+      )}
+
+      {showMenu && <MenuPanel items={items} onClose={() => setShowMenu(false)} />}
+      {showOps && (
+        <OperationsPanel
+          notifications={notifications}
+          loading={opsLoading}
+          offline={offline}
+          permissions={permissions}
+          roleKey={roleKey}
+          onClose={() => setShowOps(false)}
+          onMarkNotificationRead={markNotificationRead}
+        />
+      )}
+      {showKitchen && canKitchen && (
+        <KitchenPanel
+          offline={offline}
+          places={kitchenPlaces}
+          viewScope="supervisor"
+          onClose={() => setShowKitchen(false)}
+          onUpdateStatus={onUpdateKotStatus}
+        />
+      )}
+      {showAttendance && (
+        <JornadaPanel
+          offline={offline}
+          userId={userId}
+          deviceId={deviceId}
+          onClose={() => setShowAttendance(false)}
+          onClockIn={onClockIn}
+          onClockOut={onClockOut}
+        />
+      )}
+      {showCashier && canCashier && (
+        <CashierPanel
+          offline={offline}
+          permissions={permissions}
+          onClose={() => setShowCashier(false)}
+          onOpenSession={onOpenCashSession}
+          onCloseSession={onCloseCashSession}
+          onApproveSession={onApproveCashSession}
+          onRejectSession={onRejectCashSession}
+          onReopenSession={onReopenCashSession}
+          onCashMovement={onCashMovement}
+        />
+      )}
+    </div>
+  )
 }
 
 function JornadaPanel({ offline, userId, deviceId, onClose, onClockIn, onClockOut }: { offline: boolean; userId?: number; deviceId: string; onClose: () => void; onClockIn: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onClockOut: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }> }) {
@@ -1676,6 +2103,23 @@ function OrderPanel({ table, tables, quick, roleKey, permissions, paymentMethods
       return { id: Number(item.id || item.order_item_id), name: String(item.name || item.menu_item_name || item.product_name || 'Producto'), quantity, amount: amount || Number(item.price || 0) * quantity }
     }).filter(item => Number.isInteger(item.id) && item.id > 0))
   }, [orderDetail])
+  useEffect(() => {
+    const handleQuickAdd = (e: any) => {
+      const item = e.detail
+      if (!item) return
+      triggerAddLine({
+        clientId: crypto.randomUUID(),
+        itemId: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: 1,
+        modifiers: []
+      })
+    }
+    window.addEventListener('restapp:quick-add-item', handleQuickAdd)
+    return () => window.removeEventListener('restapp:quick-add-item', handleQuickAdd)
+  }, [])
+
   function triggerAddLine(line: OrderLine) {
     setLines(prev => [...prev, line])
     setAddedNotice(`+${line.quantity} ${line.name} agregado`)
@@ -1733,49 +2177,264 @@ function OrderPanel({ table, tables, quick, roleKey, permissions, paymentMethods
     } catch (cause) { setLocalError(normalizeError(cause, 'No se pudo quitar el artículo de la orden.')) }
     finally { setRemovingItemId(null) }
   }
-  return <div className="drawer-backdrop"><section className="order-drawer"><header className="drawer-header"><button className="icon-button" onClick={onClose}><X /></button><div><p className="eyebrow">{mode === 'delivery' ? 'ENTREGA A DOMICILIO' : mode === 'pickup' ? 'RETIRO EN EL LOCAL · SIN MESA' : `MESA ${table?.number}`}</p><h2>{table?.currentOrderId ? 'Agregar a la orden' : 'Comanda'}</h2>{table?.currentOrderId && <small>Pedido activo n.º {table.currentOrderNumber || table.currentOrderId}; los nuevos artículos se enviarán como una comanda adicional.</small>}</div><button className="icon-button" onClick={() => setShowMenu(!showMenu)}><Menu /></button></header><div className="order-body">{localError && <Alert>{localError}</Alert>}{mode === 'dine_in' && !table && <Alert>Seleccione una mesa antes de enviar la comanda.</Alert>}{table?.currentOrderId && <div className="active-order-note"><strong>Pedido activo</strong><span>Solo se enviarán los artículos nuevos; los envíos anteriores no se repetirán.</span><div className="active-order-meta"><span>Estado de preparación: {activeOrderStatus}</span><span>Tiempo activo: {activeElapsed || 'Recién tomada'}</span></div>{lastSentSummary && <small>Último envío a cocina: {lastSentSummary}</small>}</div>}{table?.currentOrderId && <div className="active-order-actions"><button className="button outline" onClick={() => { setPaymentOpen(false); setPreBillOpen(true) }}>Precuenta</button>{canCharge && <button className="button primary" onClick={() => { setPreBillOpen(false); setPaymentOpen(true) }}><CreditCard size={16} /> Cobrar</button>}<button className="button outline" onClick={() => { setPreBillOpen(false); setPaymentOpen(false); setShowMenu(true) }}>Agregar artículos</button>{mode === 'dine_in' && <button className="button outline" onClick={() => setTransferOpen(true)} title="Cambiar a otra mesa libre"><ArrowRightLeft size={16} /> Mover mesa</button>}</div>}{preBillOpen && table?.currentOrderId && <PreBillPanel table={table} payload={orderDetail} items={existingItems} onClose={() => setPreBillOpen(false)} onAddMore={() => { setPreBillOpen(false); setShowMenu(true) }} onPrint={printPreBill} printing={printing} printStatus={printStatus} />}{paymentOpen && table?.currentOrderId && canCharge && <TablePaymentPanel table={table} payload={orderDetail} items={existingItems} paymentMethods={paymentMethods} offline={offline} onClose={() => setPaymentOpen(false)} onPay={onPayOrder} />}{existingItems.length > 0 && <div className="active-order-lines"><strong>Artículos ya enviados</strong><ul>{existingItems.map(item => <li key={item.id}><span>{item.quantity}× {item.name}</span>{permissions['orders.update'] && <button className="icon-button" aria-label={`Quitar ${item.name}`} title="Quitar artículo" disabled={removingItemId !== null} onClick={() => void removeItem(item)}><X size={14} /></button>}</li>)}</ul></div>}<div className="order-mode"><label>Tipo de pedido<select aria-label="Tipo de pedido" value={mode} onChange={e => setMode(e.target.value as OrderMode)} disabled={!canDelivery}>{table && <option value="dine_in">Comer en mesa</option>}{!table && canDelivery && <option value="pickup">Retiro en el local · sin mesa</option>}{canDelivery && <option value="delivery">Entrega a domicilio</option>}{canDelivery && !table && <option value="dine_in">Comer en mesa</option>}{canDelivery && table && <option value="pickup">Retiro en el local · sin mesa</option>}</select></label><small className="muted">{quick ? 'La venta directa solo está disponible para el personal de caja autorizado.' : canDelivery ? 'El personal de caja puede elegir mesa, entrega a domicilio o retiro en el local.' : 'Personal de sala: seleccione una mesa para iniciar la comanda.'}</small></div>{/* Enhanced Customer Card with Quick Search and Modal Trigger */}<div className="customer-selector-card"><div className="customer-card-main"><div className="customer-card-avatar"><UserCheck size={18} /></div><div className="customer-card-meta"><div className="customer-card-name-row"><strong>{customerName.trim() || 'Cliente general'}</strong>{rncCedula && <span className="customer-card-badge">RNC: {rncCedula}</span>}</div><div className="customer-card-details">{fiscalName && <span>{fiscalName}</span>}{customerPhone && <span>Tel: {customerPhone}</span>}{!fiscalName && !customerPhone && !rncCedula && <span>Sin datos fiscales ni contacto</span>}</div></div></div><div className="customer-card-actions"><button type="button" className="button outline small" onClick={() => setCustomerModalOpen(true)}><Search size={14} /> {customerName.trim() ? 'Cambiar' : 'Buscar cliente'}</button>{customerName.trim() && <button type="button" className="icon-button" title="Limpiar cliente" onClick={() => { setCustomerId(undefined); setCustomerName(''); setCustomerPhone(''); setCustomerEmail(''); setRncCedula(''); setFiscalName('') }}><X size={14} /></button>}</div></div>{mode === 'dine_in' && table && table.currentOrderId && customerName.trim() && customerName.trim() !== (table.customerName || '') && <div style={{ marginBottom: 14 }}><button className="button outline small" disabled={savingCustomer} onClick={async () => { setSavingCustomer(true); setLocalError(''); try { await onSaveCustomer(table, customerName, customerId, rncCedula, fiscalName); } catch (cause) { setLocalError(normalizeError(cause, 'No se pudo guardar el cliente en la mesa.')) } finally { setSavingCustomer(false) } }}>{savingCustomer ? 'Guardando en mesa…' : 'Guardar cliente en mesa activa'}</button></div>}{mode === 'delivery' && <div className="delivery-form"><div className="delivery-heading"><Truck size={18} /><div><strong>Datos de entrega</strong><small>Configure dirección y repartidor para el despacho.</small></div></div>{deliverySettings === null && <Alert>La entrega a domicilio no está configurada en esta sucursal. Complete el formulario cuando el propietario active el servicio.</Alert>}{deliverySettings && deliverySettings.is_enabled !== true && <Alert>La entrega a domicilio está deshabilitada para esta sucursal.</Alert>}<label>Cliente<input required value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Nombre completo" /></label><label>Teléfono<input required type="tel" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="809-555-0000" /></label><label>Dirección<textarea required value={deliveryAddress} onChange={e => setDeliveryAddress(e.target.value)} placeholder="Calle, número, sector y referencia" /></label><label>Horario de entrega<input type="datetime-local" value={deliveryTime} onChange={e => setDeliveryTime(e.target.value)} /></label><label>Costo de entrega<input type="number" min="0" step="0.01" value={deliveryFee} onChange={e => setDeliveryFee(e.target.value)} placeholder={deliverySettings?.fixed_fee == null ? 'Configure el costo en la sucursal' : String(deliverySettings.fixed_fee)} /></label>{deliveryExecutives.length ? <label>Repartidor<select value={deliveryExecutiveId} onChange={e => setDeliveryExecutiveId(e.target.value)}><option value="">Asignar después</option>{deliveryExecutives.map(executive => <option key={executive.id} value={executive.id}>{executive.name}{executive.status ? ` · ${executive.status}` : ''}</option>)}</select></label> : <p className="muted delivery-note">No hay repartidores disponibles para esta sucursal; puede asignarlos después desde la operación.</p>}</div>}{showMenu && (
-          <ProductPicker
-            items={items}
-            onSelect={setSelected}
-            onQuickAdd={item => {
-              triggerAddLine({
-                clientId: crypto.randomUUID(),
-                itemId: item.id,
-                name: item.name,
-                price: item.price,
-                quantity: 1,
-                modifiers: []
-              });
-            }}
-          />
-        )}{addedNotice && <div className="item-added-pill" role="status"><Check size={14} /> {addedNotice}</div>}{lines.length ? <div className="lines">{lines.map(line => <div className="order-line draft-line" key={line.clientId}><div><strong>{line.quantity}× {line.name}</strong><small>{seatLabel(line.seatNumber) || 'Sin asiento asignado'}{line.modifiers.length ? ` · ${line.modifiers.map(m => m.name).join(', ')}` : ''}</small></div><div className="order-line-actions"><div className="line-stepper"><button type="button" className="icon-button small" aria-label="Reducir cantidad" onClick={() => updateLineQuantity(line.clientId, -1)}><Minus size={13} /></button><span>{line.quantity}</span><button type="button" className="icon-button small" aria-label="Aumentar cantidad" onClick={() => updateLineQuantity(line.clientId, 1)}><Plus size={13} /></button></div><b>{formatMoney(line.price * line.quantity)}</b><button type="button" className="icon-button small remove-line-btn" aria-label="Eliminar ítem" onClick={() => removeDraftLine(line.clientId)} title="Quitar"><X size={13} /></button></div></div>)}</div> : <div className="empty compact"><ClipboardList size={32} /><p>Seleccione artículos para iniciar.</p></div>}</div><footer className="drawer-footer">
-  {lines.length > 0 && (
-    <div className="order-summary-breakdown" style={{ display: 'grid', gap: '4px', marginBottom: '12px', fontSize: '13px', color: 'var(--muted)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <span>Subtotal estimado</span>
-        <b>{formatMoney(total)}</b>
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <span>ITBIS estimado (18%)</span>
-        <b>{formatMoney(estimatedItbis)}</b>
-      </div>
-      {estimatedTip > 0 && (
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <span>Propina legal (10%)</span>
-          <b>{formatMoney(estimatedTip)}</b>
+  return (
+    <div className="drawer-backdrop" onClick={onClose}>
+      <section className="pos-order-drawer is-open" onClick={e => e.stopPropagation()} style={{ height: '100%' }}>
+        {/* Drawer Header matching POS Layout */}
+        <header className="pos-drawer-header">
+          <div className="pos-drawer-title-row">
+            <div className="pos-drawer-title">
+              <span>{table ? `Mesa ${table.number}` : mode === 'delivery' ? 'Entrega' : 'Venta Rápida'}</span>
+              <span className="pos-order-badge">
+                {table?.currentOrderNumber ? `#${table.currentOrderNumber}` : table?.currentOrderId ? `#${table.currentOrderId}` : '#NUEVA'}
+              </span>
+            </div>
+            <button
+              type="button"
+              className="pos-item-remove-btn"
+              onClick={onClose}
+              style={{ position: 'static', width: 32, height: 32 }}
+              aria-label="Cerrar comanda"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="pos-drawer-info-strip">
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <UserCircle2 size={14} style={{ color: 'var(--color-pos-primary)' }} />
+              <span>{customerName.trim() || 'Cliente general'}</span>
+            </span>
+            <span style={{ color: 'var(--pos-bg-surface-elevated)' }}>|</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Clock size={14} style={{ color: 'var(--color-pos-primary)' }} />
+              <span>{activeElapsed || 'Reciente'}</span>
+            </span>
+          </div>
+
+          {/* Quick Actions (Precuenta, Cobrar, Mover) */}
+          {table?.currentOrderId && (
+            <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+              <button
+                type="button"
+                className="pos-category-chip"
+                style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', flex: 1, textAlign: 'center' }}
+                onClick={() => { setPaymentOpen(false); setPreBillOpen(true) }}
+              >
+                Precuenta
+              </button>
+              {canCharge && (
+                <button
+                  type="button"
+                  className="pos-category-chip active"
+                  style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', flex: 1, textAlign: 'center' }}
+                  onClick={() => { setPreBillOpen(false); setPaymentOpen(true) }}
+                >
+                  Cobrar
+                </button>
+              )}
+              {mode === 'dine_in' && (
+                <button
+                  type="button"
+                  className="pos-category-chip"
+                  style={{ padding: '0.4rem 0.6rem', fontSize: '0.75rem' }}
+                  onClick={() => setTransferOpen(true)}
+                  title="Mover mesa"
+                >
+                  <ArrowRightLeft size={13} />
+                </button>
+              )}
+            </div>
+          )}
+        </header>
+
+        <div className="pos-order-items-list">
+          {localError && <Alert>{localError}</Alert>}
+
+          {/* Modales de Precuenta y Cobro */}
+          {preBillOpen && table?.currentOrderId && (
+            <PreBillPanel
+              table={table}
+              payload={orderDetail}
+              items={existingItems}
+              onClose={() => setPreBillOpen(false)}
+              onAddMore={() => { setPreBillOpen(false); setShowMenu(true) }}
+              onPrint={printPreBill}
+              printing={printing}
+              printStatus={printStatus}
+            />
+          )}
+          {paymentOpen && table?.currentOrderId && canCharge && (
+            <TablePaymentPanel
+              table={table}
+              payload={orderDetail}
+              items={existingItems}
+              paymentMethods={paymentMethods}
+              offline={offline}
+              onClose={() => setPaymentOpen(false)}
+              onPay={onPayOrder}
+            />
+          )}
+
+          {/* Artículos ya enviados a cocina */}
+          {existingItems.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--pos-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Enviados a cocina ({existingItems.length})
+              </div>
+              {existingItems.map(item => (
+                <div key={item.id} className="pos-order-item-card is-sent">
+                  <div className="pos-order-item-top">
+                    <div className="pos-order-item-title">
+                      <span style={{ color: 'var(--color-pos-primary)', fontWeight: 800 }}>{item.quantity}×</span> {item.name}
+                    </div>
+                    <div className="pos-order-item-price">
+                      {item.amount ? formatMoney(item.amount) : 'Confirmado'}
+                    </div>
+                  </div>
+                  {permissions['orders.update'] && (
+                    <button
+                      type="button"
+                      className="pos-item-remove-btn"
+                      disabled={removingItemId !== null}
+                      onClick={() => void removeItem(item)}
+                      title="Quitar de orden activa"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Artículos Nuevos / Borrador */}
+          {lines.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#5EDBAC', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Artículos nuevos ({lines.reduce((s, l) => s + l.quantity, 0)})
+              </div>
+              {lines.map(line => (
+                <div key={line.clientId} className="pos-order-item-card">
+                  <div className="pos-order-item-top">
+                    <div className="pos-order-item-title">{line.name}</div>
+                    <div className="pos-order-item-price">{formatMoney(line.price * line.quantity)}</div>
+                  </div>
+                  <button
+                    type="button"
+                    className="pos-item-remove-btn"
+                    onClick={() => removeDraftLine(line.clientId)}
+                    title="Eliminar de comanda"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                  <div className="pos-order-item-bottom">
+                    <button
+                      type="button"
+                      className="pos-modifier-pill"
+                      onClick={() => {
+                        const itemFound = items.find(i => i.id === line.itemId)
+                        if (itemFound) setSelected(itemFound)
+                      }}
+                    >
+                      <Edit3 size={11} />
+                      <span>{line.note || (line.modifiers.length ? line.modifiers.map(m => m.name).join(', ') : 'Nota')}</span>
+                    </button>
+                    <div className="pos-stepper-control">
+                      <button
+                        type="button"
+                        className="pos-stepper-btn"
+                        onClick={() => updateLineQuantity(line.clientId, -1)}
+                        aria-label="Restar"
+                      >
+                        <Minus size={13} />
+                      </button>
+                      <span className="pos-stepper-val">{line.quantity}</span>
+                      <button
+                        type="button"
+                        className="pos-stepper-btn"
+                        onClick={() => updateLineQuantity(line.clientId, 1)}
+                        aria-label="Sumar"
+                      >
+                        <Plus size={13} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!lines.length && !existingItems.length && (
+            <div className="empty compact" style={{ padding: '3rem 1rem', background: 'transparent', borderColor: 'var(--pos-bg-surface-elevated)' }}>
+              <ClipboardList size={34} style={{ color: 'var(--pos-text-tertiary)' }} />
+              <p style={{ color: 'var(--pos-text-secondary)', fontSize: '0.85rem' }}>Seleccione platos del catálogo para armar la comanda.</p>
+            </div>
+          )}
+
+          {/* Opciones de Cliente / Modo en Drawer */}
+          <div style={{ marginTop: 'auto', paddingTop: 10 }}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                type="button"
+                className="pos-category-chip"
+                style={{ flex: 1, padding: '0.5rem', fontSize: '0.75rem', textAlign: 'center' }}
+                onClick={() => setCustomerModalOpen(true)}
+              >
+                <Search size={12} style={{ display: 'inline', marginRight: 4 }} />
+                {customerName.trim() ? `Cliente: ${customerName}` : 'Asignar cliente'}
+              </button>
+            </div>
+          </div>
         </div>
-      )}
-    </div>
-  )}
-  <div className="total-row">
-    <span>Total</span>
-    <strong>{formatMoney(grandEstimatedTotal)}</strong>
-  </div>
-  <div className="drawer-actions">
-    <button className="button outline" disabled={!lines.length || !table || mode !== 'dine_in'} onClick={() => setSplitOpen(true)}><Divide size={17} /> Dividir</button>
-    <button className="button primary" disabled={!lines.length || submitting || !deliveryReady || !tableReady} onClick={() => setConfirmKotOpen(true)}><ChefHat size={17} />{submitting ? 'Enviando…' : mode === 'delivery' ? 'Enviar entrega' : table?.currentOrderId ? 'Agregar a cocina' : 'Enviar a cocina'}</button>
-  </div>
-</footer>{confirmKotOpen && (
+
+        {/* Drawer Footer Resumen & CTA */}
+        <footer className="pos-drawer-footer">
+          <div className="pos-summary-lines">
+            <div className="pos-summary-row">
+              <span>Subtotal</span>
+              <span>{formatMoney(total)}</span>
+            </div>
+            <div className="pos-summary-row">
+              <span>ITBIS (18%)</span>
+              <span>{formatMoney(estimatedItbis)}</span>
+            </div>
+            {estimatedTip > 0 && (
+              <div className="pos-summary-row">
+                <span>Propina legal (10%)</span>
+                <span>{formatMoney(estimatedTip)}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="pos-summary-total-box">
+            <span className="pos-summary-total-label">TOTAL</span>
+            <span className="pos-summary-total-value">{formatMoney(grandEstimatedTotal)}</span>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            {lines.length > 0 && table && mode === 'dine_in' && (
+              <button
+                type="button"
+                className="pos-category-chip"
+                style={{ height: 50, padding: '0 1rem', display: 'flex', alignItems: 'center', gap: 6 }}
+                onClick={() => setSplitOpen(true)}
+                title="Dividir cuenta"
+              >
+                <Divide size={16} />
+              </button>
+            )}
+            <button
+              type="button"
+              className="pos-btn-primary"
+              disabled={!lines.length || submitting || !deliveryReady || !tableReady}
+              onClick={() => setConfirmKotOpen(true)}
+            >
+              <Send size={18} />
+              <span>{submitting ? 'ENVIANDO…' : 'ENVIAR A COCINA'}</span>
+            </button>
+          </div>
+        </footer>{confirmKotOpen && (
     <div className="modal-backdrop">
       <section className="modal confirm-kot-modal">
         <header>
@@ -1818,7 +2477,11 @@ function OrderPanel({ table, tables, quick, roleKey, permissions, paymentMethods
         </footer>
       </section>
     </div>
-  )}{selected && <ModifierModal item={selected} seatCount={mode === 'dine_in' && table ? table.capacity : undefined} onClose={() => setSelected(null)} onAdd={line => { triggerAddLine(line); setSelected(null) }} />}{splitOpen && table && mode === 'dine_in' && <SplitBill lines={lines} table={table} onClose={() => setSplitOpen(false)} />}{transferOpen && table && mode === 'dine_in' && <TransferTableModal currentTable={table} tables={tables || []} onClose={() => setTransferOpen(false)} onTransfer={async targetTable => { if (!onTransferTable) return; setTransferring(true); try { const res = await onTransferTable(table, targetTable); setLocalError(res.message); setTransferOpen(false); onClose() } catch (err) { setLocalError(normalizeError(err, 'No se pudo mover la orden de mesa.')) } finally { setTransferring(false) } }} busy={transferring} />}{customerModalOpen && <CustomerModal currentCustomer={{ id: customerId, name: customerName, phone: customerPhone, email: customerEmail, rncCedula, fiscalName }} offline={offline} onClose={() => setCustomerModalOpen(false)} onSelect={customer => { setCustomerId(customer.id > 0 ? customer.id : undefined); setCustomerName(customer.name || ''); if (customer.phone) setCustomerPhone(customer.phone); if (customer.email) setCustomerEmail(customer.email); if (customer.deliveryAddress && !deliveryAddress) setDeliveryAddress(customer.deliveryAddress); if (customer.rncCedula) setRncCedula(customer.rncCedula); if (customer.fiscalName) setFiscalName(customer.fiscalName); setCustomerModalOpen(false); if (table?.currentOrderId) { void onSaveCustomer(table, customer.name, customer.id > 0 ? customer.id : undefined, customer.rncCedula, customer.fiscalName).catch(() => undefined) } }} />}</section></div>
+  )}{selected && <ModifierModal item={selected} seatCount={mode === 'dine_in' && table ? table.capacity : undefined} onClose={() => setSelected(null)} onAdd={line => { triggerAddLine(line); setSelected(null) }} />}{splitOpen && table && mode === 'dine_in' && <SplitBill lines={lines} table={table} onClose={() => setSplitOpen(false)} />}{transferOpen && table && mode === 'dine_in' && <TransferTableModal currentTable={table} tables={tables || []} onClose={() => setTransferOpen(false)} onTransfer={async targetTable => { if (!onTransferTable) return; setTransferring(true); try { const res = await onTransferTable(table, targetTable); setLocalError(res.message); setTransferOpen(false); onClose() } catch (err) { setLocalError(normalizeError(err, 'No se pudo mover la orden de mesa.')) } finally { setTransferring(false) } }} busy={transferring} />}{customerModalOpen && <CustomerModal currentCustomer={{ id: customerId, name: customerName, phone: customerPhone, email: customerEmail, rncCedula, fiscalName }} offline={offline} onClose={() => setCustomerModalOpen(false)} onSelect={customer => { setCustomerId(customer.id > 0 ? customer.id : undefined); setCustomerName(customer.name || ''); if (customer.phone) setCustomerPhone(customer.phone); if (customer.email) setCustomerEmail(customer.email); if (customer.deliveryAddress && !deliveryAddress) setDeliveryAddress(customer.deliveryAddress); if (customer.rncCedula) setRncCedula(customer.rncCedula); if (customer.fiscalName) setFiscalName(customer.fiscalName); setCustomerModalOpen(false); if (table?.currentOrderId) { void onSaveCustomer(table, customer.name, customer.id > 0 ? customer.id : undefined, customer.rncCedula, customer.fiscalName).catch(() => undefined) } }} />}
+      </section>
+    </div>
+  )
+
 }
 
 function TransferTableModal({ currentTable, tables, onClose, onTransfer, busy }: { currentTable: RestaurantTable; tables: RestaurantTable[]; onClose: () => void; onTransfer: (targetTable: RestaurantTable) => void; busy?: boolean }) {
