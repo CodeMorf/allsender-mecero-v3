@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { api, ApiError, API_BASE_URL, normalizeAttendance } from './api/client'
+import { api, ApiError, normalizeAttendance } from './api/client'
 import type { AttendanceRecord, Branch, DeliveryExecutive, DeliverySettings, DeviceBinding, FiscalCapabilities, KitchenPlace, KitchenTicket, KitchenView, MenuItem, ModifierGroup, ModifierOption, NotificationSettings, OfflineOperation, OfflineStep, OfflineWorkflow, OrderDraft, OrderLine, OrderMode, PaymentMethodOption, ProductVariation, RestaurantTable, Session, StaffRole, WaiterRequest } from './types'
 import { clearSession, enqueue, getDeviceId, getStorageScope, listOutbox, newIdempotencyKey, readCache, readSession, removeOutbox, saveCache, saveSession, setStorageScope, updateOutbox } from './storage/offline'
 import { CustomerModal } from './CustomerModal'
-import { ArrowLeftFromLine, ArrowRightLeft, Banknote, BatteryCharging, BedDouble, Bell, BookOpen, CalendarDays, Check, ChefHat, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, CloudLightning, CloudOff, Clock, Coffee, ConciergeBell, CreditCard, Delete, Divide, Edit3, FileText, Flame, Flower2 as Spa, Globe, Globe2, History, LayoutGrid, Lock, LogOut, Map as LucideMap, Martini, Menu, Minus, Moon, Plus, Printer, Receipt, RefreshCw, Search, Send, ShieldCheck, SlidersHorizontal, ShoppingCart, Sun, Trash2, Truck, Unlock, UserCheck, UserCircle2, UserRound, Users, UsersRound, UserX, Utensils, UtensilsCrossed, Wallet, Wine, Wifi, X, XCircle } from 'lucide-react'
+import { ArrowRightLeft, Banknote, BatteryCharging, BedDouble, Bell, BookOpen, CalendarDays, Check, ChefHat, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, CloudLightning, CloudOff, Clock, Coffee, CreditCard, Delete, Divide, Edit3, FileText, Flame, Globe2, History, LayoutGrid, Lock, LogOut, Map as LucideMap, Martini, Minus, Moon, Plus, Printer, Receipt, Search, Send, ShieldCheck, SlidersHorizontal, ShoppingCart, Sun, Trash2, Unlock, UserCheck, UserCircle2, UserRound, Users, UserX, Utensils, UtensilsCrossed, Wallet, Wifi, X, XCircle } from 'lucide-react'
+
 import { Capacitor } from '@capacitor/core'
 import { Haptics } from '@capacitor/haptics'
 import { LocalNotifications } from '@capacitor/local-notifications'
@@ -3642,7 +3643,8 @@ function ModifierModal({ item, seatCount, onClose, onAdd }: { item: MenuItem; se
       setSelectedVariation(variations[0]);
     }
     return () => { cancelled = true; };
-  }, [item.id, item.modifiers, item.variations, groups.length, variations.length]);
+  }, [item.id, item.modifiers, item.variations, groups.length, variations, selectedVariation]);
+
 
   const basePrice = selectedVariation?.price ?? item.price;
   const modifiersTotal = groups.flatMap(group => (selected[group.id] || []).map(option => option.price)).reduce((sum, p) => sum + p, 0);

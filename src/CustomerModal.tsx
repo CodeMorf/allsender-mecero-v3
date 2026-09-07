@@ -47,7 +47,8 @@ export function CustomerModal({ currentCustomer, canManageFiscal = true, fiscalC
       setReceiptType(defaultFiscalCredit)
       setShowBilling(true)
     }
-  }, [currentCustomer?.rncCedula, defaultFiscalCredit])
+  }, [currentCustomer?.rncCedula, currentCustomer?.receiptType, defaultFiscalCredit])
+
 
   // Create / Edit form state
   const [name, setName] = useState('')
