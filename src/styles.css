@@ -2873,7 +2873,8 @@ h2 { margin-bottom: 0; font-size: 22px; letter-spacing: -.02em; }
 
 /* Order Drawer Enterprise */
 .pos-order-drawer {
-  width: 380px;
+  width: 410px;
+  max-width: 40vw;
   flex-shrink: 0;
   background-color: var(--pos-bg-surface);
   border-left: 1px solid var(--pos-bg-surface-elevated);
@@ -2907,6 +2908,25 @@ h2 { margin-bottom: 0; font-size: 22px; letter-spacing: -.02em; }
   align-items: center;
   gap: 8px;
   color: #fff;
+}
+
+.pos-drawer-close-btn {
+  color: var(--pos-text-secondary);
+  background: var(--pos-bg-surface-elevated);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease-in-out;
+}
+
+.pos-drawer-close-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .pos-order-badge {
@@ -2960,42 +2980,59 @@ h2 { margin-bottom: 0; font-size: 22px; letter-spacing: -.02em; }
 .pos-order-item-top {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  padding-right: 28px;
+  align-items: center;
+  gap: 10px;
 }
 
 .pos-order-item-title {
   font-weight: 750;
   font-size: 0.88rem;
   color: #fff;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.pos-order-item-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .pos-order-item-price {
   font-weight: 850;
   color: #5EDBAC;
   font-size: 0.92rem;
-  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .pos-item-remove-btn {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  color: var(--pos-text-tertiary);
-  background: var(--pos-bg-base);
-  border: none;
-  border-radius: 6px;
-  padding: 4px;
+  color: #ff6b7a;
+  background: rgba(255, 107, 122, 0.12);
+  border: 1px solid rgba(255, 107, 122, 0.25);
+  border-radius: 7px;
+  width: 28px;
+  height: 28px;
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s;
+  transition: all 0.15s ease-in-out;
+  padding: 0;
+  flex-shrink: 0;
 }
 
 .pos-item-remove-btn:hover {
-  color: #ff6b7a;
-  background: rgba(255, 107, 122, 0.15);
+  color: #fff;
+  background: #ff4d60;
+  border-color: #ff4d60;
+  transform: scale(1.05);
+}
+
+.pos-item-remove-btn:active {
+  transform: scale(0.95);
 }
 
 .pos-order-item-bottom {

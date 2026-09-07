@@ -1832,6 +1832,7 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
             tables={tables}
             quick={showQuick}
             mobileDrawerOpen={mobileDrawerOpen}
+            isMenuOpen={activeNavTab === 'menu'}
             roleKey={roleKey}
             permissions={permissions}
             paymentMethods={paymentMethods}
@@ -2031,7 +2032,7 @@ function TablePaymentPanel({ table, payload, items, paymentMethods, offline, onC
   return <section className="table-payment-panel" aria-label={`Cobro de la mesa ${table.number}`}><div className="table-payment-header"><div><p className="eyebrow">COBRO DE LA MESA</p><h3>Mesa {table.number}</h3><small>El turno y la caja chica se administran por separado desde “Turno de caja”.</small></div><button className="icon-button" onClick={onClose} aria-label="Cerrar cobro"><X size={18} /></button></div>{offline && <Alert>Sin conexión: el cobro queda pendiente y se validará automáticamente al recuperar internet.</Alert>}{error && <Alert>{error}</Alert>}{status && <p className="table-payment-status" role="status">{status}</p>}<div className="table-payment-due"><span>Saldo pendiente</span><strong>{formatMoney(summary.due)}</strong></div>{enabledMethods.length ? <div className="table-payment-form"><label>Método<select value={selectedMethod} onChange={event => setMethod(event.target.value)}>{enabledMethods.map(value => <option value={value.code} key={value.code}>{value.label}</option>)}</select></label><label>Monto<input type="number" min="0.01" max={summary.due.toFixed(2)} step="0.01" value={amount} onChange={event => setAmount(event.target.value)} /></label></div> : <Alert>No hay metodos de pago configurados en esta sucursal.</Alert>}<footer><button className="button outline" onClick={onClose}>Cancelar</button><button className="button primary" disabled={busy || !enabledMethods.length || summary.due <= 0} onClick={() => void charge()}><CreditCard size={16} />{busy ? 'Registrando…' : 'Registrar cobro'}</button></footer></section>
 }
 
-function OrderPanel({ table, tables, quick, mobileDrawerOpen, roleKey, permissions, paymentMethods, canCharge, offline, deliverySettings, deliveryExecutives, items, onClose, onOpenMenu, onSubmit, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable }: { table: RestaurantTable | null; tables?: RestaurantTable[]; quick: boolean; mobileDrawerOpen?: boolean; roleKey: StaffRole; permissions: Record<string, boolean>; paymentMethods: PaymentMethodOption[]; canCharge: boolean; offline: boolean; deliverySettings: DeliverySettings | null; deliveryExecutives: DeliveryExecutive[]; items: MenuItem[]; onClose: () => void; onOpenMenu?: () => void; onSubmit: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem?: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }> }) {
+function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKey, permissions, paymentMethods, canCharge, offline, deliverySettings, deliveryExecutives, items, onClose, onOpenMenu, onSubmit, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable }: { table: RestaurantTable | null; tables?: RestaurantTable[]; quick: boolean; mobileDrawerOpen?: boolean; isMenuOpen?: boolean; roleKey: StaffRole; permissions: Record<string, boolean>; paymentMethods: PaymentMethodOption[]; canCharge: boolean; offline: boolean; deliverySettings: DeliverySettings | null; deliveryExecutives: DeliveryExecutive[]; items: MenuItem[]; onClose: () => void; onOpenMenu?: () => void; onSubmit: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem?: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }> }) {
   const canDelivery = roleKey === 'cajero' && permissions['orders.create'] === true
   const [mode, setMode] = useState<OrderMode>(table ? 'dine_in' : canDelivery ? 'pickup' : 'dine_in')
   const [customerId, setCustomerId] = useState<number | undefined>(table?.customerId)
@@ -2199,9 +2200,8 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, roleKey, permissio
             </div>
             <button
               type="button"
-              className="pos-item-remove-btn"
+              className="pos-drawer-close-btn"
               onClick={onClose}
-              style={{ position: 'static', width: 32, height: 32 }}
               aria-label="Cerrar comanda"
             >
               <X size={18} />
@@ -2259,8 +2259,8 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, roleKey, permissio
             </div>
           )}
 
-          {/* Botón destacado "+ Agregar platos" para fácil acceso */}
-          {onOpenMenu && (
+          {/* Botón destacado "+ Agregar platos" (visible si no estamos ya en el catálogo) */}
+          {onOpenMenu && !isMenuOpen && (
             <button
               type="button"
               className="pos-category-chip"
@@ -2302,23 +2302,24 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, roleKey, permissio
                     <div className="pos-order-item-title">
                       <span style={{ color: 'var(--color-pos-primary)', fontWeight: 800 }}>{item.quantity}×</span> {item.name}
                     </div>
-                    <div className="pos-order-item-price">
-                      {item.amount ? formatMoney(item.amount) : 'Confirmado'}
+                    <div className="pos-order-item-right">
+                      <span className="pos-order-item-price">
+                        {item.amount ? formatMoney(item.amount) : 'Confirmado'}
+                      </span>
+                      {permissions['orders.update'] && (
+                        <button
+                          type="button"
+                          className="pos-item-remove-btn"
+                          disabled={removingItemId !== null}
+                          onClick={() => void removeItem(item)}
+                          title="Quitar este plato de la orden activa"
+                          aria-label="Quitar plato"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
                     </div>
                   </div>
-                  {permissions['orders.update'] && (
-                    <button
-                      type="button"
-                      className="pos-item-remove-btn"
-                      disabled={removingItemId !== null}
-                      onClick={() => void removeItem(item)}
-                      title="Quitar este plato de la orden activa"
-                      style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 7px', fontSize: '0.72rem', color: '#ff6b7a', background: 'rgba(255, 107, 122, 0.12)', borderRadius: 6 }}
-                    >
-                      <Trash2 size={12} />
-                      <span style={{ fontWeight: 700 }}>Quitar</span>
-                    </button>
-                  )}
                 </div>
               ))}
             </div>
@@ -2334,18 +2335,19 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, roleKey, permissio
                 <div key={line.clientId} className="pos-order-item-card">
                   <div className="pos-order-item-top">
                     <div className="pos-order-item-title">{line.name}</div>
-                    <div className="pos-order-item-price">{formatMoney(line.price * line.quantity)}</div>
+                    <div className="pos-order-item-right">
+                      <span className="pos-order-item-price">{formatMoney(line.price * line.quantity)}</span>
+                      <button
+                        type="button"
+                        className="pos-item-remove-btn"
+                        onClick={() => removeDraftLine(line.clientId)}
+                        title="Eliminar plato de la comanda"
+                        aria-label="Eliminar plato"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    className="pos-item-remove-btn"
-                    onClick={() => removeDraftLine(line.clientId)}
-                    title="Eliminar plato de la comanda"
-                    style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 7px', fontSize: '0.72rem', color: '#ff6b7a', background: 'rgba(255, 107, 122, 0.12)', borderRadius: 6 }}
-                  >
-                    <Trash2 size={12} />
-                    <span style={{ fontWeight: 700 }}>Eliminar</span>
-                  </button>
                   <div className="pos-order-item-bottom">
                     <button
                       type="button"
