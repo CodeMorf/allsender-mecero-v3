@@ -770,7 +770,7 @@ export default function App() {
     setScreen('pin'); setNotice('Sesión cerrada. Introduzca el código del siguiente empleado.')
   }
 
-  if (screen === 'setup') return <SetupScreen loading={loading} error={error} defaultDeviceId={deviceId} onSubmit={handleAdminLogin} onDirectPin={handleDirectPin} />
+  if (screen === 'setup') return <SetupScreen loading={loading} error={error} defaultDeviceId={deviceId} onSubmit={handleAdminLogin} onDirectPin={handleDirectPin} theme={theme} onTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')} />
   if (screen === 'branches') return <BranchScreen branches={branches} loading={loading} error={error} offline={offline} onSelect={chooseBranch} onBack={() => { clearSession('admin'); setScreen('setup') }} />
   if (screen === 'pin') return <PinScreen brand={restaurantName} branch={activeBranch?.name || ''} role={staffRole} onRoleChange={setStaffRole} offline={offline} loading={loading} error={error} notice={notice} onSubmit={handlePin} canChangeBranch={Boolean(adminSession)} onBack={() => setScreen('branches')} theme={theme} onTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')} />
   return <FloorScreen brand={restaurantName} branch={activeBranch?.name || ''} roleKey={pinSession?.roleKey || staffRole} userId={pinSession?.userId} deviceId={deviceId} permissions={pinSession?.permissions || {}} tables={tables} items={items} kitchenPlaces={kitchenPlaces} paymentMethods={paymentMethods} offline={offline} queueCount={queueCount} isSyncing={isSyncing} notice={notice} error={error} theme={theme} onTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')} onLogout={logout} onRefresh={() => pinSession && hydrate(pinSession)} onSubmitOrder={submitOrder} onSaveCustomer={saveTableCustomer} onRemoveOrderItem={removeOrderItem} onPrintPreBill={printPreBill} onPayOrder={payOrder} onTransferTable={transferTableOrder} onOpenCashSession={openCashSession} onCloseCashSession={closeCashSession} onApproveCashSession={approveCashSession} onRejectCashSession={rejectCashSession} onReopenCashSession={reopenCashSession} onCashMovement={cashMovement} onClockIn={clockInAttendance} onClockOut={clockOutAttendance} onUpdateKotStatus={updateKotStatus} onSelectTable={setActiveTable} activeTable={activeTable} />
@@ -778,9 +778,238 @@ export default function App() {
 
 function nextAdminRestaurantId(session: Session) { return session.restaurantId }
 
-function SetupScreen({ loading, error, defaultDeviceId, onSubmit, onDirectPin }: { loading: boolean; error: string; defaultDeviceId: string; onSubmit: (email: string, password: string) => void; onDirectPin: (pin: string, hash: string, deviceId: string, role: StaffRole) => void }) {
-  const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [hash, setHash] = useState(''); const [linkedDeviceId, setLinkedDeviceId] = useState(defaultDeviceId); const [pin, setPin] = useState(''); const [role, setRole] = useState<StaffRole>('mesero')
-  return <main className="auth-shell"><section className="auth-card"><div className="brand-mark"><img src="/branding/mesero-app-icon.png" alt="RestaPP" /></div><p className="eyebrow">RESTAURANTE · SALA Y CAJA</p><h1>Configurar terminal</h1><p className="muted">El administrador autoriza esta terminal una sola vez. Después, cada empleado ingresa con su código personal y perfil asignado.</p><form onSubmit={e => { e.preventDefault(); onSubmit(email, password) }}><label>Correo del administrador<input required type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="dueno@restaurante.com" autoComplete="username" /></label><label>Contraseña<input required type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" /></label><button className="button primary full" disabled={loading}>{loading ? 'Conectando…' : 'Iniciar sesión'}</button></form><div className="setup-divider"><span>o</span></div><details className="direct-entry"><summary>Ya tengo una terminal autorizada</summary><p className="muted">Indique el código del restaurante, el nombre de la terminal, su código personal y su rol en sala o cocina.</p><form onSubmit={e => { e.preventDefault(); onDirectPin(pin, hash, linkedDeviceId, role) }}><label>Perfil<select value={role} onChange={e => setRole(e.target.value as StaffRole)}><option value="mesero">Mesero</option><option value="chef">Cocina</option><option value="cajero">Cajero</option><option value="head">Encargado</option><option value="repartidor">Repartidor</option></select></label><label>Código del restaurante<input required value={hash} onChange={e => setHash(e.target.value)} placeholder="kebab" autoComplete="off" /></label><label>Identificador de terminal<input required value={linkedDeviceId} onChange={e => setLinkedDeviceId(e.target.value)} autoComplete="off" /></label><label>Código personal (PIN)<input required inputMode="numeric" pattern="[0-9]{4}" maxLength={4} value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ''))} placeholder="••••" autoComplete="one-time-code" /><small>El código personal nunca se guarda de forma insegura.</small></label><button className="button outline full" disabled={loading || pin.length !== 4}>{loading ? 'Validando…' : `Ingresar como ${roleLabel(role)}`}</button></form></details>{error && <Alert>{error}</Alert>}<p className="tiny">Conectado a la plataforma de gestión</p></section></main>
+function SetupScreen({
+  loading,
+  error,
+  defaultDeviceId,
+  onSubmit,
+  onDirectPin,
+  theme,
+  onTheme
+}: {
+  loading: boolean
+  error: string
+  defaultDeviceId: string
+  onSubmit: (email: string, password: string) => void
+  onDirectPin: (pin: string, hash: string, deviceId: string, role: StaffRole) => void
+  theme?: 'light' | 'dark'
+  onTheme?: () => void
+}) {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [hash, setHash] = useState('')
+  const [linkedDeviceId, setLinkedDeviceId] = useState(defaultDeviceId)
+  const [pin, setPin] = useState('')
+  const [role, setRole] = useState<StaffRole>('mesero')
+
+  return (
+    <main className={`login-shell theme-${theme || 'light'}`}>
+      <section className="hero-panel" aria-label="RestaPP Hospitality">
+        <div className="hero-overlay" />
+
+        <header className="brand-lockup">
+          <img src="/assets/restapp-logo.png" alt="RestaPP" className="brand-logo" />
+          <div>
+            <div className="brand-name">Resta<span>PP</span></div>
+            <div className="brand-subtitle">RESTAURANTES · HOTELES · BARES</div>
+          </div>
+        </header>
+
+        <div className="hero-copy">
+          <p className="eyebrow">HOSPITALIDAD QUE CONECTA</p>
+          <h1>
+            Buena<br />comida,<br />mejores <em>historias</em>
+          </h1>
+          <div className="gold-rule" />
+          <p className="hero-subclaim">LA HOSPITALIDAD<br />TAMBIÉN<br />SE SIRVE</p>
+        </div>
+
+        <div className="hospitality-list" aria-label="Sectores">
+          <div><UtensilsCrossed size={22} strokeWidth={1.5} /><span>Restaurantes</span></div>
+          <div><BedDouble size={22} strokeWidth={1.5} /><span>Hoteles</span></div>
+          <div><Martini size={22} strokeWidth={1.5} /><span>Bares</span></div>
+          <div><Coffee size={22} strokeWidth={1.5} /><span>Cafeterías</span></div>
+        </div>
+      </section>
+
+      <section className="access-side">
+        <article className="login-card setup-card">
+          <div className="card-toolbar">
+            <button className="language-button" type="button" aria-label="Idioma">
+              <Globe2 size={17} />
+              <span>ES</span>
+              <ChevronDown size={14} />
+            </button>
+            {onTheme && (
+              <button
+                className="theme-button"
+                type="button"
+                onClick={onTheme}
+                aria-label="Cambiar apariencia"
+                title={`Cambiar a modo ${theme === 'light' ? 'oscuro' : 'claro'}`}
+              >
+                {theme === 'light' ? <Moon size={17} /> : <Sun size={17} />}
+              </button>
+            )}
+          </div>
+
+          <div className="card-brand">
+            <img src="/assets/restapp-logo.png" alt="RestaPP" />
+            <div className="card-brand-name">Resta<span>PP</span></div>
+            <div className="card-brand-subtitle">AUTORIZACIÓN DE TERMINAL</div>
+          </div>
+
+          <div className="welcome-copy">
+            <h2>Configurar terminal</h2>
+            <p>El administrador autoriza este punto de venta una sola vez.</p>
+          </div>
+
+          <form
+            className="setup-form"
+            onSubmit={e => {
+              e.preventDefault()
+              onSubmit(email, password)
+            }}
+          >
+            <label className="setup-field">
+              <span>Correo del administrador</span>
+              <input
+                required
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="dueno@restaurante.com"
+                autoComplete="username"
+              />
+            </label>
+            <label className="setup-field">
+              <span>Contraseña</span>
+              <input
+                required
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                autoComplete="current-password"
+              />
+            </label>
+            <button className="primary-action" type="submit" disabled={loading}>
+              {loading ? 'Conectando…' : 'Iniciar sesión'}
+              <span aria-hidden="true">→</span>
+            </button>
+          </form>
+
+          <div className="setup-gold-divider">
+            <span>o</span>
+          </div>
+
+          <details className="setup-direct-accordion">
+            <summary>
+              <span>Ya tengo una terminal autorizada</span>
+              <ChevronDown size={16} className="accordion-chevron" />
+            </summary>
+            <p className="setup-direct-hint">
+              Indique el código del restaurante, el nombre de la terminal, su código personal y su rol en sala o cocina.
+            </p>
+            <form
+              className="setup-form setup-direct-form"
+              onSubmit={e => {
+                e.preventDefault()
+                onDirectPin(pin, hash, linkedDeviceId, role)
+              }}
+            >
+              <label className="setup-field">
+                <span>Perfil</span>
+                <div className="setup-select-wrap">
+                  <select value={role} onChange={e => setRole(e.target.value as StaffRole)}>
+                    <option value="mesero">Mesero</option>
+                    <option value="chef">Cocina</option>
+                    <option value="cajero">Cajero</option>
+                    <option value="head">Supervisor</option>
+                    <option value="repartidor">Repartidor</option>
+                  </select>
+                  <ChevronDown className="select-arrow" size={16} />
+                </div>
+              </label>
+
+              <label className="setup-field">
+                <span>Código del restaurante</span>
+                <input
+                  required
+                  value={hash}
+                  onChange={e => setHash(e.target.value)}
+                  placeholder="ej. kebab"
+                  autoComplete="off"
+                />
+              </label>
+
+              <label className="setup-field">
+                <span>Identificador de terminal</span>
+                <input
+                  required
+                  value={linkedDeviceId}
+                  onChange={e => setLinkedDeviceId(e.target.value)}
+                  autoComplete="off"
+                />
+              </label>
+
+              <label className="setup-field">
+                <span>Código personal (PIN)</span>
+                <input
+                  required
+                  inputMode="numeric"
+                  pattern="[0-9]{4}"
+                  maxLength={4}
+                  value={pin}
+                  onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
+                  placeholder="••••"
+                  autoComplete="one-time-code"
+                />
+                <small>El código personal nunca se guarda de forma insegura.</small>
+              </label>
+
+              <button
+                className="button outline full setup-direct-submit"
+                disabled={loading || pin.length !== 4}
+              >
+                {loading ? 'Validando…' : `Ingresar como ${roleLabel(role)}`}
+              </button>
+            </form>
+          </details>
+
+          {error && (
+            <div className="status-message has-error" aria-live="polite">
+              {error}
+            </div>
+          )}
+
+          <div className="trust-row">
+            <span>Seguridad</span><i>•</i>
+            <span>Control</span><i>•</i>
+            <span>Mejor Servicio</span>
+          </div>
+        </article>
+
+        <aside className="side-strip">
+          <div className="side-message side-message-top">
+            <ShieldCheck size={28} strokeWidth={1.5} />
+            <span>PERSONAS<br />QUE CREAN<br />EXPERIENCIAS<br />INOLVIDABLES</span>
+          </div>
+
+          <div className="side-rule" />
+
+          <div className="side-message side-message-bottom">
+            <ChefHat size={28} strokeWidth={1.5} />
+            <span>LA<br />GASTRONOMÍA<br />NOS UNE</span>
+          </div>
+
+          <div className="side-version">
+            <strong>RestaPP</strong>
+            <span>V 1.0.0</span>
+          </div>
+        </aside>
+      </section>
+    </main>
+  )
 }
 
 function BranchScreen({ branches, loading, error, offline, onSelect, onBack }: { branches: Branch[]; loading: boolean; error: string; offline: boolean; onSelect: (branch: Branch) => void; onBack: () => void }) {

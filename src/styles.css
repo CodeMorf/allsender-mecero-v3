@@ -601,6 +601,175 @@ h2 { margin-bottom: 0; font-size: 22px; letter-spacing: -.02em; }
   color: #99928a;
 }
 
+/* SETUP SCREEN LUXURY FORM STYLING */
+.setup-card {
+  max-width: 480px;
+}
+.setup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 18px;
+}
+.setup-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.setup-field > span {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #7b7165;
+}
+.login-shell.theme-dark .setup-field > span {
+  color: #b5aa9e;
+}
+.setup-field input,
+.setup-select-wrap select {
+  height: 48px;
+  border-radius: 12px;
+  border: 1px solid var(--control-border);
+  background: var(--control-bg);
+  color: var(--ink);
+  font-size: 14px;
+  padding: 0 14px;
+  transition: all 0.15s ease;
+  box-shadow: var(--control-shadow);
+}
+.setup-field input:focus,
+.setup-select-wrap select:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(201, 138, 46, 0.22);
+  outline: none;
+}
+.setup-field input::placeholder {
+  color: #a19a90;
+}
+.setup-field small {
+  font-size: 11px;
+  color: #8a847b;
+  margin-top: 2px;
+}
+.login-shell.theme-dark .setup-field small {
+  color: #9b948b;
+}
+
+.setup-select-wrap {
+  position: relative;
+  width: 100%;
+}
+.setup-select-wrap select {
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  padding-right: 36px;
+}
+.setup-select-wrap .select-arrow {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--ink);
+  opacity: 0.7;
+}
+
+.setup-gold-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 22px 0 16px;
+  color: #8a847b;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.setup-gold-divider::before,
+.setup-gold-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(87, 68, 49, 0.16);
+}
+.login-shell.theme-dark .setup-gold-divider::before,
+.login-shell.theme-dark .setup-gold-divider::after {
+  background: rgba(222, 169, 77, 0.22);
+}
+.setup-gold-divider span {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(201, 138, 46, 0.12);
+  color: var(--gold);
+  font-weight: 750;
+  font-size: 11px;
+}
+
+.setup-direct-accordion {
+  border: 1px solid var(--control-border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: var(--control-bg);
+  box-shadow: var(--control-shadow);
+  transition: all 0.2s ease;
+}
+.setup-direct-accordion[open] {
+  padding: 14px;
+}
+.setup-direct-accordion summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 750;
+  color: var(--ink);
+  user-select: none;
+}
+.setup-direct-accordion summary::-webkit-details-marker {
+  display: none;
+}
+.setup-direct-accordion summary:hover {
+  color: var(--gold);
+}
+.setup-direct-accordion .accordion-chevron {
+  transition: transform 0.2s ease;
+  color: var(--gold);
+}
+.setup-direct-accordion[open] .accordion-chevron {
+  transform: rotate(180deg);
+}
+.setup-direct-hint {
+  margin: 10px 0 14px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.setup-direct-form {
+  margin-top: 10px;
+  gap: 12px;
+}
+.setup-direct-submit {
+  margin-top: 6px;
+  height: 46px;
+  border-radius: 12px;
+  border: 1.5px solid var(--gold);
+  color: var(--gold);
+  font-weight: 750;
+  transition: all 0.15s ease;
+}
+.setup-direct-submit:hover:not(:disabled) {
+  background: rgba(201, 138, 46, 0.12);
+  color: var(--gold-strong);
+  border-color: var(--gold-strong);
+}
+
 /* RIGHT SIDE STRIP (GOLDEN EMBLEMS & VERSION) */
 .side-strip {
   display: flex;
