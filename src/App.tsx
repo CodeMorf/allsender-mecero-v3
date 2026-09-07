@@ -1381,7 +1381,7 @@ function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error,
   )
 }
 
-function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, tables, items, kitchenPlaces, paymentMethods, offline, queueCount, isSyncing, notice, error, theme, onTheme, onLogout, onRefresh, onSubmitOrder, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onCancelOrder, onOpenCashSession, onCloseCashSession, onApproveCashSession, onRejectCashSession, onReopenCashSession, onCashMovement, onClockIn, onClockOut, onUpdateKotStatus, onSelectTable, activeTable }: { brand: string; branch: string; roleKey: StaffRole; userId?: number; deviceId: string; permissions: Record<string, boolean>; tables: RestaurantTable[]; items: MenuItem[]; kitchenPlaces: KitchenPlace[]; paymentMethods: PaymentMethodOption[]; offline: boolean; queueCount: number; isSyncing?: boolean; notice: string; error: string; theme: 'light' | 'dark'; onTheme: () => void; onLogout: () => void; onRefresh: () => void; onSubmitOrder: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string) => Promise<void>; onRemoveOrderItem: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onCancelOrder?: (table: RestaurantTable, reason?: string) => Promise<{ queued: boolean; message: string }>; onOpenCashSession: (registerId: number, openingFloat: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCloseCashSession: (sessionId: number, countedCash: number, expectedCash: number | undefined, note: string, sendForApproval: boolean, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onApproveCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onRejectCashSession: (sessionId: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onReopenCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCashMovement: (movement: 'cash-in' | 'cash-out' | 'safe-drop', sessionId: number, amount: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onClockIn: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onClockOut: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onUpdateKotStatus: (kotId: number, status: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onSelectTable: (table: RestaurantTable | null) => void; activeTable: RestaurantTable | null }) {
+function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, tables, items, kitchenPlaces, paymentMethods, offline, queueCount, isSyncing, notice, error, theme, onTheme, onLogout, onRefresh, onSubmitOrder, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onCancelOrder, onOpenCashSession, onCloseCashSession, onApproveCashSession, onRejectCashSession, onReopenCashSession, onCashMovement, onClockIn, onClockOut, onUpdateKotStatus, onSelectTable, activeTable }: { brand: string; branch: string; roleKey: StaffRole; userId?: number; deviceId: string; permissions: Record<string, boolean>; tables: RestaurantTable[]; items: MenuItem[]; kitchenPlaces: KitchenPlace[]; paymentMethods: PaymentMethodOption[]; offline: boolean; queueCount: number; isSyncing?: boolean; notice: string; error: string; theme: 'light' | 'dark'; onTheme: () => void; onLogout: () => void; onRefresh: () => void; onSubmitOrder: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onCancelOrder?: (table: RestaurantTable, reason?: string) => Promise<{ queued: boolean; message: string }>; onOpenCashSession: (registerId: number, openingFloat: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCloseCashSession: (sessionId: number, countedCash: number, expectedCash: number | undefined, note: string, sendForApproval: boolean, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onApproveCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onRejectCashSession: (sessionId: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onReopenCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCashMovement: (movement: 'cash-in' | 'cash-out' | 'safe-drop', sessionId: number, amount: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onClockIn: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onClockOut: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onUpdateKotStatus: (kotId: number, status: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onSelectTable: (table: RestaurantTable | null) => void; activeTable: RestaurantTable | null }) {
   const [showMenu, setShowMenu] = useState(false); const [showQuick, setShowQuick] = useState(false); const [showOps, setShowOps] = useState(false); const [showKitchen, setShowKitchen] = useState(false); const [showCashier, setShowCashier] = useState(false); const [showAttendance, setShowAttendance] = useState(false); const [opsLoading, setOpsLoading] = useState(false); const [notifications, setNotifications] = useState<LiveNotification[]>([]); const [deliverySettings, setDeliverySettings] = useState<DeliverySettings | null>(null); const [deliveryExecutives, setDeliveryExecutives] = useState<DeliveryExecutive[]>([])
   const canCreate = permissions['orders.create'] === true
   const canDelivery = roleKey === 'cajero' && canCreate
@@ -1818,15 +1818,24 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
                       </div>
 
                       <div className="pos-table-footer">
-                        <div className="pos-table-meta-text">
-                          {item.customerName ? item.customerName : item.currentOrderTotal ? formatMoney(item.currentOrderTotal) : `${item.capacity} Personas`}
+                        <div className="pos-table-meta-text" title={item.customerName || (item.currentOrderTotal ? formatMoney(item.currentOrderTotal) : `${item.capacity} Personas`)}>
+                          {item.customerName ? (
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#5EDBAC', fontWeight: 700 }}>
+                              <UserCircle2 size={13} style={{ flexShrink: 0 }} />
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.customerName}</span>
+                            </span>
+                          ) : item.currentOrderTotal ? (
+                            formatMoney(item.currentOrderTotal)
+                          ) : (
+                            `${item.capacity} Personas`
+                          )}
                         </div>
                         <div className="pos-table-subrow">
                           <div className="pos-status-badge">
                             {statusBadgeLabel}
                           </div>
                           <span className="pos-time-badge">
-                            {isAvailable ? `Cap: ${item.capacity}` : item.currentOrderDue ? formatMoney(item.currentOrderDue) : 'Activa'}
+                            {isAvailable ? `Cap: ${item.capacity}` : item.currentOrderTotal ? formatMoney(item.currentOrderTotal) : item.currentOrderDue ? formatMoney(item.currentOrderDue) : 'Activa'}
                           </span>
                         </div>
                       </div>
@@ -2371,10 +2380,33 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
           </div>
 
           <div className="pos-drawer-info-strip">
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <UserCircle2 size={14} style={{ color: 'var(--color-pos-primary)' }} />
-              <span>{customerName.trim() || 'Cliente general'}</span>
-            </span>
+            <button
+              type="button"
+              className="pos-drawer-customer-chip"
+              onClick={() => setCustomerModalOpen(true)}
+              title="Pulsar para cambiar o actualizar cliente"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: '2px 6px',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                color: customerName.trim() ? '#5EDBAC' : 'var(--pos-text-secondary)',
+                fontWeight: 600,
+                fontSize: '0.8rem',
+                maxWidth: '65%',
+                textAlign: 'left'
+              }}
+            >
+              <UserCircle2 size={15} style={{ flexShrink: 0, color: customerName.trim() ? '#5EDBAC' : 'var(--color-pos-primary)' }} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {customerName.trim() || 'Asignar cliente'}
+              </span>
+              <Edit3 size={11} style={{ opacity: 0.7, flexShrink: 0 }} />
+            </button>
             <span style={{ color: 'var(--pos-bg-surface-elevated)' }}>|</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <Clock size={14} style={{ color: 'var(--color-pos-primary)' }} />
@@ -2583,11 +2615,28 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
               <button
                 type="button"
                 className="pos-category-chip"
-                style={{ flex: 1, padding: '0.5rem', fontSize: '0.75rem', textAlign: 'center' }}
+                style={{
+                  flex: 1,
+                  padding: '0.6rem 0.8rem',
+                  fontSize: '0.78rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  background: customerName.trim() ? 'rgba(94, 219, 172, 0.08)' : undefined,
+                  borderColor: customerName.trim() ? 'rgba(94, 219, 172, 0.35)' : undefined
+                }}
                 onClick={() => setCustomerModalOpen(true)}
+                title="Pulsar para asignar, cambiar o actualizar cliente"
               >
-                <Search size={12} style={{ display: 'inline', marginRight: 4 }} />
-                {customerName.trim() ? `Cliente: ${customerName}` : 'Asignar cliente'}
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <UserCircle2 size={15} style={{ color: customerName.trim() ? '#5EDBAC' : 'var(--pos-text-secondary)', flexShrink: 0 }} />
+                  <strong style={{ color: customerName.trim() ? '#5EDBAC' : 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {customerName.trim() ? `Cliente: ${customerName}` : 'Asignar cliente'}
+                  </strong>
+                </span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--pos-text-secondary)', marginLeft: 6, display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                  <Edit3 size={11} /> {customerName.trim() ? 'Cambiar' : 'Buscar'}
+                </span>
               </button>
             </div>
           </div>
@@ -2838,62 +2887,114 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
 
 function TransferTableModal({ currentTable, tables, onClose, onTransfer, busy }: { currentTable: RestaurantTable; tables: RestaurantTable[]; onClose: () => void; onTransfer: (targetTable: RestaurantTable) => void; busy?: boolean }) {
   const [selectedTable, setSelectedTable] = useState<RestaurantTable | null>(null)
+  const [confirmStep, setConfirmStep] = useState(false)
   const availableTables = useMemo(() => {
     return tables.filter(t => t.id !== currentTable.id && (t.status === 'available' || !t.currentOrderId))
   }, [tables, currentTable.id])
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <section className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
+      <section className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
         <header>
           <div>
-            <p className="eyebrow">REASIGNAR MESA</p>
-            <h2>Mover comanda</h2>
-            <small>Trasladar la orden activa de Mesa {currentTable.number} a otra mesa libre.</small>
+            <p className="eyebrow" style={{ color: confirmStep ? '#ff8a65' : undefined }}>
+              {confirmStep ? 'CONFIRMAR TRASLADO' : 'REASIGNAR MESA'}
+            </p>
+            <h2>{confirmStep ? `¿Mover a Mesa ${selectedTable?.number}?` : 'Mover comanda'}</h2>
+            <small>
+              {confirmStep
+                ? `Paso 2 de 2: Confirme que desea trasladar la orden activa de la Mesa ${currentTable.number} a la Mesa ${selectedTable?.number}.`
+                : `Paso 1 de 2: Seleccione la mesa disponible a donde transferir la comanda de la Mesa ${currentTable.number}.`}
+            </small>
           </div>
           <button className="icon-button" onClick={onClose} aria-label="Cerrar"><X size={18} /></button>
         </header>
 
         <div className="modal-content">
-          <p className="muted" style={{ fontSize: 13, marginBottom: 12 }}>
-            Seleccione la mesa de destino disponible:
-          </p>
+          {!confirmStep ? (
+            <>
+              <p className="muted" style={{ fontSize: 13, marginBottom: 12 }}>
+                Seleccione la mesa de destino disponible:
+              </p>
 
-          {availableTables.length > 0 ? (
-            <div className="transfer-table-grid">
-              {availableTables.map(t => (
-                <button
-                  key={t.id}
-                  type="button"
-                  className={`transfer-table-card ${selectedTable?.id === t.id ? 'selected' : ''}`}
-                  onClick={() => setSelectedTable(t)}
-                >
-                  <TableVisual table={t} />
-                  <strong>Mesa {t.number}</strong>
-                  <small>{t.capacity} comensales</small>
-                </button>
-              ))}
-            </div>
+              {availableTables.length > 0 ? (
+                <div className="transfer-table-grid">
+                  {availableTables.map(t => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      className={`transfer-table-card ${selectedTable?.id === t.id ? 'selected' : ''}`}
+                      onClick={() => setSelectedTable(t)}
+                    >
+                      <TableVisual table={t} />
+                      <strong>Mesa {t.number}</strong>
+                      <small>{t.capacity} comensales</small>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty compact" style={{ padding: '24px 12px' }}>
+                  <p>No hay otras mesas libres en la sala en este momento.</p>
+                </div>
+              )}
+            </>
           ) : (
-            <div className="empty compact" style={{ padding: '24px 12px' }}>
-              <p>No hay otras mesas libres en la sala en este momento.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '8px 0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', background: 'rgba(255, 255, 255, 0.04)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--pos-text-secondary)', display: 'block' }}>ORIGEN</span>
+                  <strong style={{ fontSize: '1.25rem', color: '#ff8a65' }}>Mesa {currentTable.number}</strong>
+                  {currentTable.customerName && <small style={{ display: 'block', color: 'var(--pos-text-secondary)' }}>{currentTable.customerName}</small>}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: '#5EDBAC' }}>
+                  <ArrowRightLeft size={24} />
+                  <span style={{ fontSize: '0.7rem', fontWeight: 700, marginTop: 4 }}>TRASLADAR</span>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--pos-text-secondary)', display: 'block' }}>DESTINO</span>
+                  <strong style={{ fontSize: '1.25rem', color: '#5EDBAC' }}>Mesa {selectedTable?.number}</strong>
+                  <small style={{ display: 'block', color: 'var(--pos-text-secondary)' }}>{selectedTable?.capacity} sillas</small>
+                </div>
+              </div>
+              <p style={{ fontSize: 13, color: 'var(--pos-text-secondary)', margin: 0 }}>
+                La comanda activa, los productos enviados a cocina y el cliente asignado se reubicarán a la Mesa {selectedTable?.number}. La Mesa {currentTable.number} quedará disponible inmediatamente.
+              </p>
             </div>
           )}
         </div>
 
         <footer>
-          <button type="button" className="button outline" onClick={onClose} disabled={busy}>
-            Cancelar
-          </button>
-          <button
-            type="button"
-            className="button primary"
-            disabled={!selectedTable || busy}
-            onClick={() => selectedTable && onTransfer(selectedTable)}
-          >
-            <ArrowRightLeft size={15} />
-            {busy ? 'Moviendo…' : selectedTable ? `Mover a Mesa ${selectedTable.number}` : 'Seleccione mesa'}
-          </button>
+          {!confirmStep ? (
+            <>
+              <button type="button" className="button outline" onClick={onClose} disabled={busy}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="button primary"
+                disabled={!selectedTable || busy}
+                onClick={() => setConfirmStep(true)}
+              >
+                <span>Continuar</span>
+                <ArrowRightLeft size={15} />
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" className="button outline" onClick={() => setConfirmStep(false)} disabled={busy}>
+                Cambiar mesa
+              </button>
+              <button
+                type="button"
+                className="button primary"
+                disabled={!selectedTable || busy}
+                onClick={() => selectedTable && onTransfer(selectedTable)}
+              >
+                <Check size={16} />
+                {busy ? 'Moviendo…' : `Sí, confirmar cambio a Mesa ${selectedTable?.number}`}
+              </button>
+            </>
+          )}
         </footer>
       </section>
     </div>

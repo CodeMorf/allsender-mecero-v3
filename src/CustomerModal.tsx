@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Search, UserPlus, ChevronDown, ChevronUp, Check, X, Building, Phone, Mail, FileText } from 'lucide-react'
+import { Search, UserPlus, ChevronDown, ChevronUp, Check, X, Building, Phone, Mail, FileText, Pencil, UserCircle2 } from 'lucide-react'
 import type { PosCustomer } from './types'
 import { api } from './api/client'
 
@@ -11,6 +11,8 @@ export interface CustomerModalProps {
     email?: string
     rncCedula?: string
     fiscalName?: string
+    commercialName?: string
+    deliveryAddress?: string
     receiptType?: string
   }
   offline: boolean
@@ -23,12 +25,13 @@ export function CustomerModal({ currentCustomer, offline, onClose, onSelect }: C
   const [searchResults, setSearchResults] = useState<PosCustomer[]>([])
   const [loading, setLoading] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
+  const [editingCustomerId, setEditingCustomerId] = useState<number | null>(null)
   const [showBilling, setShowBilling] = useState(false)
   const [receiptType, setReceiptType] = useState(currentCustomer?.receiptType || 'B02')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  // Create form state
+  // Create / Edit form state
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
@@ -41,6 +44,39 @@ export function CustomerModal({ currentCustomer, offline, onClose, onSelect }: C
   const [rncStatusMsg, setRncStatusMsg] = useState('')
 
   const searchTimerRef = useRef<any>(null)
+
+  function startCreating() {
+    setEditingCustomerId(null)
+    setName(searchTerm.trim())
+    setPhone('')
+    setEmail('')
+    setDeliveryAddress('')
+    setRncCedula('')
+    setFiscalName('')
+    setCommercialName('')
+    setShowBilling(false)
+    setError('')
+    setShowCreate(true)
+  }
+
+  function startEditing(c: Partial<PosCustomer> | any) {
+    setEditingCustomerId(c.id && c.id > 0 ? c.id : null)
+    setName(c.name || '')
+    setPhone(c.phone || '')
+    setEmail(c.email || '')
+    setDeliveryAddress(c.deliveryAddress || c.address || '')
+    setRncCedula(c.rncCedula || c.rnc_cedula || '')
+    setFiscalName(c.fiscalName || c.fiscal_name || '')
+    setCommercialName(c.commercialName || c.commercial_name || '')
+    if (c.receiptType) {
+      setReceiptType(c.receiptType)
+    }
+    if (c.rncCedula || c.fiscalName || c.rnc_cedula || c.fiscal_name) {
+      setShowBilling(true)
+    }
+    setError('')
+    setShowCreate(true)
+  }
 
   // Verify and auto-fill from RNC / Cédula
   async function handleVerifyRnc() {
@@ -107,6 +143,7 @@ export function CustomerModal({ currentCustomer, offline, onClose, onSelect }: C
     setSaving(true)
     try {
       const payload: Partial<PosCustomer> = {
+        id: editingCustomerId || undefined,
         name: name.trim(),
         phone: phone.trim() || undefined,
         email: email.trim() || undefined,
@@ -120,7 +157,7 @@ export function CustomerModal({ currentCustomer, offline, onClose, onSelect }: C
         saved = await api.saveCustomer('pin', payload)
       } else {
         saved = {
-          id: -Date.now(),
+          id: editingCustomerId || -Date.now(),
           name: payload.name!,
           phone: payload.phone,
           email: payload.email,
@@ -130,6 +167,16 @@ export function CustomerModal({ currentCustomer, offline, onClose, onSelect }: C
           commercialName: payload.commercialName,
         }
       }
+      // Update local search results list
+      setSearchResults(prev => {
+        const idx = prev.findIndex(item => item.id === saved.id)
+        if (idx >= 0) {
+          const next = [...prev]
+          next[idx] = saved
+          return next
+        }
+        return [saved, ...prev]
+      })
       onSelect(saved, receiptType)
     } catch (err: any) {
       setError(err?.message || 'Error al guardar el cliente.')
@@ -144,8 +191,12 @@ export function CustomerModal({ currentCustomer, offline, onClose, onSelect }: C
         <header className="customer-modal-header">
           <div>
             <p className="eyebrow">VENTA / COMANDA</p>
-            <h2>Cliente del pedido</h2>
-            <small>Identifique el cliente o agregue sus datos fiscales para comprobante.</small>
+            <h2>{showCreate ? (editingCustomerId ? 'Actualizar cliente' : 'Nuevo cliente') : 'Cliente de la mesa'}</h2>
+            <small>
+              {showCreate
+                ? (editingCustomerId ? 'Modifique los datos de contacto o facturación fiscal.' : 'Ingrese los datos para registrar el cliente.')
+                : 'Seleccione un cliente registrado o actualice sus datos para la comanda.'}
+            </small>
           </div>
           <button className="icon-button" onClick={onClose} aria-label="Cerrar modal">
             <X size={20} />
@@ -157,6 +208,41 @@ export function CustomerModal({ currentCustomer, offline, onClose, onSelect }: C
 
           {!showCreate ? (
             <div className="customer-search-view">
+              {/* Highlight card for current table customer */}
+              {currentCustomer?.name && (
+                <div className="customer-current-card">
+                  <div className="customer-current-info">
+                    <span className="customer-current-badge">Cliente asignado a la mesa</span>
+                    <div className="customer-current-name">
+                      <UserCircle2 size={16} />
+                      <strong>{currentCustomer.name}</strong>
+                      {currentCustomer.rncCedula && (
+                        <span className="customer-badge-rnc">
+                          <FileText size={11} /> {currentCustomer.rncCedula}
+                        </span>
+                      )}
+                    </div>
+                    {(currentCustomer.phone || currentCustomer.email || currentCustomer.fiscalName) && (
+                      <div className="customer-meta-row" style={{ marginTop: 2 }}>
+                        {currentCustomer.phone && <span><Phone size={11} /> {currentCustomer.phone}</span>}
+                        {currentCustomer.email && <span><Mail size={11} /> {currentCustomer.email}</span>}
+                        {currentCustomer.fiscalName && <span><Building size={11} /> {currentCustomer.fiscalName}</span>}
+                      </div>
+                    )}
+                  </div>
+                  <div className="customer-current-actions">
+                    <button
+                      type="button"
+                      className="button outline small customer-item-edit-btn"
+                      onClick={() => startEditing(currentCustomer)}
+                      title="Editar datos de este cliente"
+                    >
+                      <Pencil size={13} /> Editar datos
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="customer-search-bar">
                 <Search size={18} className="search-icon" />
                 <input
@@ -177,10 +263,7 @@ export function CustomerModal({ currentCustomer, offline, onClose, onSelect }: C
                 <button
                   type="button"
                   className="button secondary create-customer-btn"
-                  onClick={() => {
-                    setName(searchTerm)
-                    setShowCreate(true)
-                  }}
+                  onClick={startCreating}
                 >
                   <UserPlus size={16} /> Crear nuevo cliente
                 </button>
@@ -195,10 +278,7 @@ export function CustomerModal({ currentCustomer, offline, onClose, onSelect }: C
                     <button
                       type="button"
                       className="button outline small"
-                      onClick={() => {
-                        setName(searchTerm)
-                        setShowCreate(true)
-                      }}
+                      onClick={startCreating}
                     >
                       <UserPlus size={14} /> Registrar como nuevo cliente
                     </button>
@@ -227,16 +307,30 @@ export function CustomerModal({ currentCustomer, offline, onClose, onSelect }: C
                             {c.fiscalName && <span><Building size={12} /> {c.fiscalName}</span>}
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          className={`button ${isSelected ? 'primary' : 'outline'} small`}
-                          onClick={e => {
-                            e.stopPropagation()
-                            onSelect(c, c.rncCedula ? (receiptType === 'B02' ? 'B01' : receiptType) : receiptType)
-                          }}
-                        >
-                          {isSelected ? <Check size={14} /> : 'Seleccionar'}
-                        </button>
+
+                        <div className="customer-item-actions">
+                          <button
+                            type="button"
+                            className="button outline small customer-item-edit-btn"
+                            title="Editar datos de este cliente"
+                            onClick={e => {
+                              e.stopPropagation()
+                              startEditing(c)
+                            }}
+                          >
+                            <Pencil size={13} /> Editar
+                          </button>
+                          <button
+                            type="button"
+                            className={`button ${isSelected ? 'primary' : 'outline'} small`}
+                            onClick={e => {
+                              e.stopPropagation()
+                              onSelect(c, c.rncCedula ? (receiptType === 'B02' ? 'B01' : receiptType) : receiptType)
+                            }}
+                          >
+                            {isSelected ? <Check size={14} /> : 'Seleccionar'}
+                          </button>
+                        </div>
                       </div>
                     )
                   })
@@ -245,6 +339,17 @@ export function CustomerModal({ currentCustomer, offline, onClose, onSelect }: C
             </div>
           ) : (
             <form onSubmit={handleCreateCustomer} className="customer-create-form">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)' }}>
+                  {editingCustomerId ? 'Modificando cliente existente' : 'Nuevo registro de cliente'}
+                </span>
+                {editingCustomerId && (
+                  <span style={{ fontSize: '11px', background: 'rgba(8, 127, 140, 0.12)', color: 'var(--primary)', padding: '2px 8px', borderRadius: 6, fontWeight: 600 }}>
+                    ID: #{editingCustomerId}
+                  </span>
+                )}
+              </div>
+
               <div className="form-group">
                 <label>
                   Nombre completo *
@@ -385,17 +490,20 @@ export function CustomerModal({ currentCustomer, offline, onClose, onSelect }: C
                 <button
                   type="button"
                   className="button outline"
-                  onClick={() => setShowCreate(false)}
+                  onClick={() => {
+                    setShowCreate(false)
+                    setEditingCustomerId(null)
+                  }}
                   disabled={saving}
                 >
-                  Volver a búsqueda
+                  Volver a lista
                 </button>
                 <button
                   type="submit"
                   className="button primary"
                   disabled={saving || !name.trim()}
                 >
-                  {saving ? 'Guardando…' : 'Guardar y Seleccionar'}
+                  {saving ? 'Guardando…' : (editingCustomerId ? 'Guardar cambios y Seleccionar' : 'Guardar y Seleccionar')}
                 </button>
               </div>
             </form>

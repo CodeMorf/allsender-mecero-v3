@@ -1311,6 +1311,50 @@ h2 { margin-bottom: 0; font-size: 22px; letter-spacing: -.02em; }
   border-color: var(--primary);
   background: color-mix(in srgb, var(--primary) 12%, var(--surface));
 }
+.customer-current-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface-soft));
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--line));
+  border-radius: 12px;
+  gap: 12px;
+}
+.customer-current-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.customer-current-badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 700;
+  color: var(--primary);
+}
+.customer-current-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.customer-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.customer-item-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
 .customer-item-info {
   display: flex;
   flex-direction: column;

@@ -181,9 +181,13 @@ export class ApiClient {
     const body: Record<string, unknown> = {
       name: payload.name,
       phone_code: payload.phoneCode || '1',
-      phone: payload.phone,
+      phone: payload.phone || null,
       email: payload.email || null,
       address: payload.deliveryAddress || null,
+    }
+    if (payload.id && payload.id > 0) {
+      body.id = payload.id
+      body.customer_id = payload.id
     }
     if (payload.rncCedula) body.rnc_cedula = payload.rncCedula
     if (payload.fiscalName) body.fiscal_name = payload.fiscalName
@@ -191,7 +195,9 @@ export class ApiClient {
     if (payload.dgiiStatus) body.dgii_status = payload.dgiiStatus
     if (payload.dgiiTaxRegime) body.dgii_tax_regime = payload.dgiiTaxRegime
     if (payload.dgiiIsElectronicBiller !== undefined) body.dgii_is_electronic_biller = payload.dgiiIsElectronicBiller
-    const res = await this.request<any>('/pos/customers', { method: 'POST', tokenKind: kind, body: JSON.stringify(body) })
+    const path = payload.id && payload.id > 0 ? `/pos/customers/${payload.id}` : '/pos/customers'
+    const method = payload.id && payload.id > 0 ? 'PUT' : 'POST'
+    const res = await this.request<any>(path, { method, tokenKind: kind, body: JSON.stringify(body) })
     const data = unwrap<any>(res)
     const customer = data?.customer ?? data
     return normalizeCustomer(customer)
