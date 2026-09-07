@@ -2229,10 +2229,24 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
   const [localError, setLocalError] = useState('')
   const [confirmKotOpen, setConfirmKotOpen] = useState(false)
   const [addedNotice, setAddedNotice] = useState('')
-  const total = lines.reduce((sum, line) => sum + line.price * line.quantity + line.modifiers.reduce((s, m) => s + m.price, 0) * line.quantity, 0)
+  const newLinesTotal = lines.reduce((sum, line) => sum + line.price * line.quantity + line.modifiers.reduce((s, m) => s + m.price, 0) * line.quantity, 0)
+  // When there is an active order use the server total (subtotal before taxes).
+  // Fall back to summing existingItems amounts, and finally to new-lines only.
+  const existingSubtotal = (() => {
+    const fromServer = orderDetail?.subtotal ?? orderDetail?.sub_total ?? orderDetail?.data?.subtotal ?? orderDetail?.data?.sub_total ?? orderDetail?.order?.subtotal ?? orderDetail?.order?.sub_total
+    if (fromServer != null && Number(fromServer) > 0) return Number(fromServer)
+    return existingItems.reduce((s, item) => s + (item.amount || 0), 0)
+  })()
+  const total = existingSubtotal > 0 ? existingSubtotal + newLinesTotal : newLinesTotal
+  // When we have a real order total use those taxes directly; otherwise estimate.
+  const serverTotal = (() => {
+    const t = orderDetail?.total ?? orderDetail?.order_total ?? orderDetail?.data?.total ?? orderDetail?.order?.total
+    if (t != null && Number(t) > 0) return Number(t) + newLinesTotal
+    return null
+  })()
   const estimatedItbis = Math.round(total * 0.18 * 100) / 100
   const estimatedTip = mode === 'dine_in' ? Math.round(total * 0.10 * 100) / 100 : 0
-  const grandEstimatedTotal = total + estimatedItbis + estimatedTip
+  const grandEstimatedTotal = serverTotal ?? (total + estimatedItbis + estimatedTip)
   const deliveryReady = mode !== 'delivery' || (deliverySettings?.is_enabled === true && Boolean(customerName.trim() && customerPhone.trim() && deliveryAddress.trim()) && (deliveryFee.trim() !== '' || deliverySettings.fixed_fee != null))
   const tableReady = mode !== 'dine_in' || table !== null
   const activeElapsed = useElapsedSince(orderStartedAt(orderDetail))
@@ -2336,6 +2350,23 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
       })
       setLines([])
       setConfirmKotOpen(false)
+      // Reload existingItems from cache immediately so the sent items appear
+      // in the "Enviados a cocina" section without waiting for hydrate().
+      const orderId = table?.currentOrderId
+      if (orderId) {
+        const cached = readCache()
+        const cachedDetail = cached.orderDetails?.[String(orderId)]
+        if (cachedDetail) {
+          const data = (cachedDetail as any)?.data ?? cachedDetail
+          setOrderDetail(data)
+          const values = Array.isArray((data as any)?.items) ? (data as any).items : []
+          setExistingItems(values.map((item: any) => {
+            const quantity = Math.max(1, Number(item.quantity || 1))
+            const amount = Number(item.amount ?? item.total ?? 0)
+            return { id: Number(item.id || item.order_item_id), name: String(item.name || item.menu_item_name || 'Producto'), quantity, amount: amount || Number(item.price || 0) * quantity }
+          }).filter((item: any) => item.id > 0 || item.name))
+        }
+      }
     } catch (cause) {
       setLocalError(normalizeError(cause, 'No se pudo enviar la comanda.'))
     } finally {
@@ -2645,6 +2676,18 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
         {/* Drawer Footer Resumen & CTA */}
         <footer className="pos-drawer-footer">
           <div className="pos-summary-lines">
+            {existingSubtotal > 0 && newLinesTotal > 0 && (
+              <div className="pos-summary-row" style={{ opacity: 0.7, fontSize: '0.78rem' }}>
+                <span>Enviados a cocina</span>
+                <span>{formatMoney(existingSubtotal)}</span>
+              </div>
+            )}
+            {newLinesTotal > 0 && existingSubtotal > 0 && (
+              <div className="pos-summary-row" style={{ opacity: 0.7, fontSize: '0.78rem' }}>
+                <span>Nuevos artículos</span>
+                <span>{formatMoney(newLinesTotal)}</span>
+              </div>
+            )}
             <div className="pos-summary-row">
               <span>Subtotal</span>
               <span>{formatMoney(total)}</span>
