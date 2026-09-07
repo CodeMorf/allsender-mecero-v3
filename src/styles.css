@@ -3230,3 +3230,67 @@ h2 { margin-bottom: 0; font-size: 22px; letter-spacing: -.02em; }
     gap: 0.75rem;
   }
 }
+
+/* Prebill & Table Payment Panel as Modern Modal Windows */
+.modal-backdrop .prebill-panel,
+.modal-backdrop .table-payment-panel {
+  background: var(--pos-bg-surface, #1E2328);
+  border: 1px solid var(--pos-bg-surface-elevated, #2A313A);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  border-radius: 18px;
+  color: var(--pos-text-primary, #fff);
+  margin-bottom: 0;
+}
+
+.modal-backdrop .prebill-panel header h3,
+.modal-backdrop .table-payment-panel h3 {
+  color: #fff;
+}
+
+.modal-backdrop .prebill-panel header small,
+.modal-backdrop .table-payment-panel small {
+  color: var(--pos-text-secondary, #A1A5AB);
+}
+
+.modal-backdrop .prebill-lines {
+  background: var(--pos-bg-base, #14171A);
+  border: 1px solid var(--pos-bg-surface-elevated, #2A313A);
+  color: #fff;
+}
+
+.modal-backdrop .prebill-totals b {
+  color: #fff;
+}
+
+.modal-backdrop .prebill-due {
+  background: rgba(94, 219, 172, 0.12);
+  color: #5EDBAC !important;
+}
+
+.modal-backdrop .prebill-due strong {
+  color: #5EDBAC;
+}
+
+.modal-backdrop .table-payment-panel {
+  background: var(--pos-bg-surface, #1E2328);
+}
+
+.modal-backdrop .table-payment-due {
+  background: var(--pos-bg-base, #14171A);
+  color: #5EDBAC;
+  border: 1px solid var(--pos-bg-surface-elevated, #2A313A);
+}
+
+.modal-backdrop .table-payment-due strong {
+  color: #5EDBAC;
+}
+
+.modal-backdrop .table-payment-form input,
+.modal-backdrop .table-payment-form select {
+  background: var(--pos-bg-base, #14171A);
+  border: 1px solid var(--pos-bg-surface-elevated, #2A313A);
+  color: #fff;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+

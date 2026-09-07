@@ -1818,41 +1818,48 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
           </div>
         </main>
 
-        {/* 3. Right Enterprise Order Drawer (Slide over on Mobile) */}
+        {/* 3. Right Enterprise Order Drawer (Slide over on Mobile, column on Desktop) */}
         <div
           className={`pos-drawer-overlay ${mobileDrawerOpen && (table || showQuick) ? 'is-visible' : ''}`}
           onClick={() => setMobileDrawerOpen(false)}
         />
-      </div>
 
-      {/* RENDER ACTIVE ORDER DRAWER / MODALS */}
-      {(table || (showQuick && canQuickSale)) && (
-        <OrderPanel
-          key={`${table?.id || 'quick'}-${table?.currentOrderId || 'new'}`}
-          table={table}
-          tables={tables}
-          quick={showQuick}
-          roleKey={roleKey}
-          permissions={permissions}
-          paymentMethods={paymentMethods}
-          canCharge={canCharge}
-          offline={offline}
-          deliverySettings={deliverySettings}
-          deliveryExecutives={deliveryExecutives}
-          items={items}
-          onClose={() => {
-            onSelectTable(null)
-            setShowQuick(false)
-            setMobileDrawerOpen(false)
-          }}
-          onSubmit={onSubmitOrder}
-          onSaveCustomer={onSaveCustomer}
-          onRemoveOrderItem={onRemoveOrderItem}
-          onPrintPreBill={onPrintPreBill}
-          onPayOrder={onPayOrder}
-          onTransferTable={onTransferTable}
-        />
-      )}
+        {/* OrderPanel rendered inside layout */}
+        {(table || (showQuick && canQuickSale)) && (
+          <OrderPanel
+            key={`${table?.id || 'quick'}-${table?.currentOrderId || 'new'}`}
+            table={table}
+            tables={tables}
+            quick={showQuick}
+            mobileDrawerOpen={mobileDrawerOpen}
+            roleKey={roleKey}
+            permissions={permissions}
+            paymentMethods={paymentMethods}
+            canCharge={canCharge}
+            offline={offline}
+            deliverySettings={deliverySettings}
+            deliveryExecutives={deliveryExecutives}
+            items={items}
+            onClose={() => {
+              onSelectTable(null)
+              setShowQuick(false)
+              setMobileDrawerOpen(false)
+            }}
+            onOpenMenu={() => {
+              setActiveNavTab('menu')
+              if (window.innerWidth <= 768) {
+                setMobileDrawerOpen(false)
+              }
+            }}
+            onSubmit={onSubmitOrder}
+            onSaveCustomer={onSaveCustomer}
+            onRemoveOrderItem={onRemoveOrderItem}
+            onPrintPreBill={onPrintPreBill}
+            onPayOrder={onPayOrder}
+            onTransferTable={onTransferTable}
+          />
+        )}
+      </div>
 
       {showMenu && <MenuPanel items={items} onClose={() => setShowMenu(false)} />}
       {showOps && (
@@ -2024,7 +2031,7 @@ function TablePaymentPanel({ table, payload, items, paymentMethods, offline, onC
   return <section className="table-payment-panel" aria-label={`Cobro de la mesa ${table.number}`}><div className="table-payment-header"><div><p className="eyebrow">COBRO DE LA MESA</p><h3>Mesa {table.number}</h3><small>El turno y la caja chica se administran por separado desde “Turno de caja”.</small></div><button className="icon-button" onClick={onClose} aria-label="Cerrar cobro"><X size={18} /></button></div>{offline && <Alert>Sin conexión: el cobro queda pendiente y se validará automáticamente al recuperar internet.</Alert>}{error && <Alert>{error}</Alert>}{status && <p className="table-payment-status" role="status">{status}</p>}<div className="table-payment-due"><span>Saldo pendiente</span><strong>{formatMoney(summary.due)}</strong></div>{enabledMethods.length ? <div className="table-payment-form"><label>Método<select value={selectedMethod} onChange={event => setMethod(event.target.value)}>{enabledMethods.map(value => <option value={value.code} key={value.code}>{value.label}</option>)}</select></label><label>Monto<input type="number" min="0.01" max={summary.due.toFixed(2)} step="0.01" value={amount} onChange={event => setAmount(event.target.value)} /></label></div> : <Alert>No hay metodos de pago configurados en esta sucursal.</Alert>}<footer><button className="button outline" onClick={onClose}>Cancelar</button><button className="button primary" disabled={busy || !enabledMethods.length || summary.due <= 0} onClick={() => void charge()}><CreditCard size={16} />{busy ? 'Registrando…' : 'Registrar cobro'}</button></footer></section>
 }
 
-function OrderPanel({ table, tables, quick, roleKey, permissions, paymentMethods, canCharge, offline, deliverySettings, deliveryExecutives, items, onClose, onSubmit, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable }: { table: RestaurantTable | null; tables?: RestaurantTable[]; quick: boolean; roleKey: StaffRole; permissions: Record<string, boolean>; paymentMethods: PaymentMethodOption[]; canCharge: boolean; offline: boolean; deliverySettings: DeliverySettings | null; deliveryExecutives: DeliveryExecutive[]; items: MenuItem[]; onClose: () => void; onSubmit: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem?: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }> }) {
+function OrderPanel({ table, tables, quick, mobileDrawerOpen, roleKey, permissions, paymentMethods, canCharge, offline, deliverySettings, deliveryExecutives, items, onClose, onOpenMenu, onSubmit, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable }: { table: RestaurantTable | null; tables?: RestaurantTable[]; quick: boolean; mobileDrawerOpen?: boolean; roleKey: StaffRole; permissions: Record<string, boolean>; paymentMethods: PaymentMethodOption[]; canCharge: boolean; offline: boolean; deliverySettings: DeliverySettings | null; deliveryExecutives: DeliveryExecutive[]; items: MenuItem[]; onClose: () => void; onOpenMenu?: () => void; onSubmit: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem?: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }> }) {
   const canDelivery = roleKey === 'cajero' && permissions['orders.create'] === true
   const [mode, setMode] = useState<OrderMode>(table ? 'dine_in' : canDelivery ? 'pickup' : 'dine_in')
   const [customerId, setCustomerId] = useState<number | undefined>(table?.customerId)
@@ -2179,8 +2186,8 @@ function OrderPanel({ table, tables, quick, roleKey, permissions, paymentMethods
     finally { setRemovingItemId(null) }
   }
   return (
-    <div className="drawer-backdrop" onClick={onClose}>
-      <section className="pos-order-drawer is-open" onClick={e => e.stopPropagation()} style={{ height: '100%' }}>
+    <>
+      <section className={`pos-order-drawer ${mobileDrawerOpen !== false ? 'is-open' : ''}`} style={{ height: '100%' }}>
         {/* Drawer Header matching POS Layout */}
         <header className="pos-drawer-header">
           <div className="pos-drawer-title-row">
@@ -2213,69 +2220,75 @@ function OrderPanel({ table, tables, quick, roleKey, permissions, paymentMethods
             </span>
           </div>
 
-          {/* Quick Actions (Precuenta, Cobrar, Mover) */}
+          {/* Quick Actions (Precuenta, Cobrar, Mover mesa) */}
           {table?.currentOrderId && (
             <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
               <button
                 type="button"
                 className="pos-category-chip"
-                style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', flex: 1, textAlign: 'center' }}
+                style={{ padding: '0.45rem 0.75rem', fontSize: '0.78rem', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
                 onClick={() => { setPaymentOpen(false); setPreBillOpen(true) }}
+                title="Ver e imprimir precuenta sin cobrar"
               >
-                Precuenta
+                <Receipt size={14} />
+                <span>Precuenta</span>
               </button>
               {canCharge && (
                 <button
                   type="button"
                   className="pos-category-chip active"
-                  style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', flex: 1, textAlign: 'center' }}
+                  style={{ padding: '0.45rem 0.75rem', fontSize: '0.78rem', flex: 1.2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, background: 'var(--color-pos-primary)', color: '#fff' }}
                   onClick={() => { setPreBillOpen(false); setPaymentOpen(true) }}
+                  title="Cobrar orden de la mesa"
                 >
-                  Cobrar
+                  <CreditCard size={14} />
+                  <span>Cobrar</span>
                 </button>
               )}
               {mode === 'dine_in' && (
                 <button
                   type="button"
                   className="pos-category-chip"
-                  style={{ padding: '0.4rem 0.6rem', fontSize: '0.75rem' }}
+                  style={{ padding: '0.45rem 0.65rem', fontSize: '0.78rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   onClick={() => setTransferOpen(true)}
-                  title="Mover mesa"
+                  title="Mover comanda a otra mesa"
                 >
-                  <ArrowRightLeft size={13} />
+                  <ArrowRightLeft size={14} />
                 </button>
               )}
             </div>
+          )}
+
+          {/* Botón destacado "+ Agregar platos" para fácil acceso */}
+          {onOpenMenu && (
+            <button
+              type="button"
+              className="pos-category-chip"
+              style={{
+                marginTop: 6,
+                padding: '0.5rem 0.8rem',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                background: 'rgba(94, 219, 172, 0.12)',
+                borderColor: 'rgba(94, 219, 172, 0.4)',
+                color: '#5EDBAC',
+                width: '100%'
+              }}
+              onClick={onOpenMenu}
+              title="Abrir catálogo para agregar más platos a la comanda"
+            >
+              <Plus size={15} />
+              <span>+ Agregar platos del menú</span>
+            </button>
           )}
         </header>
 
         <div className="pos-order-items-list">
           {localError && <Alert>{localError}</Alert>}
-
-          {/* Modales de Precuenta y Cobro */}
-          {preBillOpen && table?.currentOrderId && (
-            <PreBillPanel
-              table={table}
-              payload={orderDetail}
-              items={existingItems}
-              onClose={() => setPreBillOpen(false)}
-              onAddMore={() => { setPreBillOpen(false); setShowMenu(true) }}
-              onPrint={printPreBill}
-              printing={printing}
-              printStatus={printStatus}
-            />
-          )}
-          {paymentOpen && table?.currentOrderId && canCharge && (
-            <TablePaymentPanel
-              table={table}
-              payload={orderDetail}
-              items={existingItems}
-              paymentMethods={paymentMethods}
-              offline={offline}
-              onClose={() => setPaymentOpen(false)}
-              onPay={onPayOrder}
-            />
-          )}
 
           {/* Artículos ya enviados a cocina */}
           {existingItems.length > 0 && (
@@ -2299,9 +2312,11 @@ function OrderPanel({ table, tables, quick, roleKey, permissions, paymentMethods
                       className="pos-item-remove-btn"
                       disabled={removingItemId !== null}
                       onClick={() => void removeItem(item)}
-                      title="Quitar de orden activa"
+                      title="Quitar este plato de la orden activa"
+                      style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 7px', fontSize: '0.72rem', color: '#ff6b7a', background: 'rgba(255, 107, 122, 0.12)', borderRadius: 6 }}
                     >
-                      <Trash2 size={13} />
+                      <Trash2 size={12} />
+                      <span style={{ fontWeight: 700 }}>Quitar</span>
                     </button>
                   )}
                 </div>
@@ -2325,9 +2340,11 @@ function OrderPanel({ table, tables, quick, roleKey, permissions, paymentMethods
                     type="button"
                     className="pos-item-remove-btn"
                     onClick={() => removeDraftLine(line.clientId)}
-                    title="Eliminar de comanda"
+                    title="Eliminar plato de la comanda"
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 7px', fontSize: '0.72rem', color: '#ff6b7a', background: 'rgba(255, 107, 122, 0.12)', borderRadius: 6 }}
                   >
-                    <Trash2 size={13} />
+                    <Trash2 size={12} />
+                    <span style={{ fontWeight: 700 }}>Eliminar</span>
                   </button>
                   <div className="pos-order-item-bottom">
                     <button
@@ -2367,9 +2384,21 @@ function OrderPanel({ table, tables, quick, roleKey, permissions, paymentMethods
           )}
 
           {!lines.length && !existingItems.length && (
-            <div className="empty compact" style={{ padding: '3rem 1rem', background: 'transparent', borderColor: 'var(--pos-bg-surface-elevated)' }}>
-              <ClipboardList size={34} style={{ color: 'var(--pos-text-tertiary)' }} />
-              <p style={{ color: 'var(--pos-text-secondary)', fontSize: '0.85rem' }}>Seleccione platos del catálogo para armar la comanda.</p>
+            <div className="empty compact" style={{ padding: '2.5rem 1rem', background: 'transparent', borderColor: 'var(--pos-bg-surface-elevated)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+              <ClipboardList size={36} style={{ color: 'var(--pos-text-tertiary)' }} />
+              <p style={{ color: 'var(--pos-text-secondary)', fontSize: '0.85rem', margin: 0, textAlign: 'center' }}>
+                La comanda está vacía. Seleccione platos del catálogo para armar la orden.
+              </p>
+              {onOpenMenu && (
+                <button
+                  type="button"
+                  className="pos-btn-primary"
+                  style={{ padding: '0.65rem 1.2rem', fontSize: '0.85rem', borderRadius: 9999, width: 'auto', marginTop: 4 }}
+                  onClick={onOpenMenu}
+                >
+                  <Plus size={16} /> Ver menú y agregar platos
+                </button>
+              )}
             </div>
           )}
 
@@ -2435,52 +2464,140 @@ function OrderPanel({ table, tables, quick, roleKey, permissions, paymentMethods
               <span>{submitting ? 'ENVIANDO…' : 'ENVIAR A COCINA'}</span>
             </button>
           </div>
-        </footer>{confirmKotOpen && (
-    <div className="modal-backdrop">
-      <section className="modal confirm-kot-modal">
-        <header>
-          <div>
-            <p className="eyebrow">CONFIRMACIÓN DE COMANDA</p>
-            <h2>¿Enviar a cocina?</h2>
-          </div>
-          <button className="icon-button" onClick={() => setConfirmKotOpen(false)}><X size={18} /></button>
-        </header>
-        <div className="modal-content" style={{ gap: '14px' }}>
-          <div className="confirm-kot-summary">
-            <div className="confirm-kot-target">
-              <strong>{mode === 'delivery' ? 'Entrega a domicilio' : mode === 'pickup' ? 'Retiro en el local' : `Mesa ${table?.number}`}</strong>
-              <small>{lines.reduce((s, l) => s + l.quantity, 0)} artículo(s) para preparar en cocina</small>
-            </div>
-            <div className="confirm-kot-items-preview">
-              {lines.map(line => (
-                <div key={line.clientId} className="confirm-kot-item-row">
-                  <span><b>{line.quantity}×</b> {line.name}</span>
-                  <small>{formatMoney(line.price * line.quantity)}</small>
-                </div>
-              ))}
-            </div>
-            <div className="confirm-kot-total">
-              <span>Total estimado:</span>
-              <strong>{formatMoney(grandEstimatedTotal)}</strong>
-            </div>
-          </div>
-          <p className="confirm-kot-note">
-            Al confirmar, se enviará la orden oficial a cocina (KOT) y a las impresoras de comandas.
-          </p>
-        </div>
-        <footer style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: '10px' }}>
-          <button className="button outline" onClick={() => setConfirmKotOpen(false)} disabled={submitting}>
-            Revisar comanda
-          </button>
-          <button className="button primary" onClick={send} disabled={submitting}>
-            <ChefHat size={17} /> {submitting ? 'Enviando…' : 'Sí, enviar a cocina'}
-          </button>
         </footer>
+        {confirmKotOpen && (
+          <div className="modal-backdrop" onClick={() => setConfirmKotOpen(false)}>
+            <section className="modal confirm-kot-modal" onClick={e => e.stopPropagation()}>
+              <header>
+                <div>
+                  <p className="eyebrow">CONFIRMACIÓN DE COMANDA</p>
+                  <h2>¿Enviar a cocina?</h2>
+                </div>
+                <button className="icon-button" onClick={() => setConfirmKotOpen(false)}><X size={18} /></button>
+              </header>
+              <div className="modal-content" style={{ gap: '14px' }}>
+                <div className="confirm-kot-summary">
+                  <div className="confirm-kot-target">
+                    <strong>{mode === 'delivery' ? 'Entrega a domicilio' : mode === 'pickup' ? 'Retiro en el local' : `Mesa ${table?.number}`}</strong>
+                    <small>{lines.reduce((s, l) => s + l.quantity, 0)} artículo(s) para preparar en cocina</small>
+                  </div>
+                  <div className="confirm-kot-items-preview">
+                    {lines.map(line => (
+                      <div key={line.clientId} className="confirm-kot-item-row">
+                        <span><b>{line.quantity}×</b> {line.name}</span>
+                        <small>{formatMoney(line.price * line.quantity)}</small>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="confirm-kot-total">
+                    <span>Total estimado:</span>
+                    <strong>{formatMoney(grandEstimatedTotal)}</strong>
+                  </div>
+                </div>
+                <p className="confirm-kot-note">
+                  Al confirmar, se enviará la orden oficial a cocina (KOT) y a las impresoras de comandas.
+                </p>
+              </div>
+              <footer style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: '10px' }}>
+                <button className="button outline" onClick={() => setConfirmKotOpen(false)} disabled={submitting}>
+                  Revisar comanda
+                </button>
+                <button className="button primary" onClick={send} disabled={submitting}>
+                  <ChefHat size={17} /> {submitting ? 'Enviando…' : 'Sí, enviar a cocina'}
+                </button>
+              </footer>
+            </section>
+          </div>
+        )}
+        {preBillOpen && table?.currentOrderId && (
+          <div className="modal-backdrop" onClick={() => setPreBillOpen(false)}>
+            <div onClick={e => e.stopPropagation()} style={{ width: 'min(520px, 100%)' }}>
+              <PreBillPanel
+                table={table}
+                payload={orderDetail}
+                items={existingItems}
+                onClose={() => setPreBillOpen(false)}
+                onAddMore={() => {
+                  setPreBillOpen(false)
+                  if (onOpenMenu) onOpenMenu()
+                }}
+                onPrint={printPreBill}
+                printing={printing}
+                printStatus={printStatus}
+              />
+            </div>
+          </div>
+        )}
+        {paymentOpen && table?.currentOrderId && canCharge && (
+          <div className="modal-backdrop" onClick={() => setPaymentOpen(false)}>
+            <div onClick={e => e.stopPropagation()} style={{ width: 'min(520px, 100%)' }}>
+              <TablePaymentPanel
+                table={table}
+                payload={orderDetail}
+                items={existingItems}
+                paymentMethods={paymentMethods}
+                offline={offline}
+                onClose={() => setPaymentOpen(false)}
+                onPay={onPayOrder}
+              />
+            </div>
+          </div>
+        )}
+        {selected && (
+          <ModifierModal
+            item={selected}
+            seatCount={mode === 'dine_in' && table ? table.capacity : undefined}
+            onClose={() => setSelected(null)}
+            onAdd={line => { triggerAddLine(line); setSelected(null) }}
+          />
+        )}
+        {splitOpen && table && mode === 'dine_in' && (
+          <SplitBill lines={lines} table={table} onClose={() => setSplitOpen(false)} />
+        )}
+        {transferOpen && table && mode === 'dine_in' && (
+          <TransferTableModal
+            currentTable={table}
+            tables={tables || []}
+            onClose={() => setTransferOpen(false)}
+            onTransfer={async targetTable => {
+              if (!onTransferTable) return
+              setTransferring(true)
+              try {
+                const res = await onTransferTable(table, targetTable)
+                setLocalError(res.message)
+                setTransferOpen(false)
+                onClose()
+              } catch (err) {
+                setLocalError(normalizeError(err, 'No se pudo mover la orden de mesa.'))
+              } finally {
+                setTransferring(false)
+              }
+            }}
+            busy={transferring}
+          />
+        )}
+        {customerModalOpen && (
+          <CustomerModal
+            currentCustomer={{ id: customerId, name: customerName, phone: customerPhone, email: customerEmail, rncCedula, fiscalName }}
+            offline={offline}
+            onClose={() => setCustomerModalOpen(false)}
+            onSelect={customer => {
+              setCustomerId(customer.id > 0 ? customer.id : undefined)
+              setCustomerName(customer.name || '')
+              if (customer.phone) setCustomerPhone(customer.phone)
+              if (customer.email) setCustomerEmail(customer.email)
+              if (customer.deliveryAddress && !deliveryAddress) setDeliveryAddress(customer.deliveryAddress)
+              if (customer.rncCedula) setRncCedula(customer.rncCedula)
+              if (customer.fiscalName) setFiscalName(customer.fiscalName)
+              setCustomerModalOpen(false)
+              if (table?.currentOrderId) {
+                void onSaveCustomer(table, customer.name, customer.id > 0 ? customer.id : undefined, customer.rncCedula, customer.fiscalName).catch(() => undefined)
+              }
+            }}
+          />
+        )}
       </section>
-    </div>
-  )}{selected && <ModifierModal item={selected} seatCount={mode === 'dine_in' && table ? table.capacity : undefined} onClose={() => setSelected(null)} onAdd={line => { triggerAddLine(line); setSelected(null) }} />}{splitOpen && table && mode === 'dine_in' && <SplitBill lines={lines} table={table} onClose={() => setSplitOpen(false)} />}{transferOpen && table && mode === 'dine_in' && <TransferTableModal currentTable={table} tables={tables || []} onClose={() => setTransferOpen(false)} onTransfer={async targetTable => { if (!onTransferTable) return; setTransferring(true); try { const res = await onTransferTable(table, targetTable); setLocalError(res.message); setTransferOpen(false); onClose() } catch (err) { setLocalError(normalizeError(err, 'No se pudo mover la orden de mesa.')) } finally { setTransferring(false) } }} busy={transferring} />}{customerModalOpen && <CustomerModal currentCustomer={{ id: customerId, name: customerName, phone: customerPhone, email: customerEmail, rncCedula, fiscalName }} offline={offline} onClose={() => setCustomerModalOpen(false)} onSelect={customer => { setCustomerId(customer.id > 0 ? customer.id : undefined); setCustomerName(customer.name || ''); if (customer.phone) setCustomerPhone(customer.phone); if (customer.email) setCustomerEmail(customer.email); if (customer.deliveryAddress && !deliveryAddress) setDeliveryAddress(customer.deliveryAddress); if (customer.rncCedula) setRncCedula(customer.rncCedula); if (customer.fiscalName) setFiscalName(customer.fiscalName); setCustomerModalOpen(false); if (table?.currentOrderId) { void onSaveCustomer(table, customer.name, customer.id > 0 ? customer.id : undefined, customer.rncCedula, customer.fiscalName).catch(() => undefined) } }} />}
-      </section>
-    </div>
+    </>
   )
 
 }
