@@ -344,12 +344,51 @@ h2 { margin-bottom: 0; font-size: 22px; letter-spacing: -.02em; }
   font-size: 32px;
   letter-spacing: -0.04em;
   color: var(--ink);
+  line-height: 1.15;
+  word-break: break-word;
+}
+.card-brand-name.brand-linked {
+  font-size: clamp(24px, 2.2vw, 32px);
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #a7771e 0%, #dca448 40%, #f3d18c 70%, #9e6d16 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 2px 8px rgba(220, 164, 72, 0.20));
+}
+.login-shell.theme-dark .card-brand-name.brand-linked {
+  background: linear-gradient(135deg, #fae0a5 0%, #e5b462 45%, #ca9333 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 2px 12px rgba(220, 164, 72, 0.30));
+}
+.card-branch-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 6px;
+  padding: 3px 14px;
+  border-radius: 999px;
+  background: rgba(220, 164, 72, 0.12);
+  border: 1px solid rgba(220, 164, 72, 0.28);
+}
+.card-branch-tag span {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: #94691e;
+}
+.login-shell.theme-dark .card-branch-tag {
+  background: rgba(220, 164, 72, 0.16);
+  border-color: rgba(220, 164, 72, 0.36);
+}
+.login-shell.theme-dark .card-branch-tag span {
+  color: #f3d18c;
 }
 .card-brand-subtitle {
-  margin-top: 5px;
+  margin-top: 6px;
   font-size: 9px;
   font-weight: 800;
-  letter-spacing: 0.30em;
+  letter-spacing: 0.22em;
   color: #716b63;
 }
 .login-shell.theme-dark .card-brand-subtitle {

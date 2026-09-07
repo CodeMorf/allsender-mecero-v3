@@ -846,10 +846,19 @@ function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error,
         <div className="hero-overlay" />
 
         <header className="brand-lockup">
-          <img src="/assets/restapp-logo.png" alt="RestaPP" className="brand-logo" />
+          <img src="/assets/restapp-logo.png" alt={brand || 'RestaPP'} className="brand-logo" />
           <div>
-            <div className="brand-name">Resta<span>PP</span></div>
-            <div className="brand-subtitle">RESTAURANTES · HOTELES · BARES</div>
+            {brand && brand.trim().toLowerCase() !== 'restapp' ? (
+              <>
+                <div className="brand-name">{brand}</div>
+                <div className="brand-subtitle">{branch ? `${branch.toUpperCase()} · ` : ''}PLATAFORMA RESTAPP</div>
+              </>
+            ) : (
+              <>
+                <div className="brand-name">Resta<span>PP</span></div>
+                <div className="brand-subtitle">RESTAURANTES · HOTELES · BARES</div>
+              </>
+            )}
           </div>
         </header>
 
@@ -898,9 +907,23 @@ function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error,
           </div>
 
           <div className="card-brand">
-            <img src="/assets/restapp-logo.png" alt="RestaPP" />
-            <div className="card-brand-name">Resta<span>PP</span></div>
-            <div className="card-brand-subtitle">{branch ? `${brand ? brand.toUpperCase() : 'RESTAPP'} · ${branch.toUpperCase()}` : (brand ? brand.toUpperCase() : 'SISTEMA PARA HOSPITALIDAD')}</div>
+            <img src="/assets/restapp-logo.png" alt={brand || 'RestaPP'} />
+            {brand && brand.trim().toLowerCase() !== 'restapp' ? (
+              <>
+                <div className="card-brand-name brand-linked">{brand.toUpperCase()}</div>
+                {branch && (
+                  <div className="card-branch-tag">
+                    <span>{branch.toUpperCase()}</span>
+                  </div>
+                )}
+                <div className="card-brand-subtitle">TERMINAL PUNTO DE VENTA · RESTAPP</div>
+              </>
+            ) : (
+              <>
+                <div className="card-brand-name">Resta<span>PP</span></div>
+                <div className="card-brand-subtitle">{branch ? `RESTAPP · ${branch.toUpperCase()}` : 'SISTEMA PARA HOSPITALIDAD'}</div>
+              </>
+            )}
           </div>
 
           <div className="welcome-copy">
