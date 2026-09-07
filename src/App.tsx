@@ -4,7 +4,7 @@ import { api, ApiError, API_BASE_URL, normalizeAttendance } from './api/client'
 import type { AttendanceRecord, Branch, DeliveryExecutive, DeliverySettings, DeviceBinding, KitchenPlace, KitchenTicket, KitchenView, MenuItem, ModifierGroup, ModifierOption, NotificationSettings, OfflineOperation, OfflineStep, OfflineWorkflow, OrderDraft, OrderLine, OrderMode, PaymentMethodOption, RestaurantTable, Session, StaffRole, WaiterRequest } from './types'
 import { clearSession, enqueue, getDeviceId, getStorageScope, listOutbox, newIdempotencyKey, readCache, readSession, removeOutbox, saveCache, saveSession, setStorageScope, updateOutbox } from './storage/offline'
 import { CustomerModal } from './CustomerModal'
-import { ArrowRightLeft, Bell, CalendarDays, Check, ChefHat, ChevronLeft, ChevronRight, ClipboardList, CloudOff, Clock, CreditCard, Delete, Divide, Lock, LogOut, Map, Menu, Minus, Moon, Plus, Printer, RefreshCw, Search, Sun, Truck, Unlock, UserCheck, UserCircle2, UserX, UtensilsCrossed, Wallet, Wifi, X } from 'lucide-react'
+import { ArrowRightLeft, Bell, CalendarDays, Check, ChefHat, ChevronLeft, ChevronRight, ClipboardList, CloudOff, Clock, Coffee, CreditCard, Delete, Divide, Globe, Lock, LogOut, Map, Menu, Minus, Moon, Plus, Printer, RefreshCw, Search, Sun, Truck, Unlock, UserCheck, UserCircle2, UserX, UtensilsCrossed, Wallet, Wine, Wifi, X } from 'lucide-react'
 import { Capacitor } from '@capacitor/core'
 import { Haptics } from '@capacitor/haptics'
 import { LocalNotifications } from '@capacitor/local-notifications'
@@ -793,58 +793,122 @@ function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error,
   const clearPin = () => setPin('')
   const backspace = () => { if (!loading) setPin(current => current.slice(0, -1)) }
   const statusText = loading ? 'Validando código personal…' : error ? 'Código incorrecto. Intente de nuevo.' : notice || (offline ? 'Sin conexión · sesión local' : 'Introduce el código del empleado')
-  return <main className="pin-shell pin-shell-modern">
-    <div className="pin-top-actions">
-      {canChangeBranch ? (
-        <button type="button" className="pin-back" onClick={onBack}><ChevronLeft size={17} /> Cambiar de sucursal</button>
-      ) : <span />}
-      {onTheme && (
-        <button type="button" className="pin-theme-toggle" onClick={onTheme} title={`Cambiar a modo ${theme === 'light' ? 'oscuro' : 'claro'}`} aria-label="Cambiar tema">
-          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-          <span className="pin-theme-toggle-label">{theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}</span>
-        </button>
-      )}
-    </div>
-    <section className="pin-card pin-card-modern">
-      <div className="pin-brand-block">
-        <div className="brand-mark"><img src="/branding/mesero-app-icon.png" alt="RestaPP" /></div>
-        <h1 className="pin-brand-name">{brand || 'RestaPP'}</h1>
-        <p className="pin-brand-sub">{branch || 'RESTAURANTE & BAR'}</p>
-        <div className="pin-portal-title">
-          <strong>Portal de acceso</strong>
-          <small>Personal de servicio y sala</small>
+  const isDark = theme === 'dark'
+
+  return <main className={`pin-shell pin-shell-modern ${isDark ? 'theme-dark' : 'theme-light'}`}>
+    <div className="pin-stage-container">
+      {/* Left Editorial Banner */}
+      <aside className="pin-editorial-banner left-banner" aria-hidden="true">
+        {isDark ? (
+          <div className="editorial-content">
+            <h2 className="editorial-quote">Hospitalidad<br />que trasciende<br />en el tiempo</h2>
+            <div className="editorial-divider" />
+            <p className="editorial-sub">LA EXCELENCIA<br />EN CADA SERVICIO</p>
+          </div>
+        ) : (
+          <div className="editorial-content">
+            <h2 className="editorial-quote">Buena<br />comida<br />mejores<br />historias</h2>
+            <div className="editorial-divider" />
+            <p className="editorial-sub">LA HOSPITALIDAD<br />TAMBIÉN<br />SE SIRVE</p>
+          </div>
+        )}
+      </aside>
+
+      {/* Main Center Stage */}
+      <div className="pin-main-column">
+        <div className="pin-top-actions">
+          {canChangeBranch ? (
+            <button type="button" className="pin-back" onClick={onBack}><ChevronLeft size={16} /> Cambiar de sucursal</button>
+          ) : <span />}
+          <div className="pin-top-right-group">
+            <span className="pin-lang-badge"><Globe size={13} /> ES</span>
+            {onTheme && (
+              <button type="button" className="pin-theme-toggle" onClick={onTheme} title={`Cambiar a modo ${isDark ? 'claro' : 'oscuro'}`} aria-label="Cambiar tema">
+                {isDark ? <Sun size={15} /> : <Moon size={15} />}
+                <span className="pin-theme-toggle-label">{isDark ? 'Modo claro' : 'Modo oscuro'}</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        <section className="pin-card pin-card-modern">
+          <div className="pin-brand-block">
+            <div className="brand-mark"><img src="/branding/mesero-app-icon.png" alt={brand || 'RestaPP'} /></div>
+            <h1 className="pin-brand-name">{brand || 'RestaPP'}</h1>
+            <p className="pin-brand-sub">{branch || 'RESTAURANTE'}</p>
+            <div className="pin-portal-title">
+              <strong>Portal de acceso</strong>
+              <small>Nuestro equipo hace la diferencia</small>
+            </div>
+          </div>
+
+          <label className="pin-role pin-role-modern">
+            <div className="pin-role-field">
+              <UserCircle2 size={20} className="pin-role-icon" />
+              <div className="pin-role-select-wrap">
+                <span className="pin-role-label-tiny">Seleccionar perfil</span>
+                <select value={role} disabled={offline || loading} onChange={e => { clearPin(); onRoleChange(e.target.value as StaffRole) }}>
+                  <option value="mesero">Mesero</option>
+                  <option value="chef">Cocina</option>
+                  <option value="cajero">Cajero</option>
+                  <option value="head">Encargado</option>
+                  <option value="repartidor">Repartidor</option>
+                </select>
+              </div>
+            </div>
+          </label>
+
+          <div className={`pin-status-dots ${error ? 'has-error' : ''} ${notice ? 'has-success' : ''}`} aria-label={`${pin.length} de 4 dígitos`}>
+            {[0, 1, 2, 3].map(i => <span key={i} className={i < pin.length ? 'filled' : ''} />)}
+          </div>
+
+          <div className="keypad pin-keypad-modern">
+            {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((key, i) => key ? (
+              <button
+                key={i}
+                type="button"
+                disabled={loading}
+                aria-label={key === '⌫' ? 'Borrar' : key}
+                onClick={() => key === '⌫' ? backspace() : press(key)}
+              >
+                {key === '⌫' ? <Delete size={22} /> : key}
+              </button>
+            ) : <span key={i} className="keypad-spacer" />)}
+          </div>
+
+          <div className="pin-footer-status">
+            <strong>Sesión cerrada.</strong>
+            <p className={`pin-login-status ${error ? 'error' : ''} ${notice ? 'success' : ''}`}>{statusText}</p>
+          </div>
+        </section>
+
+        {/* Bottom Categories Navigation / Badges */}
+        <div className="pin-bottom-categories" aria-hidden="true">
+          <div className="category-pill active"><UtensilsCrossed size={16} /><span>RESTAURANTES</span></div>
+          <div className="category-separator" />
+          <div className="category-pill"><Coffee size={16} /><span>CAFETERÍAS</span></div>
+          <div className="category-separator" />
+          <div className="category-pill"><Wine size={16} /><span>BARES</span></div>
         </div>
       </div>
-      <label className="pin-role pin-role-modern">
-        <span className="pin-role-label"><UserCircle2 size={16} /> Seleccionar perfil</span>
-        <select value={role} disabled={offline || loading} onChange={e => { clearPin(); onRoleChange(e.target.value as StaffRole) }}>
-          <option value="mesero">Mesero</option>
-          <option value="chef">Cocina</option>
-          <option value="cajero">Cajero</option>
-          <option value="head">Encargado</option>
-          <option value="repartidor">Repartidor</option>
-        </select>
-      </label>
-      <div className={`pin-status-dots ${error ? 'has-error' : ''} ${notice ? 'has-success' : ''}`} aria-label={`${pin.length} de 4 dígitos`}>
-        {[0, 1, 2, 3].map(i => <span key={i} className={i < pin.length ? 'filled' : ''} />)}
-      </div>
-      <div className="keypad pin-keypad-modern">
-        {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((key, i) => key ? (
-          <button
-            key={i}
-            type="button"
-            disabled={loading}
-            aria-label={key === '⌫' ? 'Borrar' : key}
-            onClick={() => key === '⌫' ? backspace() : press(key)}
-          >
-            {key === '⌫' ? <Delete size={22} /> : key}
-          </button>
-        ) : <span key={i} className="keypad-spacer" />)}
-      </div>
-      <div className="pin-footer-status">
-        <p className={`pin-login-status ${error ? 'error' : ''} ${notice ? 'success' : ''}`}>{statusText}</p>
-      </div>
-    </section>
+
+      {/* Right Editorial Banner */}
+      <aside className="pin-editorial-banner right-banner" aria-hidden="true">
+        {isDark ? (
+          <div className="editorial-content">
+            <h2 className="editorial-quote">Personas<br />que crean<br />estancias<br />inolvidables</h2>
+            <div className="editorial-divider" />
+            <p className="editorial-sub">HOTELERÍA<br />ES ARTE<br />EN CADA DETALLE</p>
+          </div>
+        ) : (
+          <div className="editorial-content">
+            <h2 className="editorial-quote">Hospitalidad<br />que inspira</h2>
+            <div className="editorial-divider" />
+            <p className="editorial-sub">GRANDES<br />EXPERIENCIAS<br />SIEMPRE</p>
+          </div>
+        )}
+      </aside>
+    </div>
   </main>
 }
 
