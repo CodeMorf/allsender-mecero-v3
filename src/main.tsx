@@ -7,7 +7,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {
+    // La URL versionada evita que una copia CDN antigua del service worker
+    // impida renovar el shell PWA después de una publicación web.
+    navigator.serviceWorker.register('/sw.js?release=c1eadc5', { scope: '/' }).catch(() => {
       // La app conserva sus datos en IndexedDB aunque el shell no pueda instalarse.
     })
   })
