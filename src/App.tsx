@@ -708,8 +708,8 @@ export default function App() {
       } else {
         const data = responseData(result.firstResponse)
         const newOrderId = result.remoteOrderId
-        const kotPrintErrors = Array.isArray((data as any)?.data?.print?.errors)
-          ? (data as any).data.print.errors.filter(Boolean).map(String)
+        const kotPrintErrors = Array.isArray((data as any)?.print?.errors)
+          ? (data as any).print.errors.filter(Boolean).map(String)
           : []
         if (table) {
           updateTableLocally(table.id, current => ({
