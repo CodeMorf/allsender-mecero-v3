@@ -1806,7 +1806,6 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
           onSelectModule={(mod) => {
             setActiveNavTab(mod)
             if (mod === 'kds') setShowKitchen(true)
-            if (mod === 'cash') setShowCashier(true)
             if (mod === 'users') setShowAttendance(true)
           }}
           userName={roleLabel(roleKey)}
