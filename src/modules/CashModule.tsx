@@ -65,7 +65,7 @@ interface CashModuleProps {
   onCloseSession: (sessionId: number, countedCash: number, expectedCash: number | undefined, note: string, sendForApproval: boolean) => Promise<void>
   onCashMovement: (type: 'cash-in' | 'cash-out' | 'safe-drop', amount: number, reason: string) => Promise<void>
   onFetchHistory?: () => Promise<CashSession[]>
-  onPrintReport?: (sessionId: number, type: 'x_report' | 'z_report') => void
+  onPrintReport?: (sessionId: number, type: 'x_report' | 'z_report', sessionData?: any) => void
 }
 
 export const CashModule: React.FC<CashModuleProps> = ({
@@ -210,7 +210,21 @@ export const CashModule: React.FC<CashModuleProps> = ({
       const hasDiscrepancy = Math.abs(counted - expected) > 0.01
       await onCloseSession(activeSession.id, counted, expected, closingNote, hasDiscrepancy)
       if (onPrintReport) {
-        onPrintReport(activeSession.id, 'z_report')
+        onPrintReport(activeSession.id, 'z_report', {
+          ...activeSession,
+          counted_cash: counted,
+          expected_cash: expected,
+          discrepancy: counted - expected,
+          closing_note: closingNote,
+          closed_at: new Date().toISOString(),
+          totals: sumTotals,
+          opening_float: effectiveOpeningFloat,
+          cash_sales: effectiveCashSales,
+          cash_in: effectiveCashIn,
+          cash_out: effectiveCashOut + effectiveSafeDrops,
+          safe_drops: effectiveSafeDrops,
+          effectiveExpectedCash,
+        })
       }
       setModalType(null)
       setCountedCash('')
@@ -791,7 +805,7 @@ export const CashModule: React.FC<CashModuleProps> = ({
                               <button
                                 type="button"
                                 className="posdan-btn-mini"
-                                onClick={() => onPrintReport(s.id, 'z_report')}
+                                onClick={() => onPrintReport(s.id, 'z_report', s)}
                                 title="Reimprimir reporte Z"
                               >
                                 <Printer size={13} />

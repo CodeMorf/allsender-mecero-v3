@@ -25,6 +25,7 @@ import { LocalNotifications } from '@capacitor/local-notifications'
 import { Network } from '@capacitor/network'
 import { normalizeReceiptSettings } from './receipt/profile'
 import { buildReceiptDocumentViewModel } from './receipt/renderer'
+import { printThermalZReport } from './utils/thermalPrinter'
 
 type Screen = 'setup' | 'branches' | 'pin' | 'floor'
 type LiveNotification = { id: string; type: string; title: string; message: string; createdAt?: string; unread: boolean }
@@ -2183,7 +2184,55 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
                     return []
                   }
                 }}
-                onPrintReport={() => window.print()}
+                onPrintReport={async (sessionId, _type, sessionData) => {
+                  try {
+                    let summary = sessionData?.totals ? sessionData : null
+                    let sess = sessionData || (activeCashSession?.id === sessionId ? activeCashSession : null)
+
+                    if (!summary) {
+                      try {
+                        const res = await api.cashSessionSummary('pin', sessionId)
+                        summary = res?.data || res || {}
+                      } catch {
+                        // ignore
+                      }
+                    }
+
+                    const totals = summary?.totals || summary || {}
+                    const openingFloat = Number(totals.opening_float ?? sess?.opening_float ?? 0)
+                    const cashSales = Number(totals.cash_sales ?? totals.cash_sales_total ?? sess?.cash_sales_total ?? 0)
+                    const cashIn = Number(totals.cash_in ?? totals.cash_in_total ?? sess?.cash_in_total ?? 0)
+                    const cashOut = Number(totals.cash_out ?? totals.cash_out_total ?? sess?.cash_out_total ?? 0)
+                    const safeDrops = Number(totals.safe_drops ?? totals.safe_drops_total ?? sess?.safe_drops_total ?? 0)
+                    const expected = Number(sess?.expected_cash ?? totals.expected_cash ?? (openingFloat + cashSales + cashIn - cashOut - safeDrops))
+                    const counted = Number(sess?.counted_cash ?? expected)
+                    const discrepancy = Number(sess?.discrepancy ?? (counted - expected))
+
+                    printThermalZReport({
+                      restaurantName: brand || 'RESTAURANTE',
+                      branchName: branch || undefined,
+                      registerName: cashRegisters.find(r => r.id === (sess?.cash_register_id || sess?.registerId))?.name || 'Caja Principal',
+                      sessionId,
+                      cashierName: sess?.opened_by_user?.name || sess?.closer?.name || roleLabel(roleKey),
+                      openedAt: sess?.opened_at,
+                      closedAt: sess?.closed_at || new Date().toISOString(),
+                      openingFloat,
+                      cashSales,
+                      cardSales: Number(totals.card_sales || 0),
+                      transferSales: Number(totals.bank_transfer_sales || 0),
+                      cashIn,
+                      cashOut,
+                      safeDrops,
+                      expectedCash: expected,
+                      countedCash: counted,
+                      discrepancy,
+                      currencySymbol: 'RD$',
+                      note: sess?.closing_note,
+                    })
+                  } catch (err) {
+                    console.error('Error al imprimir reporte Z:', err)
+                  }
+                }}
               />
             </div>
           )}
