@@ -186,6 +186,86 @@ export class ApiClient {
     const query = search ? `?search=${encodeURIComponent(search)}` : ''
     return asArray<any>(await this.request(`/pos/customers${query}`, { tokenKind: kind })).map(normalizeCustomer)
   }
+  async lookupDgiiRnc(rawRnc: string, kind: TokenKind = 'pin'): Promise<{
+    found: boolean
+    name?: string
+    fiscalName?: string
+    commercialName?: string
+    rncCedula?: string
+    status?: string
+    regime?: string
+    isElectronic?: boolean
+    message?: string
+  }> {
+    const digits = rawRnc.replace(/\D/g, '').trim()
+    if (!digits || (digits.length !== 9 && digits.length !== 11)) {
+      return { found: false, message: 'El RNC debe tener 9 dígitos o la Cédula 11 dígitos' }
+    }
+    try {
+      // 1. Intentar a través del proxy del backend (evita bloqueo CORS en el navegador)
+      const tokenKindToUse: TokenKind = this.getToken(kind) ? kind : (this.getToken('admin') ? 'admin' : (this.getToken('pin') ? 'pin' : kind))
+      const res = await this.request<any>('/pos/customers/dgii-lookup', {
+        method: 'POST',
+        tokenKind: tokenKindToUse,
+        body: JSON.stringify({ rnc: digits }),
+      })
+      if (res && res.found) {
+        const fiscalName = (res.fiscal_name || '').trim()
+        const commName = (res.commercial_name || '').trim()
+        return {
+          found: true,
+          name: commName || fiscalName,
+          fiscalName,
+          commercialName: commName || undefined,
+          rncCedula: res.rnc_cedula || digits,
+          status: res.status || 'ACTIVO',
+          regime: res.regime || 'NORMAL',
+          isElectronic: res.is_electronic === true,
+          message: res.message || `✓ DGII: ${commName || fiscalName}`
+        }
+      }
+      if (res && res.message) {
+        return { found: false, message: res.message }
+      }
+    } catch (e: any) {
+      const errMsg = e?.message || ''
+      if (errMsg && !errMsg.includes('502') && !errMsg.includes('Failed to fetch')) {
+        return { found: false, message: errMsg }
+      }
+    }
+
+    // 2. Fallback directo si el proxy no responde
+    try {
+      const resp = await fetch('https://rnc.megaplus.com.do/api/consulta', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({ rnc: digits }),
+      })
+      const data = await resp.json()
+      if (data && (data.error === false || data.codigo_http === 200)) {
+        const fiscalName = (data.nombre_razon_social || '').trim()
+        const commName = (data.nombre_comercial || '').trim()
+        const rncFormatted = data.cedula_rnc || digits
+        return {
+          found: true,
+          name: commName || fiscalName,
+          fiscalName: fiscalName,
+          commercialName: commName || undefined,
+          rncCedula: rncFormatted,
+          status: data.estado || 'ACTIVO',
+          regime: data.regimen_de_pagos || 'NORMAL',
+          isElectronic: String(data.facturador_electronico || '').toUpperCase() === 'SI',
+          message: `✓ DGII: ${commName || fiscalName}`
+        }
+      }
+      return { found: false, message: data.mensaje || 'RNC / Cédula no encontrado en la DGII' }
+    } catch {
+      return { found: false, message: 'No se pudo conectar con el servicio de la DGII' }
+    }
+  }
   async getCustomer(kind: TokenKind, customerId: number): Promise<PosCustomer> {
     return normalizeCustomer(unwrap<any>(await this.request(`/pos/customers/${customerId}`, { tokenKind: kind })))
   }

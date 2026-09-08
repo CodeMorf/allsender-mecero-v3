@@ -2471,13 +2471,35 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
           onCashMovement={onCashMovement}
         />
       )}
-      {posCustomizingItem && (
-        <ModifierModal
-          item={posCustomizingItem}
-          onClose={() => setPosCustomizingItem(null)}
-          onAdd={line => {
-            window.dispatchEvent(new CustomEvent('restapp:pos-add-line', { detail: line }))
-            setPosCustomizingItem(null)
+      {customerModalOpen && (
+        <CustomerModal
+          currentCustomer={selectedPosCustomer ? {
+            id: selectedPosCustomer.id,
+            name: selectedPosCustomer.name,
+            phone: selectedPosCustomer.phone,
+            email: selectedPosCustomer.email,
+            rncCedula: selectedPosCustomer.rncCedula,
+            fiscalName: selectedPosCustomer.fiscalName,
+            commercialName: selectedPosCustomer.commercialName,
+            deliveryAddress: selectedPosCustomer.deliveryAddress,
+          } : undefined}
+          canManageFiscal={roleKey === 'cajero' || roleKey === 'head' || permissions['payments.charge'] === true}
+          fiscalCapabilities={fiscalCapabilities}
+          offline={offline}
+          onClose={() => setCustomerModalOpen(false)}
+          onSelect={customer => {
+            setSelectedPosCustomer(customer)
+            setCustomerModalOpen(false)
+            // Actualizar lista local de clientes si es nuevo
+            setPosCustomers(prev => {
+              const idx = prev.findIndex(c => c.id === customer.id)
+              if (idx >= 0) {
+                const next = [...prev]
+                next[idx] = customer
+                return next
+              }
+              return [customer, ...prev]
+            })
           }}
         />
       )}
@@ -2692,20 +2714,31 @@ function TablePaymentPanel({
       return
     }
     setSearchingRnc(true)
-    setRncStatusMsg('Consultando datos fiscales…')
+    setRncStatusMsg('Consultando base de datos y DGII…')
     try {
+      // 1. Verificar si ya existe registrado en la base local
       const res = await api.customers('pin', cleaned)
       const found = res?.find(c => (c.rncCedula || '').replace(/\D/g, '') === cleaned)
       if (found && (found.name || found.fiscalName)) {
         if (!fiscalName.trim()) setFiscalName(found.fiscalName || found.name)
-        // Auto-switch to credit fiscal because customer has registered RNC
         setReceiptType(defaultCreditType)
         setShowFiscalDetails(true)
-        setRncStatusMsg(`✓ Válido: ${found.fiscalName || found.name}`)
+        setRncStatusMsg(`✓ Registrado en sistema: ${found.fiscalName || found.name}`)
+        return
+      }
+
+      // 2. Si no está en la base local, consultar en vivo en el padrón DGII
+      const dgii = await api.lookupDgiiRnc(cleaned)
+      if (dgii.found && dgii.fiscalName) {
+        setFiscalName(dgii.fiscalName)
+        if (dgii.rncCedula) setRncCedula(dgii.rncCedula)
+        setReceiptType(defaultCreditType)
+        setShowFiscalDetails(true)
+        setRncStatusMsg(`✓ Verificado DGII: ${dgii.fiscalName} (${dgii.status || 'ACTIVO'})`)
       } else {
         setReceiptType(defaultCreditType)
         setShowFiscalDetails(true)
-        setRncStatusMsg('RNC/Cédula sin registro previo en el sistema local.')
+        setRncStatusMsg(dgii.message || 'RNC/Cédula sin registro previo en la DGII.')
       }
     } catch {
       setRncStatusMsg('No se pudo verificar el RNC en este momento.')

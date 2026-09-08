@@ -58,6 +58,9 @@ export function CustomerModal({ currentCustomer, canManageFiscal = true, fiscalC
   const [rncCedula, setRncCedula] = useState('')
   const [fiscalName, setFiscalName] = useState('')
   const [commercialName, setCommercialName] = useState('')
+  const [dgiiStatus, setDgiiStatus] = useState<string | undefined>()
+  const [dgiiTaxRegime, setDgiiTaxRegime] = useState<string | undefined>()
+  const [dgiiIsElectronicBiller, setDgiiIsElectronicBiller] = useState<boolean | undefined>()
 
   const [searchingRnc, setSearchingRnc] = useState(false)
   const [rncStatusMsg, setRncStatusMsg] = useState('')
@@ -66,16 +69,27 @@ export function CustomerModal({ currentCustomer, canManageFiscal = true, fiscalC
 
   function startCreating() {
     setEditingCustomerId(null)
-    setName(searchTerm.trim())
+    const rawSearch = searchTerm.trim()
+    const digitsOnly = rawSearch.replace(/\D/g, '')
+    const isLikelyRnc = digitsOnly.length === 9 || digitsOnly.length === 11
+    setName(isLikelyRnc ? '' : rawSearch)
     setPhone('')
     setEmail('')
     setDeliveryAddress('')
-    setRncCedula('')
+    setRncCedula(isLikelyRnc ? rawSearch : '')
     setFiscalName('')
     setCommercialName('')
-    setShowBilling(false)
+    setDgiiStatus(undefined)
+    setDgiiTaxRegime(undefined)
+    setDgiiIsElectronicBiller(undefined)
+    setShowBilling(isLikelyRnc)
     setError('')
     setShowCreate(true)
+    if (isLikelyRnc) {
+      setTimeout(() => {
+        handleVerifyRnc(rawSearch)
+      }, 50)
+    }
   }
 
   function startEditing(c: Partial<PosCustomer> | any) {
@@ -87,6 +101,9 @@ export function CustomerModal({ currentCustomer, canManageFiscal = true, fiscalC
     setRncCedula(c.rncCedula || c.rnc_cedula || '')
     setFiscalName(c.fiscalName || c.fiscal_name || '')
     setCommercialName(c.commercialName || c.commercial_name || '')
+    setDgiiStatus(c.dgiiStatus || c.dgii_status)
+    setDgiiTaxRegime(c.dgiiTaxRegime || c.dgii_tax_regime)
+    setDgiiIsElectronicBiller(c.dgiiIsElectronicBiller !== undefined ? c.dgiiIsElectronicBiller : (c.dgii_is_electronic_biller === 1 || c.dgii_is_electronic_biller === true))
     if (c.receiptType) {
       setReceiptType(c.receiptType)
     }
@@ -97,34 +114,57 @@ export function CustomerModal({ currentCustomer, canManageFiscal = true, fiscalC
     setShowCreate(true)
   }
 
-  // Verify and auto-fill from RNC / Cédula
-  async function handleVerifyRnc() {
-    const rawRnc = rncCedula.replace(/\D/g, '').trim()
-    if (rawRnc.length < 9) {
+  // Verify and auto-fill from RNC / Cédula (Local Database + DGII Live Lookup)
+  async function handleVerifyRnc(overrideRnc?: string) {
+    const rawVal = (overrideRnc !== undefined ? overrideRnc : rncCedula).trim()
+    const digits = rawVal.replace(/\D/g, '')
+    if (digits.length !== 9 && digits.length !== 11) {
       setRncStatusMsg('Ingrese un RNC (9 dígitos) o Cédula (11 dígitos)')
       return
     }
     setSearchingRnc(true)
-    setRncStatusMsg('')
+    setRncStatusMsg('Consultando DGII…')
     try {
-      const res = await api.customers('pin', rawRnc)
-      const found = res?.find(c => (c.rncCedula || '').replace(/\D/g, '') === rawRnc)
-      if (found) {
+      // 1. Primero buscar si ya existe en el sistema local
+      const res = await api.customers('pin', digits)
+      const found = res?.find(c => (c.rncCedula || '').replace(/\D/g, '') === digits)
+      if (found && (found.fiscalName || found.name)) {
         if (!name.trim() && found.name) setName(found.name)
         if (!fiscalName.trim() && found.fiscalName) setFiscalName(found.fiscalName)
         if (!commercialName.trim() && (found.commercialName || found.name)) setCommercialName(found.commercialName || found.name)
         if (!phone.trim() && found.phone) setPhone(found.phone)
         if (!email.trim() && found.email) setEmail(found.email)
+        if (found.rncCedula) setRncCedula(found.rncCedula)
+        setDgiiStatus(found.dgiiStatus || 'ACTIVO')
+        setDgiiTaxRegime(found.dgiiTaxRegime || 'NORMAL')
+        setDgiiIsElectronicBiller(found.dgiiIsElectronicBiller)
         setReceiptType(defaultFiscalCredit)
         setShowBilling(true)
-        setRncStatusMsg(`✓ Registrado: ${found.fiscalName || found.name}`)
+        setRncStatusMsg(`✓ Registrado en sistema: ${found.fiscalName || found.name}`)
+        return
+      }
+
+      // 2. Si no está en la base local, consultar en vivo en el padrón oficial de la DGII vía proxy
+      const dgii = await api.lookupDgiiRnc(digits)
+      if (dgii.found && (dgii.fiscalName || dgii.name)) {
+        const displayName = dgii.commercialName || dgii.fiscalName || dgii.name || ''
+        if (!name.trim() || name === digits) setName(displayName)
+        setFiscalName(dgii.fiscalName || displayName)
+        if (dgii.commercialName) setCommercialName(dgii.commercialName)
+        if (dgii.rncCedula) setRncCedula(dgii.rncCedula)
+        setDgiiStatus(dgii.status || 'ACTIVO')
+        setDgiiTaxRegime(dgii.regime || 'NORMAL')
+        setDgiiIsElectronicBiller(dgii.isElectronic)
+        setReceiptType(defaultFiscalCredit)
+        setShowBilling(true)
+        setRncStatusMsg(`✓ Verificado DGII: ${dgii.fiscalName || displayName} (${dgii.status || 'ACTIVO'})`)
       } else {
         setReceiptType(defaultFiscalCredit)
         setShowBilling(true)
-        setRncStatusMsg('RNC/Cédula no registrado previamente en el sistema.')
+        setRncStatusMsg(dgii.message || 'RNC/Cédula no encontrado en la DGII.')
       }
-    } catch {
-      setRncStatusMsg('No se pudo verificar el RNC en este momento. Verifique la conexión.')
+    } catch (err: any) {
+      setRncStatusMsg(err?.message || 'No se pudo verificar el RNC. Puede ingresar los datos manualmente.')
     } finally {
       setSearchingRnc(false)
     }
@@ -174,6 +214,9 @@ export function CustomerModal({ currentCustomer, canManageFiscal = true, fiscalC
         rncCedula: rncCedula.trim() || undefined,
         fiscalName: fiscalName.trim() || undefined,
         commercialName: commercialName.trim() || undefined,
+        dgiiStatus: dgiiStatus || undefined,
+        dgiiTaxRegime: dgiiTaxRegime || undefined,
+        dgiiIsElectronicBiller: dgiiIsElectronicBiller,
       }
       let saved: PosCustomer
       if (!offline) {
@@ -188,6 +231,9 @@ export function CustomerModal({ currentCustomer, canManageFiscal = true, fiscalC
           rncCedula: payload.rncCedula,
           fiscalName: payload.fiscalName,
           commercialName: payload.commercialName,
+          dgiiStatus: payload.dgiiStatus,
+          dgiiTaxRegime: payload.dgiiTaxRegime,
+          dgiiIsElectronicBiller: payload.dgiiIsElectronicBiller,
         }
       }
       // Update local search results list
@@ -297,7 +343,17 @@ export function CustomerModal({ currentCustomer, canManageFiscal = true, fiscalC
                   <div className="customer-loading">Buscando clientes…</div>
                 ) : searchResults.length === 0 ? (
                   <div className="customer-empty">
-                    <p>No se encontraron clientes coincidentes.</p>
+                    <p>No se encontraron clientes coincidentes en la base local.</p>
+                    {searchTerm.replace(/\D/g, '').length >= 9 ? (
+                      <button
+                        type="button"
+                        className="button primary small"
+                        style={{ marginBottom: 8, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                        onClick={startCreating}
+                      >
+                        <Building size={14} /> Consultar DGII con "{searchTerm}"
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       className="button outline small"
@@ -496,14 +552,20 @@ export function CustomerModal({ currentCustomer, canManageFiscal = true, fiscalC
                               setRncCedula(e.target.value)
                               setRncStatusMsg('')
                             }}
-                            placeholder="Ej. 101000000 o 001-0000000-0"
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                handleVerifyRnc()
+                              }
+                            }}
+                            placeholder="Ej. 131-68569-2 o 402-5765807-6"
                             style={{ flex: 1 }}
                           />
                           <button
                             type="button"
                             className="button outline small"
                             disabled={searchingRnc || offline}
-                            onClick={handleVerifyRnc}
+                            onClick={() => handleVerifyRnc()}
                             title="Consultar RNC en la base de datos fiscal"
                           >
                             {searchingRnc ? 'Verificando…' : 'Verificar DGII'}
