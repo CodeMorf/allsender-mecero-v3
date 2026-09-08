@@ -34,31 +34,31 @@ export const ProductsModule: React.FC<ProductsModuleProps> = ({
   })
 
   return (
-    <div className="flex flex-col h-full bg-slate-950 text-slate-100 p-6 overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-        <div>
-          <h2 className="text-xl font-bold flex items-center gap-2 text-slate-100">
-            <Package className="text-orange-500" size={24} /> Catálogo de Productos
+    <div className="posdan-module-container">
+      <div className="posdan-module-header">
+        <div className="posdan-module-title-wrap">
+          <h2 className="posdan-module-title">
+            <Package style={{ color: '#f97316' }} size={24} /> Catálogo de Productos
           </h2>
-          <p className="text-xs text-slate-400 mt-0.5">Gestión de platillos, precios, categorías y disponibilidad</p>
+          <p className="posdan-module-subtitle">Gestión de platillos, precios, categorías y disponibilidad</p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="relative w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+        <div className="posdan-module-actions">
+          <div className="posdan-search-box">
+            <Search className="search-icon" size={16} />
             <input
               type="text"
-              placeholder="Buscar producto..."
+              placeholder="Buscar producto o código..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+              className="posdan-search-input"
             />
           </div>
 
           <select
             value={categoryFilter}
             onChange={e => setCategoryFilter(e.target.value)}
-            className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+            className="posdan-select"
           >
             {categories.map(c => (
               <option key={c} value={c}>{c === 'ALL' ? 'Todas las Categorías' : c}</option>
@@ -67,54 +67,50 @@ export const ProductsModule: React.FC<ProductsModuleProps> = ({
         </div>
       </div>
 
-      <div className="flex-1 bg-slate-900/60 rounded-2xl border border-slate-800/80 overflow-hidden flex flex-col">
-        <div className="overflow-x-auto flex-1">
-          <table className="w-full text-left border-collapse">
+      <div className="posdan-table-wrap">
+        <div className="posdan-table-scroll">
+          <table className="posdan-table">
             <thead>
-              <tr className="border-b border-slate-800 bg-slate-900/90 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                <th className="py-3 px-4">Producto</th>
-                <th className="py-3 px-4">Código / SKU</th>
-                <th className="py-3 px-4">Categoría</th>
-                <th className="py-3 px-4">Precio Venta</th>
-                <th className="py-3 px-4">Estado</th>
+              <tr>
+                <th>Producto</th>
+                <th>Código / SKU</th>
+                <th>Categoría</th>
+                <th>Precio Venta</th>
+                <th>Estado</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60 text-xs">
+            <tbody>
               {filtered.map(item => (
-                <tr key={item.id} className="hover:bg-slate-800/40 transition-colors">
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-800 flex items-center justify-center shrink-0">
-                        {item.imageUrl ? (
-                          <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <Utensils size={18} className="text-slate-600" />
-                        )}
-                      </div>
+                <tr key={item.id}>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      {item.imageUrl ? (
+                        <img src={item.imageUrl} alt="" className="posdan-product-thumb" />
+                      ) : (
+                        <div className="posdan-product-placeholder">
+                          <Utensils size={18} />
+                        </div>
+                      )}
                       <div>
-                        <p className="font-bold text-slate-200">{item.name}</p>
+                        <div style={{ fontWeight: 700, color: '#f0f6fc', fontSize: 13 }}>{item.name}</div>
                         {item.allergens && item.allergens.length > 0 && (
-                          <p className="text-[10px] text-slate-500">Alérgenos: {item.allergens.join(', ')}</p>
+                          <div style={{ fontSize: 11, color: '#8b949e', marginTop: 2 }}>Alérgenos: {item.allergens.join(', ')}</div>
                         )}
                       </div>
                     </div>
                   </td>
-                  <td className="py-3 px-4 font-mono text-slate-400">{item.code || '-'}</td>
-                  <td className="py-3 px-4">
-                    <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-medium">
+                  <td style={{ fontFamily: 'monospace', color: '#8b949e', fontSize: 12 }}>{item.code || '-'}</td>
+                  <td>
+                    <span style={{ padding: '3px 8px', borderRadius: 6, background: '#21262d', color: '#c9d1d9', fontSize: 12, fontWeight: 600 }}>
                       {item.categoryName || 'General'}
                     </span>
                   </td>
-                  <td className="py-3 px-4 font-bold font-mono text-emerald-400">
+                  <td style={{ fontWeight: 800, fontFamily: 'monospace', color: '#34d399', fontSize: 14 }}>
                     {currencySymbol} {item.price.toFixed(2)}
                   </td>
-                  <td className="py-3 px-4">
-                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                      item.available
-                        ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800'
-                        : 'bg-rose-950/60 text-rose-400 border border-rose-800'
-                    }`}>
-                      {item.available ? <CheckCircle2 size={11} /> : <XCircle size={11} />}
+                  <td>
+                    <span className={item.available ? 'posdan-badge-success' : 'posdan-badge-danger'}>
+                      {item.available ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
                       {item.available ? 'Disponible' : 'Agotado'}
                     </span>
                   </td>
@@ -122,7 +118,7 @@ export const ProductsModule: React.FC<ProductsModuleProps> = ({
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-slate-500">
+                  <td colSpan={5} style={{ padding: 48, textAlign: 'center', color: '#8b949e' }}>
                     No se encontraron productos en el catálogo.
                   </td>
                 </tr>

@@ -16,30 +16,44 @@ export const UsersModule: React.FC = () => {
   ]
 
   return (
-    <div className="flex flex-col h-full bg-slate-950 text-slate-100 p-6 overflow-hidden">
-      <div className="mb-6">
-        <h2 className="text-xl font-bold flex items-center gap-2 text-slate-100">
-          <UserCheck className="text-orange-500" size={24} /> Personal y Control de Asistencia
-        </h2>
-        <p className="text-xs text-slate-400 mt-0.5">Personal activo asignado a la sucursal y registro de marcaje</p>
+    <div className="posdan-module-container">
+      <div className="posdan-module-header">
+        <div className="posdan-module-title-wrap">
+          <h2 className="posdan-module-title">
+            <UserCheck style={{ color: '#f97316' }} size={24} /> Personal y Control de Asistencia
+          </h2>
+          <p className="posdan-module-subtitle">Personal activo asignado a la sucursal y registro de marcaje</p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
         {staff.map(s => (
-          <div key={s.id} className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-orange-600/20 border border-orange-500/40 text-orange-400 flex items-center justify-center font-bold">
+          <div key={s.id} className="posdan-card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+              <div style={{
+                width: 42,
+                height: 42,
+                borderRadius: 12,
+                background: 'linear-gradient(135deg, rgba(249, 115, 22, 0.2), rgba(234, 88, 12, 0.4))',
+                border: '1px solid rgba(249, 115, 22, 0.4)',
+                color: '#f97316',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 800,
+                fontSize: 16
+              }}>
                 {s.name[0]}
               </div>
-              <div>
-                <h4 className="font-bold text-sm text-slate-100">{s.name}</h4>
-                <span className="text-[10px] font-semibold text-orange-400 uppercase tracking-wider">{s.role}</span>
+              <div style={{ minWidth: 0 }}>
+                <h4 style={{ margin: 0, fontWeight: 700, fontSize: 14, color: '#f0f6fc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</h4>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#f97316', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{s.role}</span>
               </div>
             </div>
-            <p className="text-xs text-slate-400 truncate mb-3">{s.email}</p>
-            <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-[11px]">
-              <span className="text-slate-500">Asistencia:</span>
-              <span className="text-emerald-400 font-bold flex items-center gap-1">
+            <p style={{ fontSize: 12, color: '#8b949e', margin: '0 0 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.email}</p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 10, borderTop: '1px solid #21262d', fontSize: 12 }}>
+              <span style={{ color: '#8b949e' }}>Asistencia:</span>
+              <span className="posdan-badge-success">
                 <CheckCircle2 size={12} /> Presente
               </span>
             </div>

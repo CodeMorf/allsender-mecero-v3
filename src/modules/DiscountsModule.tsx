@@ -15,26 +15,26 @@ export const DiscountsModule: React.FC = () => {
   ]
 
   return (
-    <div className="flex flex-col h-full bg-slate-950 text-slate-100 p-6 overflow-hidden">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-xl font-bold flex items-center gap-2 text-slate-100">
-            <Tag className="text-orange-500" size={24} /> Configuración de Descuentos
+    <div className="posdan-module-container">
+      <div className="posdan-module-header">
+        <div className="posdan-module-title-wrap">
+          <h2 className="posdan-module-title">
+            <Tag style={{ color: '#f97316' }} size={24} /> Configuración de Descuentos
           </h2>
-          <p className="text-xs text-slate-400 mt-0.5">Políticas de descuento por porcentaje o monto fijo autorizados</p>
+          <p className="posdan-module-subtitle">Políticas de descuento por porcentaje o monto fijo autorizados</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
         {discounts.map(d => (
-          <div key={d.id} className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
+          <div key={d.id} className="posdan-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <h4 className="font-bold text-sm text-slate-200">{d.name}</h4>
-              <span className="text-xs font-mono text-orange-400">Código: {d.code}</span>
+              <h4 style={{ margin: 0, fontWeight: 700, fontSize: 14, color: '#f0f6fc' }}>{d.name}</h4>
+              <span style={{ fontSize: 12, fontFamily: 'monospace', color: '#f97316', display: 'block', marginTop: 4 }}>Código: {d.code}</span>
             </div>
-            <div className="text-right">
-              <span className="text-lg font-extrabold text-emerald-400 font-mono">-{d.percent}%</span>
-              <span className="block text-[10px] text-emerald-500 font-semibold uppercase">Activo</span>
+            <div style={{ textAlign: 'right' }}>
+              <span style={{ fontSize: 18, fontWeight: 800, color: '#34d399', fontFamily: 'monospace', display: 'block' }}>-{d.percent}%</span>
+              <span className="posdan-badge-success" style={{ marginTop: 4 }}>Activo</span>
             </div>
           </div>
         ))}

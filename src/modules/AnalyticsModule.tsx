@@ -23,64 +23,66 @@ export const AnalyticsModule: React.FC<AnalyticsModuleProps> = ({
   const avgTicket = orders.length > 0 ? totalSales / orders.length : 0
 
   return (
-    <div className="flex flex-col h-full bg-slate-950 text-slate-100 p-6 overflow-hidden">
-      <div className="mb-6">
-        <h2 className="text-xl font-bold flex items-center gap-2 text-slate-100">
-          <BarChart2 className="text-orange-500" size={24} /> Métricas y Analítica de Ventas
-        </h2>
-        <p className="text-xs text-slate-400 mt-0.5">Resumen de desempeño operativo, ventas totales y ticket promedio</p>
+    <div className="posdan-module-container">
+      <div className="posdan-module-header">
+        <div className="posdan-module-title-wrap">
+          <h2 className="posdan-module-title">
+            <BarChart2 style={{ color: '#f97316' }} size={24} /> Métricas y Analítica de Ventas
+          </h2>
+          <p className="posdan-module-subtitle">Resumen de desempeño operativo, ventas totales y ticket promedio</p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold">Ventas Totales</span>
-            <DollarSign size={18} className="text-emerald-400" />
+      <div className="posdan-stat-grid">
+        <div className="posdan-card">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#8b949e', marginBottom: 8 }}>
+            <span style={{ fontSize: 12, fontWeight: 600 }}>Ventas Totales</span>
+            <DollarSign size={18} style={{ color: '#34d399' }} />
           </div>
-          <h3 className="text-2xl font-extrabold text-emerald-400 font-mono">
+          <h3 style={{ fontSize: 24, fontWeight: 800, color: '#34d399', fontFamily: 'monospace', margin: 0 }}>
             {currencySymbol} {totalSales.toFixed(2)}
           </h3>
-          <span className="text-[10px] text-emerald-500 font-semibold flex items-center gap-0.5 mt-1">
-            <ArrowUpRight size={12} /> Ventas del periodo actual
+          <span style={{ fontSize: 11, color: '#34d399', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, marginTop: 6 }}>
+            <ArrowUpRight size={13} /> Ventas del periodo actual
           </span>
         </div>
 
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold">Órdenes Realizadas</span>
-            <ShoppingCart size={18} className="text-orange-400" />
+        <div className="posdan-card">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#8b949e', marginBottom: 8 }}>
+            <span style={{ fontSize: 12, fontWeight: 600 }}>Órdenes Realizadas</span>
+            <ShoppingCart size={18} style={{ color: '#f97316' }} />
           </div>
-          <h3 className="text-2xl font-extrabold text-slate-100 font-mono">
+          <h3 style={{ fontSize: 24, fontWeight: 800, color: '#f0f6fc', fontFamily: 'monospace', margin: 0 }}>
             {orders.length}
           </h3>
-          <span className="text-[10px] text-slate-400 mt-1 block">
+          <span style={{ fontSize: 11, color: '#8b949e', marginTop: 6, display: 'block' }}>
             {paidOrders.length} completadas con pago
           </span>
         </div>
 
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold">Ticket Promedio</span>
-            <TrendingUp size={18} className="text-amber-400" />
+        <div className="posdan-card">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#8b949e', marginBottom: 8 }}>
+            <span style={{ fontSize: 12, fontWeight: 600 }}>Ticket Promedio</span>
+            <TrendingUp size={18} style={{ color: '#fbbf24' }} />
           </div>
-          <h3 className="text-2xl font-extrabold text-amber-400 font-mono">
+          <h3 style={{ fontSize: 24, fontWeight: 800, color: '#fbbf24', fontFamily: 'monospace', margin: 0 }}>
             {currencySymbol} {avgTicket.toFixed(2)}
           </h3>
-          <span className="text-[10px] text-slate-400 mt-1 block">
+          <span style={{ fontSize: 11, color: '#8b949e', marginTop: 6, display: 'block' }}>
             Promedio por mesa/pedido
           </span>
         </div>
 
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold">Tasa de Conversión</span>
-            <Users size={18} className="text-teal-400" />
+        <div className="posdan-card">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#8b949e', marginBottom: 8 }}>
+            <span style={{ fontSize: 12, fontWeight: 600 }}>Tasa de Cobro</span>
+            <Users size={18} style={{ color: '#38bdf8' }} />
           </div>
-          <h3 className="text-2xl font-extrabold text-teal-400 font-mono">
+          <h3 style={{ fontSize: 24, fontWeight: 800, color: '#38bdf8', fontFamily: 'monospace', margin: 0 }}>
             {orders.length > 0 ? Math.round((paidOrders.length / orders.length) * 100) : 100}%
           </h3>
-          <span className="text-[10px] text-teal-400 mt-1 block">
-            Eficiencia de cobro
+          <span style={{ fontSize: 11, color: '#38bdf8', marginTop: 6, display: 'block' }}>
+            Eficiencia operativa
           </span>
         </div>
       </div>

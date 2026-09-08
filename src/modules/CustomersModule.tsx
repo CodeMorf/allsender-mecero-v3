@@ -33,30 +33,30 @@ export const CustomersModule: React.FC<CustomersModuleProps> = ({
   )
 
   return (
-    <div className="flex flex-col h-full bg-slate-950 text-slate-100 p-6 overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-        <div>
-          <h2 className="text-xl font-bold flex items-center gap-2 text-slate-100">
-            <Users className="text-orange-500" size={24} /> Directorio de Clientes
+    <div className="posdan-module-container">
+      <div className="posdan-module-header">
+        <div className="posdan-module-title-wrap">
+          <h2 className="posdan-module-title">
+            <Users style={{ color: '#f97316' }} size={24} /> Directorio de Clientes
           </h2>
-          <p className="text-xs text-slate-400 mt-0.5">Gestión de clientes, validación DGII de RNC y cédulas</p>
+          <p className="posdan-module-subtitle">Gestión de clientes, validación DGII de RNC y cédulas</p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="relative w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+        <div className="posdan-module-actions">
+          <div className="posdan-search-box">
+            <Search className="search-icon" size={16} />
             <input
               type="text"
               placeholder="Buscar cliente, RNC, teléfono..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+              className="posdan-search-input"
             />
           </div>
 
           <button
             onClick={onOpenCustomerModal}
-            className="flex items-center gap-2 bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs uppercase px-4 py-2.5 rounded-xl transition-all shadow-md active:scale-95"
+            className="posdan-btn-primary"
           >
             <Plus size={16} />
             <span>Nuevo Cliente</span>
@@ -64,20 +64,21 @@ export const CustomersModule: React.FC<CustomersModuleProps> = ({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16, alignContent: 'start' }}>
         {filtered.map(cust => (
           <div
             key={cust.id}
-            className="bg-slate-900/70 border border-slate-800/90 rounded-2xl p-4 flex flex-col justify-between hover:border-slate-700 transition-all shadow-sm"
+            className="posdan-card"
+            style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
           >
             <div>
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <h4 className="font-bold text-sm text-slate-100 truncate">{cust.name}</h4>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                <div style={{ minWidth: 0 }}>
+                  <h4 style={{ margin: 0, fontWeight: 700, fontSize: 14, color: '#f0f6fc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cust.name}</h4>
                   {cust.rncCedula && (
-                    <div className="flex items-center gap-1 mt-0.5">
-                      <ShieldCheck size={12} className="text-orange-400 shrink-0" />
-                      <span className="text-xs font-mono font-bold text-orange-400 truncate">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                      <ShieldCheck size={13} style={{ color: '#f97316', flexShrink: 0 }} />
+                      <span style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: '#f97316', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         RNC: {cust.rncCedula}
                       </span>
                     </div>
@@ -85,34 +86,35 @@ export const CustomersModule: React.FC<CustomersModuleProps> = ({
                 </div>
                 <button
                   onClick={() => onEditCustomer(cust)}
-                  className="p-1.5 text-slate-400 hover:text-slate-200 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors"
+                  style={{ background: '#21262d', border: '1px solid #30363d', color: '#8b949e', borderRadius: 8, padding: '4px 8px', cursor: 'pointer', flexShrink: 0 }}
+                  title="Editar cliente"
                 >
                   <Edit2 size={13} />
                 </button>
               </div>
 
               {cust.fiscalName && (
-                <p className="text-[11px] text-slate-400 mt-1 italic truncate">
+                <p style={{ fontSize: 11, color: '#8b949e', fontStyle: 'italic', margin: '6px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {cust.fiscalName}
                 </p>
               )}
 
-              <div className="mt-3 space-y-1 text-xs text-slate-400 border-t border-slate-800/80 pt-2.5">
+              <div style={{ marginTop: 12, borderTop: '1px solid #21262d', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: '#8b949e' }}>
                 {cust.phone && (
-                  <div className="flex items-center gap-2 truncate">
-                    <Phone size={12} className="text-slate-500" />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <Phone size={12} style={{ color: '#6e7681', flexShrink: 0 }} />
                     <span>+{cust.phoneCode || '1'} {cust.phone}</span>
                   </div>
                 )}
                 {cust.email && (
-                  <div className="flex items-center gap-2 truncate">
-                    <Mail size={12} className="text-slate-500" />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <Mail size={12} style={{ color: '#6e7681', flexShrink: 0 }} />
                     <span>{cust.email}</span>
                   </div>
                 )}
                 {cust.deliveryAddress && (
-                  <div className="flex items-center gap-2 truncate">
-                    <MapPin size={12} className="text-slate-500" />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <MapPin size={12} style={{ color: '#6e7681', flexShrink: 0 }} />
                     <span>{cust.deliveryAddress}</span>
                   </div>
                 )}
@@ -120,18 +122,18 @@ export const CustomersModule: React.FC<CustomersModuleProps> = ({
             </div>
 
             {cust.dgiiStatus && (
-              <div className="mt-3 pt-2 border-t border-slate-800 flex items-center justify-between text-[10px]">
-                <span className="text-slate-500">DGII:</span>
-                <span className="text-emerald-400 font-bold uppercase">{cust.dgiiStatus}</span>
+              <div style={{ marginTop: 12, borderTop: '1px solid #21262d', paddingTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11 }}>
+                <span style={{ color: '#6e7681' }}>DGII:</span>
+                <span className="posdan-badge-success">{cust.dgiiStatus}</span>
               </div>
             )}
           </div>
         ))}
 
         {filtered.length === 0 && (
-          <div className="col-span-full py-16 flex flex-col items-center justify-center text-slate-500">
-            <Users size={48} className="mb-3 opacity-30" />
-            <p className="text-sm font-medium">No se encontraron clientes registrados.</p>
+          <div style={{ gridColumn: '1 / -1', padding: '64px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#8b949e' }}>
+            <Users size={48} style={{ opacity: 0.3, marginBottom: 12 }} />
+            <p style={{ fontSize: 14, fontWeight: 600 }}>No se encontraron clientes registrados.</p>
           </div>
         )}
       </div>

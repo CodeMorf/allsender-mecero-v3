@@ -8,18 +8,20 @@ import {
 
 export const ReturnsModule: React.FC = () => {
   return (
-    <div className="flex flex-col h-full bg-slate-950 text-slate-100 p-6 overflow-hidden">
-      <div className="mb-6">
-        <h2 className="text-xl font-bold flex items-center gap-2 text-slate-100">
-          <RotateCcw className="text-orange-500" size={24} /> Devoluciones y Anulaciones
-        </h2>
-        <p className="text-xs text-slate-400 mt-0.5">Registro de órdenes canceladas, notas de crédito y reembolsos procesados</p>
+    <div className="posdan-module-container">
+      <div className="posdan-module-header">
+        <div className="posdan-module-title-wrap">
+          <h2 className="posdan-module-title">
+            <RotateCcw style={{ color: '#f97316' }} size={24} /> Devoluciones y Anulaciones
+          </h2>
+          <p className="posdan-module-subtitle">Registro de órdenes canceladas, notas de crédito y reembolsos procesados</p>
+        </div>
       </div>
 
-      <div className="flex-1 bg-slate-900/60 rounded-2xl border border-slate-800/80 flex flex-col items-center justify-center p-8 text-center">
-        <RotateCcw size={48} className="text-slate-600 mb-3 opacity-40" />
-        <h4 className="text-sm font-bold text-slate-300">No hay devoluciones registradas hoy</h4>
-        <p className="text-xs text-slate-500 max-w-sm mt-1">Todas las órdenes cobradas se mantienen en estado firme sin reembolsos pendientes.</p>
+      <div className="posdan-card" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 48, textAlign: 'center' }}>
+        <RotateCcw size={48} style={{ color: '#6e7681', opacity: 0.35, marginBottom: 12 }} />
+        <h4 style={{ fontSize: 14, fontWeight: 700, color: '#f0f6fc', margin: 0 }}>No hay devoluciones registradas hoy</h4>
+        <p style={{ fontSize: 12, color: '#8b949e', maxWidth: 360, margin: '8px 0 0' }}>Todas las órdenes cobradas se mantienen en estado firme sin reembolsos pendientes.</p>
       </div>
     </div>
   )
