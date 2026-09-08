@@ -879,6 +879,13 @@ export default function App() {
   }
 
   async function payOrder(orderId: number, amount: number, method: string, idempotencyKey: string) {
+    if (!navigator.onLine) {
+      throw new Error('Para cobrar debe existir un turno de caja abierto y conexión con el servidor.')
+    }
+    const activeCashSession = await api.activeCashSession('pin').catch(() => null)
+    if (!activeCashSession || activeCashSession.status !== 'open') {
+      throw new Error('Debe abrir un turno de caja antes de cobrar.')
+    }
     const operation = makeWorkflow([makeStep('POST', `/pos/orders/${orderId}/pay`, { amount, method }, idempotencyKey)], { remoteOrderId: orderId, label: 'payment' })
     try {
       const result = await queueAndRun(operation)
@@ -1645,6 +1652,7 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
   const [cashRegisters, setCashRegisters] = useState<any[]>([])
   const [activeCashSession, setActiveCashSession] = useState<any | null>(null)
   const [activeCashSummary, setActiveCashSummary] = useState<any | null>(null)
+  const [cashSessionReady, setCashSessionReady] = useState(false)
   const [cashLoading, setCashLoading] = useState(false)
   const [allOrders, setAllOrders] = useState<any[]>([])
   const [productSearch, setProductSearch] = useState('')
@@ -1720,9 +1728,14 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
         } else {
           setActiveCashSummary(null)
         }
+      } else {
+        setActiveCashSession(null)
+        setActiveCashSummary(null)
       }
     } catch {
       // ignore
+    } finally {
+      setCashSessionReady(true)
     }
   }
 
@@ -1774,6 +1787,15 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
       document.removeEventListener('visibilitychange', onVisibilityChange)
     }
   }, [activeNavTab, offline])
+
+  const cashSessionOpen = activeCashSession?.status === 'open'
+  const cashierNeedsCashSession = roleKey === 'cajero' && cashSessionReady && !cashSessionOpen
+
+  useEffect(() => {
+    if (!cashierNeedsCashSession || activeNavTab === 'cash') return
+    // A cajero cannot operate another POS module until the shift is open.
+    setActiveNavTab('cash')
+  }, [activeNavTab, cashierNeedsCashSession])
 
   return (
     <div className="pos-app-shell">
@@ -1870,6 +1892,11 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
         <PosDanSidebar
           activeModule={activeNavTab}
           onSelectModule={(mod) => {
+            if (cashierNeedsCashSession && mod !== 'cash') {
+              setActiveNavTab('cash')
+              onNotice('Abra el turno de caja para continuar.')
+              return
+            }
             setActiveNavTab(mod)
             if (mod === 'kds') setShowKitchen(true)
             if (mod === 'users') setShowAttendance(true)
@@ -2210,6 +2237,7 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
                 activeSummary={activeCashSummary}
                 currentCashierName={roleLabel(roleKey)}
                 roleKey={roleKey}
+                requireOpen={cashierNeedsCashSession}
                 currencySymbol="RD$"
                 loading={cashLoading}
                 onRefresh={async () => {
@@ -2476,6 +2504,8 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
             paymentMethods={paymentMethods}
             fiscalCapabilities={fiscalCapabilities}
             canCharge={canCharge}
+            cashSessionOpen={cashSessionOpen}
+            cashSessionReady={cashSessionReady}
             offline={offline}
             deliverySettings={deliverySettings}
             deliveryExecutives={deliveryExecutives}
@@ -2698,6 +2728,8 @@ function TablePaymentPanel({
   items,
   paymentMethods,
   fiscalCapabilities,
+  cashSessionOpen,
+  cashSessionReady,
   offline,
   customerRnc,
   customerFiscalName,
@@ -2712,6 +2744,8 @@ function TablePaymentPanel({
   items: Array<{ amount?: number }>
   paymentMethods: PaymentMethodOption[]
   fiscalCapabilities?: FiscalCapabilities | null
+  cashSessionOpen: boolean
+  cashSessionReady: boolean
   offline: boolean
   customerRnc?: string
   customerFiscalName?: string
@@ -2838,6 +2872,8 @@ function TablePaymentPanel({
 
   async function charge(withPrint = printReceiptOnPay) {
     const numericAmount = Number(amount)
+    if (!cashSessionReady) { setError('Verificando el turno de caja. Intente nuevamente en un momento.'); return }
+    if (!cashSessionOpen) { setError('Debe abrir un turno de caja antes de cobrar.'); return }
     if (!table.currentOrderId || summary.due <= 0) { setError('Esta mesa no tiene saldo pendiente de pago.'); return }
     if (!Number.isFinite(numericAmount) || numericAmount <= 0 || numericAmount > summary.due + 0.01) { setError(`El monto debe estar entre ${formatMoney(0.01)} y ${formatMoney(summary.due)}.`); return }
     if (!enabledMethods.some(value => value.code === selectedMethod)) { setError('Este metodo de pago no esta habilitado para esta sucursal.'); return }
@@ -2920,6 +2956,8 @@ function TablePaymentPanel({
         <button className="icon-button" onClick={onClose} aria-label="Cerrar cobro"><X size={18} /></button>
       </div>
       {offline && <Alert>Sin conexión: el cobro queda pendiente y se validará automáticamente al recuperar internet.</Alert>}
+      {!cashSessionReady && <Alert>Verificando el turno de caja antes de habilitar el cobro…</Alert>}
+      {cashSessionReady && !cashSessionOpen && <Alert>Debe abrir el turno de caja antes de cobrar. Vaya a “Cajas/Turnos” y abra el turno del cajero.</Alert>}
       {error && <Alert>{error}</Alert>}
       {status && <p className="table-payment-status" role="status">{status}</p>}
       <div className="table-payment-due">
@@ -3083,10 +3121,10 @@ function TablePaymentPanel({
 
       <footer>
         <button className="button outline" onClick={onClose}>Cancelar</button>
-        <button className="button outline" disabled={busy || !enabledMethods.length || summary.due <= 0} onClick={() => void charge(false)}>
+        <button className="button outline" disabled={busy || !cashSessionReady || !cashSessionOpen || !enabledMethods.length || summary.due <= 0} onClick={() => void charge(false)}>
           <CreditCard size={16} />{busy ? 'Registrando…' : 'Solo cobrar'}
         </button>
-        <button className="button primary" disabled={busy || !enabledMethods.length || summary.due <= 0} onClick={() => void charge(true)} style={{ background: '#f97316', borderColor: '#f97316', color: '#fff' }}>
+        <button className="button primary" disabled={busy || !cashSessionReady || !cashSessionOpen || !enabledMethods.length || summary.due <= 0} onClick={() => void charge(true)} style={{ background: '#f97316', borderColor: '#f97316', color: '#fff' }}>
           <Printer size={16} />{busy ? 'Procesando…' : 'Cobrar e Imprimir'}
         </button>
       </footer>
@@ -3094,7 +3132,7 @@ function TablePaymentPanel({
   )
 }
 
-function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKey, permissions, paymentMethods, fiscalCapabilities, canCharge, offline, deliverySettings, deliveryExecutives, deliveryPlatforms = [], orderTypes = [], items, onClose, onOpenMenu, onSubmit, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onCancelOrder }: { table: RestaurantTable | null; tables?: RestaurantTable[]; quick: boolean; mobileDrawerOpen?: boolean; isMenuOpen?: boolean; roleKey: StaffRole; permissions: Record<string, boolean>; paymentMethods: PaymentMethodOption[]; fiscalCapabilities?: FiscalCapabilities | null; canCharge: boolean; offline: boolean; deliverySettings: DeliverySettings | null; deliveryExecutives: DeliveryExecutive[]; deliveryPlatforms?: DeliveryPlatform[]; orderTypes?: OrderTypeConfig[]; items: MenuItem[]; onClose: () => void; onOpenMenu?: () => void; onSubmit: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem?: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onCancelOrder?: (table: RestaurantTable, reason?: string) => Promise<{ queued: boolean; message: string }> }) {
+function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKey, permissions, paymentMethods, fiscalCapabilities, canCharge, cashSessionOpen, cashSessionReady, offline, deliverySettings, deliveryExecutives, deliveryPlatforms = [], orderTypes = [], items, onClose, onOpenMenu, onSubmit, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onCancelOrder }: { table: RestaurantTable | null; tables?: RestaurantTable[]; quick: boolean; mobileDrawerOpen?: boolean; isMenuOpen?: boolean; roleKey: StaffRole; permissions: Record<string, boolean>; paymentMethods: PaymentMethodOption[]; fiscalCapabilities?: FiscalCapabilities | null; canCharge: boolean; cashSessionOpen: boolean; cashSessionReady: boolean; offline: boolean; deliverySettings: DeliverySettings | null; deliveryExecutives: DeliveryExecutive[]; deliveryPlatforms?: DeliveryPlatform[]; orderTypes?: OrderTypeConfig[]; items: MenuItem[]; onClose: () => void; onOpenMenu?: () => void; onSubmit: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem?: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onCancelOrder?: (table: RestaurantTable, reason?: string) => Promise<{ queued: boolean; message: string }> }) {
   const canDelivery = roleKey === 'cajero' && permissions['orders.create'] === true
   const [mode, setMode] = useState<OrderMode>(table ? 'dine_in' : canDelivery ? 'pickup' : 'dine_in')
   const [orderTypeModalOpen, setOrderTypeModalOpen] = useState(false)
@@ -3979,6 +4017,8 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
                 items={existingItems}
                 paymentMethods={paymentMethods}
                 fiscalCapabilities={fiscalCapabilities}
+                cashSessionOpen={cashSessionOpen}
+                cashSessionReady={cashSessionReady}
                 offline={offline}
                 customerRnc={rncCedula || table.customerRnc}
                 customerFiscalName={fiscalName || table.customerFiscalName}

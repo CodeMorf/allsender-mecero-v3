@@ -61,6 +61,7 @@ interface CashModuleProps {
   activeSummary: CashSummary | null
   currentCashierName: string
   roleKey: StaffRole
+  requireOpen?: boolean
   currencySymbol?: string
   loading?: boolean
   onRefresh: () => Promise<void>
@@ -76,6 +77,7 @@ export const CashModule: React.FC<CashModuleProps> = ({
   activeSession,
   activeSummary,
   currentCashierName,
+  requireOpen = false,
   currencySymbol = 'RD$',
   loading = false,
   onRefresh,
@@ -107,6 +109,13 @@ export const CashModule: React.FC<CashModuleProps> = ({
   }, [registers, selectedRegisterId])
 
   const isOpen = activeSession && activeSession.status === 'open'
+
+  useEffect(() => {
+    if (requireOpen && !isOpen && modalType !== 'open') {
+      setModalType('open')
+      setActionError('Debe abrir el turno de caja antes de continuar.')
+    }
+  }, [isOpen, modalType, requireOpen])
 
   // Normalización robusta de totales desde activeSummary (API retorna totals: { ... }), activeSession o raíz
   const sumTotals = (activeSummary as any)?.totals || activeSummary || {}
