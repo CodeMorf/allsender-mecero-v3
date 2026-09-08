@@ -14,6 +14,42 @@ import {
   Send,
   X
 } from 'lucide-react'
+import { orderServiceLabel, resolveOrderService, type OrderServiceKind } from '../utils/orderService'
+
+function orderCustomerName(order: any): string {
+  return String(order.customer_name || order.customer?.name || order.order?.customer?.name || 'Consumidor Final')
+}
+
+function orderCustomerPhone(order: any): string {
+  return String(order.customer_phone || order.customer?.phone || order.order?.customer?.phone || '')
+}
+
+function orderServiceDetail(order: any, kind: OrderServiceKind): string {
+  const table = order.table || order.order?.table || {}
+  const tableCode = table.table_code || table.table_name || table.number || order.table_name
+  if (kind === 'dine_in') return tableCode ? `Mesa ${tableCode}` : 'Barra / sin mesa'
+  if (kind === 'pickup') return 'El cliente recoge en el local · no utiliza mesa'
+  if (kind === 'room_service') {
+    return String(order.custom_order_type_name || order.order?.custom_order_type_name || 'Habitación sin indicar')
+  }
+  if (kind === 'delivery') {
+    const platform = order.custom_order_type_name || order.delivery_app?.name || order.delivery_platform?.name || order.order?.custom_order_type_name
+    const address = order.delivery_address || order.order?.delivery_address
+    const driver = order.delivery_executive?.name || order.order?.delivery_executive?.name
+    return [platform, address, driver ? `Repartidor: ${driver}` : undefined].filter(Boolean).join(' · ') || 'Entrega sin detalle publicado'
+  }
+  return 'El backend no publicó el tipo de servicio'
+}
+
+function OrderServiceCell({ order }: { order: any }) {
+  const service = resolveOrderService(order)
+  return (
+    <div className={`invoice-service-cell service-${service}`}>
+      <strong>{orderServiceLabel(service)}</strong>
+      <small>{orderServiceDetail(order, service)}</small>
+    </div>
+  )
+}
 
 export interface InvoicesModuleProps {
   orders: any[]
@@ -30,21 +66,29 @@ export const InvoicesModule: React.FC<InvoicesModuleProps> = ({
 }) => {
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState('ALL')
+  const [serviceFilter, setServiceFilter] = useState<OrderServiceKind | 'ALL'>('ALL')
   const [emailModalOrder, setEmailModalOrder] = useState<any | null>(null)
   const [recipientEmail, setRecipientEmail] = useState('')
   const [sendingEmail, setSendingEmail] = useState(false)
   const [emailSuccess, setEmailSuccess] = useState('')
 
   const filteredOrders = orders.filter(o => {
-    const matchSearch =
-      String(o.id).includes(search) ||
-      String(o.order_number || '').toLowerCase().includes(search.toLowerCase()) ||
-      String(o.customer_name || '').toLowerCase().includes(search.toLowerCase())
+    const service = resolveOrderService(o)
+    const searchText = [
+      o.id,
+      o.order_number,
+      orderCustomerName(o),
+      orderCustomerPhone(o),
+      orderServiceLabel(service),
+      orderServiceDetail(o, service),
+    ].join(' ').toLowerCase()
+    const matchSearch = searchText.includes(search.toLowerCase())
     const matchFilter =
       filterType === 'ALL' ||
       (filterType === 'paid' && (o.status === 'paid' || o.payment_status === 'paid')) ||
       (filterType === 'billed' && (o.status === 'billed' || o.order_status === 'billed'))
-    return matchSearch && matchFilter
+    const matchService = serviceFilter === 'ALL' || service === serviceFilter
+    return matchSearch && matchFilter && matchService
   })
 
   const handleSendEmailSubmit = async (e: React.FormEvent) => {
@@ -92,6 +136,20 @@ export const InvoicesModule: React.FC<InvoicesModuleProps> = ({
               className="posdan-search-input"
             />
           </div>
+
+          <select
+            className="posdan-select invoice-service-filter"
+            value={serviceFilter}
+            onChange={event => setServiceFilter(event.target.value as OrderServiceKind | 'ALL')}
+            aria-label="Filtrar por tipo de servicio"
+          >
+            <option value="ALL">Todos los servicios</option>
+            <option value="dine_in">Comer aquí</option>
+            <option value="pickup">Recogida en el local</option>
+            <option value="delivery">Entrega a domicilio</option>
+            <option value="room_service">Servicio a habitación</option>
+            <option value="unknown">Tipo no publicado</option>
+          </select>
 
           <div style={{ display: 'flex', background: '#161b22', border: '1px solid #30363d', borderRadius: 12, padding: 3, gap: 2 }}>
             <button
@@ -151,6 +209,7 @@ export const InvoicesModule: React.FC<InvoicesModuleProps> = ({
                 <th># Factura / Orden</th>
                 <th>Fecha & Hora</th>
                 <th>Cliente / RNC</th>
+                <th>Tipo de servicio</th>
                 <th>Tipo Comprobante</th>
                 <th>Total</th>
                 <th>Estado</th>
@@ -167,10 +226,16 @@ export const InvoicesModule: React.FC<InvoicesModuleProps> = ({
                     {order.created_at ? new Date(order.created_at).toLocaleString() : 'Hoy'}
                   </td>
                   <td>
-                    <div style={{ fontWeight: 600, color: '#f0f6fc' }}>{order.customer_name || 'Consumidor Final'}</div>
+                    <div style={{ fontWeight: 600, color: '#f0f6fc' }}>{orderCustomerName(order)}</div>
+                    {orderCustomerPhone(order) && (
+                      <span style={{ fontSize: 11, color: '#8b949e', display: 'block', marginTop: 2 }}>{orderCustomerPhone(order)}</span>
+                    )}
                     {order.customer_rnc && (
                       <span style={{ fontSize: 11, color: '#f97316', fontFamily: 'monospace', display: 'block', marginTop: 2 }}>RNC: {order.customer_rnc}</span>
                     )}
+                  </td>
+                  <td>
+                    <OrderServiceCell order={order} />
                   </td>
                   <td>
                     <span style={{ padding: '3px 8px', borderRadius: 6, background: '#21262d', border: '1px solid #30363d', fontFamily: 'monospace', fontSize: 11, color: '#c9d1d9' }}>
@@ -236,8 +301,8 @@ export const InvoicesModule: React.FC<InvoicesModuleProps> = ({
               ))}
               {filteredOrders.length === 0 && (
                 <tr>
-                  <td colSpan={7} style={{ padding: 48, textAlign: 'center', color: '#8b949e' }}>
-                    No se encontraron facturas o comprobantes.
+                  <td colSpan={8} style={{ padding: 48, textAlign: 'center', color: '#8b949e' }}>
+                    No se encontraron órdenes con estos filtros.
                   </td>
                 </tr>
               )}

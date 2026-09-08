@@ -40,12 +40,12 @@ export interface OrderTypeModalProps {
 export function translateOrderTypeName(slug?: string, rawName?: string): string {
   const s = String(slug || '').toLowerCase().trim()
   if (s === 'dine_in') return 'Comer aquí'
-  if (s === 'pickup') return 'Recogida'
+  if (s === 'pickup') return 'Recogida en el local'
   if (s === 'room_service') return 'Servicio de habitaciones'
   if (s === 'delivery') return 'Entrega'
   const n = String(rawName || '').toLowerCase().trim()
   if (n === 'dine in' || n === 'dine_in') return 'Comer aquí'
-  if (n === 'pickup' || n === 'pick up' || n === 'takeout' || n === 'take away') return 'Recogida'
+  if (n === 'pickup' || n === 'pick up' || n === 'takeout' || n === 'take away' || n === 'para llevar' || n === 'recogida') return 'Recogida en el local'
   if (n === 'room service' || n === 'room_service') return 'Servicio de habitaciones'
   if (n === 'delivery') return 'Entrega'
   return rawName || 'Comer aquí'
@@ -344,9 +344,9 @@ export const OrderTypeModal: React.FC<OrderTypeModalProps> = ({
 
               {/* Top Row: Core Order Types */}
               <div
+                className="order-type-core-grid"
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(3, 1fr)',
                   gap: 12,
                   marginBottom: 24
                 }}
@@ -383,8 +383,9 @@ export const OrderTypeModal: React.FC<OrderTypeModalProps> = ({
                   >
                     <Utensils size={22} />
                   </div>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: '#f0f6fc' }}>
-                    {translateOrderTypeName(dineInType?.slug, dineInType?.order_type_name || 'Comer aquí')}
+                  <span className="order-type-choice-copy">
+                    <strong>{translateOrderTypeName(dineInType?.slug, dineInType?.order_type_name || 'Comer aquí')}</strong>
+                    <small>Atención en una mesa o en la barra</small>
                   </span>
                 </button>
 
@@ -420,8 +421,9 @@ export const OrderTypeModal: React.FC<OrderTypeModalProps> = ({
                 >
                     <ShoppingBag size={22} />
                   </div>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: '#f0f6fc' }}>
-                    {translateOrderTypeName(pickupType?.slug, pickupType?.order_type_name || 'Recogida')}
+                  <span className="order-type-choice-copy">
+                    <strong>{translateOrderTypeName(pickupType?.slug, pickupType?.order_type_name || 'Recogida')}</strong>
+                    <small>El cliente recoge su pedido; no usa mesa</small>
                   </span>
                 </button>
 
@@ -457,8 +459,9 @@ export const OrderTypeModal: React.FC<OrderTypeModalProps> = ({
                   >
                     <Hotel size={22} />
                   </div>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: '#f0f6fc', textAlign: 'center' }}>
-                    {translateOrderTypeName(roomServiceType?.slug, roomServiceType?.order_type_name || 'Servicio de habitaciones')}
+                  <span className="order-type-choice-copy">
+                    <strong>{translateOrderTypeName(roomServiceType?.slug, roomServiceType?.order_type_name || 'Servicio de habitaciones')}</strong>
+                    <small>Se entrega directamente en una habitación</small>
                   </span>
                 </button>
               </div>
@@ -467,16 +470,16 @@ export const OrderTypeModal: React.FC<OrderTypeModalProps> = ({
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                   <Truck size={16} style={{ color: '#ea580c' }} />
-                  <span style={{ fontSize: 14, fontWeight: 700, color: '#f0f6fc' }}>Entrega</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: '#f0f6fc' }}>Entrega a domicilio</span>
                 </div>
                 <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 14 }}>
-                  Seleccione una plataforma de entrega para continuar
+                  Envíe el pedido con un repartidor propio o mediante una plataforma. Estas órdenes tampoco usan mesa.
                 </div>
 
                 <div
+                  className="delivery-platform-grid"
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: `repeat(${Math.max(3, 1 + deliveryPlatforms.length)}, 1fr)`,
                     gap: 12
                   }}
                 >
@@ -513,8 +516,8 @@ export const OrderTypeModal: React.FC<OrderTypeModalProps> = ({
                       <Truck size={22} />
                     </div>
                     <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: 11, color: '#8b949e' }}>Entrega</div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#f0f6fc' }}>Por defecto</div>
+                      <div style={{ fontSize: 11, color: '#8b949e' }}>Repartidor propio</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#f0f6fc' }}>Entrega directa</div>
                     </div>
                   </button>
 
@@ -564,7 +567,7 @@ export const OrderTypeModal: React.FC<OrderTypeModalProps> = ({
                           )}
                         </div>
                         <div style={{ textAlign: 'center' }}>
-                          <div style={{ fontSize: 11, color: '#8b949e' }}>Entrega</div>
+                          <div style={{ fontSize: 11, color: '#8b949e' }}>Plataforma externa</div>
                           <div style={{ fontSize: 13, fontWeight: 700, color: '#f0f6fc' }}>{platform.name}</div>
                         </div>
                       </button>
@@ -734,6 +737,11 @@ export const OrderTypeModal: React.FC<OrderTypeModalProps> = ({
                     boxSizing: 'border-box'
                   }}
                 />
+                {!deliveryAddress.trim() && (
+                  <div style={{ fontSize: 11, color: '#fbbf24', marginTop: 5 }}>
+                    La dirección es obligatoria para una entrega propia.
+                  </div>
+                )}
               </div>
 
               {/* Tarifa de Envío & GPS */}
@@ -819,6 +827,7 @@ export const OrderTypeModal: React.FC<OrderTypeModalProps> = ({
                 <button
                   type="button"
                   onClick={handleConfirmDefaultDelivery}
+                  disabled={!deliveryAddress.trim()}
                   style={{
                     padding: '10px 20px',
                     borderRadius: 8,
@@ -827,7 +836,8 @@ export const OrderTypeModal: React.FC<OrderTypeModalProps> = ({
                     color: '#ffffff',
                     fontSize: 13,
                     fontWeight: 700,
-                    cursor: 'pointer',
+                    cursor: deliveryAddress.trim() ? 'pointer' : 'not-allowed',
+                    opacity: deliveryAddress.trim() ? 1 : 0.55,
                     display: 'flex',
                     alignItems: 'center',
                     gap: 6

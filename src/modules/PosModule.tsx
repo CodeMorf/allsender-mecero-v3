@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import type { DeliveryExecutive, DeliveryPlatform, DeliverySettings, MenuItem, PosCustomer, RestaurantTable, StaffRole, OrderTypeConfig } from '../types'
 import { OrderTypeModal, type OrderTypeSelection } from '../components/OrderTypeModal'
+import { orderServiceLabel } from '../utils/orderService'
 
 export interface PosModuleProps {
   menuItems: MenuItem[]
@@ -202,9 +203,31 @@ export const PosModule: React.FC<PosModuleProps> = ({
     ? (orderSelection.deliveryFee !== undefined ? Number(orderSelection.deliveryFee) : defaultDeliveryFee)
     : 0
   const total = discountedSubtotal + itbis + currentDeliveryFee
+  const selectedTable = tables.find(table => table.id === selectedTableId)
+  const selectedDeliveryExecutive = deliveryExecutives.find(driver => driver.id === orderSelection.deliveryExecutiveId)
+  const directDeliveryMissingAddress = orderSelection.mode === 'delivery'
+    && !orderSelection.deliveryPlatformId
+    && !orderSelection.deliveryAddress?.trim()
+  const serviceTitle = orderServiceLabel(orderSelection.mode)
+  const serviceDetail = orderSelection.mode === 'dine_in'
+    ? selectedTable
+      ? `${selectedTable.name || `Mesa ${selectedTable.number}`} · atención en el salón`
+      : 'Seleccione una mesa o use la barra'
+    : orderSelection.mode === 'pickup'
+    ? selectedCustomer
+      ? `Recoge: ${selectedCustomer.name}${selectedCustomer.phone ? ` · ${selectedCustomer.phone}` : ''}`
+      : 'Sin mesa · asigne el cliente para identificar la orden'
+    : orderSelection.mode === 'room_service'
+    ? `Habitación ${orderSelection.roomNumber || 'sin indicar'}`
+    : [
+        orderSelection.deliveryAppName || 'Entrega directa',
+        orderSelection.deliveryAddress?.trim()
+          || (orderSelection.deliveryPlatformId ? 'Dirección administrada por la plataforma' : 'Falta dirección de entrega'),
+        selectedDeliveryExecutive ? `Repartidor: ${selectedDeliveryExecutive.name}` : undefined,
+      ].filter(Boolean).join(' · ')
 
   const handlePay = async () => {
-    if (cart.length === 0) return
+    if (cart.length === 0 || directDeliveryMissingAddress) return
     setIsProcessing(true)
     try {
       await onCheckout({
@@ -314,6 +337,18 @@ export const PosModule: React.FC<PosModuleProps> = ({
             </div>
           )}
 
+          {orderSelection.mode === 'pickup' && (
+            <button
+              type="button"
+              className="posdan-service-context service-pickup"
+              onClick={() => setOrderTypeModalOpen(true)}
+              title="Recogida en el local: esta orden no utiliza mesa"
+            >
+              <ShoppingBag size={15} />
+              <span><strong>Recogida en el local</strong> · Sin mesa</span>
+            </button>
+          )}
+
           {orderSelection.mode === 'room_service' && (
             <div
               onClick={() => setOrderTypeModalOpen(true)}
@@ -336,27 +371,20 @@ export const PosModule: React.FC<PosModuleProps> = ({
           )}
 
           {orderSelection.mode === 'delivery' && (
-            <div
+            <button
+              type="button"
+              className="posdan-service-context service-delivery"
               onClick={() => setOrderTypeModalOpen(true)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                background: '#21262d',
-                padding: '6px 12px',
-                borderRadius: 8,
-                border: '1px solid #30363d',
-                fontSize: 12.5,
-                color: '#f0f6fc',
-                cursor: 'pointer'
-              }}
+              title="Ver o cambiar los datos de entrega"
             >
-              <Truck size={15} color="#ea580c" />
+              <Truck size={15} />
               <span>
-                {orderSelection.deliveryAppName || 'Entrega'}
-                {orderSelection.deliveryExecutiveId ? ' · Chofer asignado' : ''}
+                <strong>{orderSelection.deliveryAppName || 'Entrega directa'}</strong>
+                {' · '}
+                {orderSelection.deliveryAddress?.trim()
+                  || (orderSelection.deliveryPlatformId ? 'Dirección en plataforma' : 'Falta dirección')}
               </span>
-            </div>
+            </button>
           )}
 
           <div className="posdan-search-box" style={{ width: 280 }}>
@@ -497,6 +525,32 @@ export const PosModule: React.FC<PosModuleProps> = ({
               </button>
             </div>
           </div>
+
+          <button
+            type="button"
+            className={`posdan-service-summary service-${orderSelection.mode}`}
+            onClick={() => setOrderTypeModalOpen(true)}
+            title="Ver o cambiar el tipo de servicio"
+          >
+            <span className="posdan-service-summary-icon">
+              {orderSelection.mode === 'dine_in' && <Utensils size={18} />}
+              {orderSelection.mode === 'pickup' && <ShoppingBag size={18} />}
+              {orderSelection.mode === 'delivery' && <Truck size={18} />}
+              {orderSelection.mode === 'room_service' && <Hotel size={18} />}
+            </span>
+            <span className="posdan-service-summary-copy">
+              <small>TIPO DE SERVICIO</small>
+              <strong>{serviceTitle}</strong>
+              <span>{serviceDetail}</span>
+            </span>
+            <span className="posdan-service-summary-action">Cambiar</span>
+          </button>
+
+          {directDeliveryMissingAddress && (
+            <div className="posdan-service-warning" role="alert">
+              La entrega propia necesita una dirección antes de enviar o cobrar.
+            </div>
+          )}
         </div>
 
         <div className="posdan-cart-list">
@@ -621,16 +675,18 @@ export const PosModule: React.FC<PosModuleProps> = ({
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, paddingTop: 4 }}>
             <button
               onClick={handlePay}
-              disabled={cart.length === 0 || isProcessing}
+              disabled={cart.length === 0 || isProcessing || directDeliveryMissingAddress}
               className="posdan-btn-action-green"
+              title={directDeliveryMissingAddress ? 'Complete la dirección de entrega antes de continuar' : 'Cobrar la orden'}
             >
               <DollarSign size={16} />
               <span>Cobrar</span>
             </button>
             <button
               onClick={handlePay}
-              disabled={cart.length === 0 || isProcessing}
+              disabled={cart.length === 0 || isProcessing || directDeliveryMissingAddress}
               className="posdan-btn-action-orange"
+              title={directDeliveryMissingAddress ? 'Complete la dirección de entrega antes de continuar' : 'Enviar la comanda'}
             >
               <FileText size={16} />
               <span>Comanda</span>

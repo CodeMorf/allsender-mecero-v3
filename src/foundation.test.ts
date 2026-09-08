@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { ApiError, normalizeAttendance, normalizeItem, normalizeKitchenPlace, normalizeKitchenTicket, normalizeStaffSchedule, normalizeTable, normalizeWaiterRequest } from './api/client'
 import { cartItemUnitPrice } from './modules/PosModule'
 import { newIdempotencyKey, readCache, saveCache, setStorageScope } from './storage/offline'
+import { orderServiceLabel, resolveOrderService } from './utils/orderService'
 
 describe('contrato base del mesero', () => {
   it('normaliza estados de mesa de la API al mapa visual', () => {
@@ -98,6 +99,15 @@ describe('contrato base del mesero', () => {
     expect(table).toMatchObject({ currentOrderId: 42, currentOrderNumber: '42', customerId: 18, customerName: 'María López', currentOrderTotal: 640, currentOrderDue: 320, status: 'occupied' })
     expect(ticket).toMatchObject({ id: 88, orderId: 42, tableName: 'T9', kitchenPlace: 'Cocina', status: 'in_kitchen' })
     expect(ticket.items[0]).toMatchObject({ orderItemId: 77, name: 'Pizza simple', status: 'cooking' })
+  })
+
+  it('distingue mesa, recogida, entrega y habitación con el contrato real de órdenes', () => {
+    expect(resolveOrderService({ order_type_meta: { slug: 'dine_in' }, table_id: 12 })).toBe('dine_in')
+    expect(resolveOrderService({ order_type_meta: { slug: 'pickup', order_type_name: 'Para llevar' } })).toBe('pickup')
+    expect(resolveOrderService({ order_type: 'Delivery', delivery_address: 'Av. Principal 10' })).toBe('delivery')
+    expect(resolveOrderService({ custom_order_type_name: 'Habitación 204' })).toBe('room_service')
+    expect(orderServiceLabel('pickup')).toBe('Recogida en el local')
+    expect(orderServiceLabel('delivery')).toBe('Entrega a domicilio')
   })
 
   it('expone en cocina el mesero, la variante, los suplementos y las notas del backend', () => {

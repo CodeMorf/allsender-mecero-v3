@@ -5832,3 +5832,222 @@ body { overflow-x: hidden; }
   .pos-category-chip, .pos-filter-pill-btn, .posdan-cat-btn, .posdan-btn-primary, .posdan-btn-action-green, .posdan-btn-action-orange, .posdan-nav-item, .posdan-footer-btn { min-height: 44px; }
   .pos-product-add-btn { width: 44px; height: 44px; }
 }
+
+/* Order service visibility: table, pickup, delivery and room service. */
+.order-type-core-grid {
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+}
+
+.delivery-platform-grid {
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.order-type-choice-copy {
+  display: grid;
+  gap: 4px;
+  text-align: center;
+}
+
+.order-type-choice-copy strong {
+  color: #f0f6fc;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.order-type-choice-copy small {
+  color: #8b949e;
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
+.posdan-service-context {
+  display: inline-flex;
+  min-width: 0;
+  max-width: min(440px, 42vw);
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  padding: 7px 12px;
+  border: 1px solid #30363d;
+  border-radius: 9px;
+  background: #21262d;
+  color: #f0f6fc;
+  cursor: pointer;
+  font-size: 12px;
+  text-align: left;
+}
+
+.posdan-service-context span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.posdan-service-context.service-pickup {
+  border-color: rgba(192, 132, 252, 0.45);
+  background: rgba(192, 132, 252, 0.1);
+  color: #d8b4fe;
+}
+
+.posdan-service-context.service-delivery {
+  border-color: rgba(96, 165, 250, 0.45);
+  background: rgba(96, 165, 250, 0.1);
+  color: #93c5fd;
+}
+
+.posdan-service-summary {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 11px;
+  border: 1px solid #30363d;
+  border-radius: 12px;
+  background: #161b22;
+  color: #f0f6fc;
+  cursor: pointer;
+  text-align: left;
+}
+
+.posdan-service-summary:hover,
+.posdan-service-summary:focus-visible {
+  border-color: #f97316;
+  outline: none;
+}
+
+.posdan-service-summary-icon {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(94, 219, 172, 0.12);
+  color: #5edbac;
+}
+
+.posdan-service-summary.service-pickup .posdan-service-summary-icon {
+  background: rgba(192, 132, 252, 0.13);
+  color: #c084fc;
+}
+
+.posdan-service-summary.service-delivery .posdan-service-summary-icon {
+  background: rgba(96, 165, 250, 0.13);
+  color: #60a5fa;
+}
+
+.posdan-service-summary.service-room_service .posdan-service-summary-icon {
+  background: rgba(249, 115, 22, 0.13);
+  color: #fb923c;
+}
+
+.posdan-service-summary-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.posdan-service-summary-copy small {
+  color: #8b949e;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.posdan-service-summary-copy strong {
+  overflow: hidden;
+  color: #f0f6fc;
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.posdan-service-summary-copy > span {
+  overflow: hidden;
+  color: #8b949e;
+  font-size: 10.5px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.posdan-service-summary-action {
+  color: #f97316;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.posdan-service-warning {
+  padding: 8px 10px;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  border-radius: 9px;
+  background: rgba(251, 191, 36, 0.08);
+  color: #fbbf24;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.invoice-service-filter {
+  min-width: 190px;
+}
+
+.invoice-service-cell {
+  min-width: 180px;
+  display: grid;
+  gap: 3px;
+}
+
+.invoice-service-cell strong {
+  color: #f0f6fc;
+  font-size: 12px;
+}
+
+.invoice-service-cell small {
+  max-width: 260px;
+  overflow: hidden;
+  color: #8b949e;
+  font-size: 10.5px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.invoice-service-cell.service-pickup strong { color: #d8b4fe; }
+.invoice-service-cell.service-delivery strong { color: #93c5fd; }
+.invoice-service-cell.service-room_service strong { color: #fb923c; }
+.invoice-service-cell.service-dine_in strong { color: #5edbac; }
+
+@media (max-width: 768px) {
+  .posdan-service-context {
+    width: 100%;
+    max-width: none;
+  }
+
+  .posdan-service-summary-copy > span,
+  .invoice-service-cell small {
+    white-space: normal;
+  }
+
+  .invoice-service-filter {
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .order-type-core-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .delivery-platform-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .posdan-service-summary {
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  .posdan-service-summary-action {
+    grid-column: 2;
+  }
+}
