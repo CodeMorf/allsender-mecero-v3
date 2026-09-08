@@ -229,42 +229,17 @@ export class ApiClient {
       }
     } catch (e: any) {
       const errMsg = e?.message || ''
-      if (errMsg && !errMsg.includes('502') && !errMsg.includes('Failed to fetch')) {
-        return { found: false, message: errMsg }
+      // Las identificaciones fiscales nunca salen del navegador: si el proxy
+      // falla, mostramos un mensaje neutro y dejamos el dato para entrada manual.
+      return {
+        found: false,
+        message: errMsg && !errMsg.includes('502') && !errMsg.includes('Failed to fetch')
+          ? errMsg
+          : 'No se pudo conectar con el servicio de la DGII',
       }
     }
 
-    // 2. Fallback directo si el proxy no responde
-    try {
-      const resp = await fetch('https://rnc.megaplus.com.do/api/consulta', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({ rnc: digits }),
-      })
-      const data = await resp.json()
-      if (data && (data.error === false || data.codigo_http === 200)) {
-        const fiscalName = (data.nombre_razon_social || '').trim()
-        const commName = (data.nombre_comercial || '').trim()
-        const rncFormatted = data.cedula_rnc || digits
-        return {
-          found: true,
-          name: commName || fiscalName,
-          fiscalName: fiscalName,
-          commercialName: commName || undefined,
-          rncCedula: rncFormatted,
-          status: data.estado || 'ACTIVO',
-          regime: data.regimen_de_pagos || 'NORMAL',
-          isElectronic: String(data.facturador_electronico || '').toUpperCase() === 'SI',
-          message: `✓ DGII: ${commName || fiscalName}`
-        }
-      }
-      return { found: false, message: data.mensaje || 'RNC / Cédula no encontrado en la DGII' }
-    } catch {
-      return { found: false, message: 'No se pudo conectar con el servicio de la DGII' }
-    }
+    return { found: false, message: 'No se pudo conectar con el servicio de la DGII' }
   }
   async getCustomer(kind: TokenKind, customerId: number): Promise<PosCustomer> {
     return normalizeCustomer(unwrap<any>(await this.request(`/pos/customers/${customerId}`, { tokenKind: kind })))

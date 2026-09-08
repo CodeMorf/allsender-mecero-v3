@@ -1030,6 +1030,7 @@ function SetupScreen({
         <div className="hero-overlay" />
 
         <header className="brand-lockup">
+          {/* Logo oficial de RestaPP Mesero; el asset se comparte con la publicación web y Windows. */}
           <img src="/assets/restapp-logo.png" alt="RestaPP" className="brand-logo" />
           <div>
             <div className="brand-name">Resta<span>PP</span></div>
@@ -2188,7 +2189,7 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
                 onPrintReport={async (sessionId, _type, sessionData) => {
                   try {
                     let summary = sessionData?.totals ? sessionData : null
-                    let sess = sessionData || (activeCashSession?.id === sessionId ? activeCashSession : null)
+                    const sess = sessionData || (activeCashSession?.id === sessionId ? activeCashSession : null)
 
                     if (!summary) {
                       try {
