@@ -188,7 +188,13 @@ export const PosModule: React.FC<PosModuleProps> = ({
 
   const discountedSubtotal = subtotal - discountAmount
   const itbis = discountedSubtotal * 0.18
-  const total = discountedSubtotal + itbis
+  const defaultDeliveryFee = deliverySettings?.fixed_fee != null
+    ? Number(deliverySettings.fixed_fee)
+    : (deliverySettings?.fee_tiers?.[0]?.fee ?? 150)
+  const currentDeliveryFee = orderSelection.mode === 'delivery'
+    ? (orderSelection.deliveryFee !== undefined ? Number(orderSelection.deliveryFee) : defaultDeliveryFee)
+    : 0
+  const total = discountedSubtotal + itbis + currentDeliveryFee
 
   const handlePay = async () => {
     if (cart.length === 0) return
@@ -203,7 +209,7 @@ export const PosModule: React.FC<PosModuleProps> = ({
         roomNumber: orderSelection.roomNumber,
         deliveryExecutiveId: orderSelection.deliveryExecutiveId,
         deliveryAddress: orderSelection.deliveryAddress,
-        deliveryFee: orderSelection.deliveryFee,
+        deliveryFee: orderSelection.mode === 'delivery' ? currentDeliveryFee : undefined,
         customerLat: orderSelection.customerLat,
         customerLng: orderSelection.customerLng,
         tableId: orderSelection.mode === 'dine_in' ? selectedTableId : null,
@@ -593,6 +599,12 @@ export const PosModule: React.FC<PosModuleProps> = ({
               <span>ITBIS (18%)</span>
               <span style={{ fontFamily: 'monospace', color: '#f0f6fc' }}>{currencySymbol} {itbis.toFixed(2)}</span>
             </div>
+            {currentDeliveryFee > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#60a5fa', fontWeight: 600 }}>
+                <span>Costo de Envío</span>
+                <span style={{ fontFamily: 'monospace' }}>{currencySymbol} {currentDeliveryFee.toFixed(2)}</span>
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 8, borderTop: '1px solid #21262d' }}>
               <span style={{ color: '#f97316', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 800, fontSize: 12 }}>Total a Pagar</span>
               <span style={{ fontFamily: 'monospace', fontSize: 20, fontWeight: 900, color: '#34d399' }}>{currencySymbol} {total.toFixed(2)}</span>

@@ -37,6 +37,20 @@ export interface OrderTypeModalProps {
   deliverySettings?: DeliverySettings | null
 }
 
+export function translateOrderTypeName(slug?: string, rawName?: string): string {
+  const s = String(slug || '').toLowerCase().trim()
+  if (s === 'dine_in') return 'Comer aquí'
+  if (s === 'pickup') return 'Recogida'
+  if (s === 'room_service') return 'Servicio de habitaciones'
+  if (s === 'delivery') return 'Entrega'
+  const n = String(rawName || '').toLowerCase().trim()
+  if (n === 'dine in' || n === 'dine_in') return 'Comer aquí'
+  if (n === 'pickup' || n === 'pick up' || n === 'takeout' || n === 'take away') return 'Recogida'
+  if (n === 'room service' || n === 'room_service') return 'Servicio de habitaciones'
+  if (n === 'delivery') return 'Entrega'
+  return rawName || 'Comer aquí'
+}
+
 export const OrderTypeModal: React.FC<OrderTypeModalProps> = ({
   isOpen,
   onClose,
@@ -55,9 +69,12 @@ export const OrderTypeModal: React.FC<OrderTypeModalProps> = ({
   const [roomNumber, setRoomNumber] = useState(currentSelection.roomNumber || '')
 
   // Delivery custom details state
+  const defaultFee = deliverySettings?.fixed_fee != null
+    ? Number(deliverySettings.fixed_fee)
+    : (deliverySettings?.fee_tiers?.[0]?.fee ?? 150)
   const [selectedDriverId, setSelectedDriverId] = useState<number | undefined>(currentSelection.deliveryExecutiveId)
   const [deliveryAddress, setDeliveryAddress] = useState(currentSelection.deliveryAddress || '')
-  const [deliveryFee, setDeliveryFee] = useState<number>(currentSelection.deliveryFee ?? (deliverySettings?.fixed_fee ?? 0))
+  const [deliveryFee, setDeliveryFee] = useState<number>(currentSelection.deliveryFee ?? defaultFee)
   const [gpsCoords, setGpsCoords] = useState<{ lat?: number; lng?: number }>({
     lat: currentSelection.customerLat,
     lng: currentSelection.customerLng
@@ -100,7 +117,7 @@ export const OrderTypeModal: React.FC<OrderTypeModalProps> = ({
     onSelect({
       mode: 'dine_in',
       orderTypeId: dineInType?.id ?? 25,
-      orderTypeName: dineInType?.order_type_name || 'Comer aquí'
+      orderTypeName: translateOrderTypeName(dineInType?.slug, dineInType?.order_type_name || 'Comer aquí')
     })
     onClose()
   }
@@ -109,7 +126,7 @@ export const OrderTypeModal: React.FC<OrderTypeModalProps> = ({
     onSelect({
       mode: 'pickup',
       orderTypeId: pickupType?.id ?? 27,
-      orderTypeName: pickupType?.order_type_name || 'Recogida'
+      orderTypeName: translateOrderTypeName(pickupType?.slug, pickupType?.order_type_name || 'Recogida')
     })
     onClose()
   }
@@ -123,7 +140,7 @@ export const OrderTypeModal: React.FC<OrderTypeModalProps> = ({
     onSelect({
       mode: 'room_service',
       orderTypeId: roomServiceType?.id ?? 77,
-      orderTypeName: roomServiceType?.order_type_name || 'Servicio de habitaciones',
+      orderTypeName: translateOrderTypeName(roomServiceType?.slug, roomServiceType?.order_type_name || 'Servicio de habitaciones'),
       roomNumber: roomNumber.trim()
     })
     onClose()
@@ -137,7 +154,7 @@ export const OrderTypeModal: React.FC<OrderTypeModalProps> = ({
     onSelect({
       mode: 'delivery',
       orderTypeId: deliveryType?.id ?? 26,
-      orderTypeName: deliveryType?.order_type_name || 'Entrega',
+      orderTypeName: translateOrderTypeName(deliveryType?.slug, deliveryType?.order_type_name || 'Entrega'),
       deliveryPlatformId: null,
       deliveryAppName: 'Entrega Directa',
       deliveryExecutiveId: selectedDriverId,
@@ -367,7 +384,7 @@ export const OrderTypeModal: React.FC<OrderTypeModalProps> = ({
                     <Utensils size={22} />
                   </div>
                   <span style={{ fontSize: 14, fontWeight: 600, color: '#f0f6fc' }}>
-                    {dineInType?.order_type_name || 'Comer aquí'}
+                    {translateOrderTypeName(dineInType?.slug, dineInType?.order_type_name || 'Comer aquí')}
                   </span>
                 </button>
 
@@ -391,20 +408,20 @@ export const OrderTypeModal: React.FC<OrderTypeModalProps> = ({
                 >
                   <div
                     style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 10,
-                      background: 'rgba(234, 88, 12, 0.12)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#ea580c'
-                    }}
-                  >
+                    width: 44,
+                    height: 44,
+                    borderRadius: 10,
+                    background: 'rgba(234, 88, 12, 0.12)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#ea580c'
+                  }}
+                >
                     <ShoppingBag size={22} />
                   </div>
                   <span style={{ fontSize: 14, fontWeight: 600, color: '#f0f6fc' }}>
-                    {pickupType?.order_type_name || 'Recogida'}
+                    {translateOrderTypeName(pickupType?.slug, pickupType?.order_type_name || 'Recogida')}
                   </span>
                 </button>
 
@@ -441,7 +458,7 @@ export const OrderTypeModal: React.FC<OrderTypeModalProps> = ({
                     <Hotel size={22} />
                   </div>
                   <span style={{ fontSize: 14, fontWeight: 600, color: '#f0f6fc', textAlign: 'center' }}>
-                    {roomServiceType?.order_type_name || 'Servicio de habitaciones'}
+                    {translateOrderTypeName(roomServiceType?.slug, roomServiceType?.order_type_name || 'Servicio de habitaciones')}
                   </span>
                 </button>
               </div>

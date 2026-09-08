@@ -16,7 +16,8 @@ import { DiscountsModule } from './modules/DiscountsModule'
 import { ReturnsModule } from './modules/ReturnsModule'
 import { UsersModule } from './modules/UsersModule'
 import { SettingsModule } from './modules/SettingsModule'
-import { ArrowRightLeft, Banknote, BatteryCharging, BedDouble, Bell, BookOpen, CalendarDays, Check, ChefHat, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, CloudLightning, CloudOff, Clock, Coffee, CreditCard, Delete, Divide, Edit3, FileText, Flame, Globe2, History, LayoutGrid, Lock, LogOut, Map as LucideMap, Martini, Minus, Moon, Plus, Printer, Receipt, Search, Send, ShieldCheck, SlidersHorizontal, ShoppingCart, Sun, Trash2, Unlock, UserCheck, UserCircle2, UserRound, Users, UserX, Utensils, UtensilsCrossed, Wallet, Wifi, X, XCircle } from 'lucide-react'
+import { OrderTypeModal, type OrderTypeSelection, translateOrderTypeName } from './components/OrderTypeModal'
+import { ArrowRightLeft, Banknote, BatteryCharging, BedDouble, Bell, BookOpen, CalendarDays, Check, ChefHat, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, CloudLightning, CloudOff, Clock, Coffee, CreditCard, Delete, Divide, Edit3, FileText, Flame, Globe2, History, Hotel, LayoutGrid, Lock, LogOut, Map as LucideMap, Martini, Minus, Moon, Plus, Printer, Receipt, Search, Send, ShieldCheck, SlidersHorizontal, ShoppingBag, ShoppingCart, Sun, Trash2, Truck, Unlock, UserCheck, UserCircle2, UserRound, Users, UserX, Utensils, UtensilsCrossed, Wallet, Wifi, X, XCircle } from 'lucide-react'
 
 import { Capacitor } from '@capacitor/core'
 import { Haptics } from '@capacitor/haptics'
@@ -2310,6 +2311,8 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
             offline={offline}
             deliverySettings={deliverySettings}
             deliveryExecutives={deliveryExecutives}
+            deliveryPlatforms={deliveryPlatforms}
+            orderTypes={orderTypes}
             items={items}
             onClose={() => {
               onSelectTable(null)
@@ -2817,9 +2820,23 @@ function TablePaymentPanel({
   )
 }
 
-function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKey, permissions, paymentMethods, fiscalCapabilities, canCharge, offline, deliverySettings, deliveryExecutives, items, onClose, onOpenMenu, onSubmit, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onCancelOrder }: { table: RestaurantTable | null; tables?: RestaurantTable[]; quick: boolean; mobileDrawerOpen?: boolean; isMenuOpen?: boolean; roleKey: StaffRole; permissions: Record<string, boolean>; paymentMethods: PaymentMethodOption[]; fiscalCapabilities?: FiscalCapabilities | null; canCharge: boolean; offline: boolean; deliverySettings: DeliverySettings | null; deliveryExecutives: DeliveryExecutive[]; items: MenuItem[]; onClose: () => void; onOpenMenu?: () => void; onSubmit: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem?: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onCancelOrder?: (table: RestaurantTable, reason?: string) => Promise<{ queued: boolean; message: string }> }) {
+function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKey, permissions, paymentMethods, fiscalCapabilities, canCharge, offline, deliverySettings, deliveryExecutives, deliveryPlatforms = [], orderTypes = [], items, onClose, onOpenMenu, onSubmit, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onCancelOrder }: { table: RestaurantTable | null; tables?: RestaurantTable[]; quick: boolean; mobileDrawerOpen?: boolean; isMenuOpen?: boolean; roleKey: StaffRole; permissions: Record<string, boolean>; paymentMethods: PaymentMethodOption[]; fiscalCapabilities?: FiscalCapabilities | null; canCharge: boolean; offline: boolean; deliverySettings: DeliverySettings | null; deliveryExecutives: DeliveryExecutive[]; deliveryPlatforms?: DeliveryPlatform[]; orderTypes?: OrderTypeConfig[]; items: MenuItem[]; onClose: () => void; onOpenMenu?: () => void; onSubmit: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem?: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onCancelOrder?: (table: RestaurantTable, reason?: string) => Promise<{ queued: boolean; message: string }> }) {
   const canDelivery = roleKey === 'cajero' && permissions['orders.create'] === true
   const [mode, setMode] = useState<OrderMode>(table ? 'dine_in' : canDelivery ? 'pickup' : 'dine_in')
+  const [orderTypeModalOpen, setOrderTypeModalOpen] = useState(false)
+  const [selectedOrderTypeId, setSelectedOrderTypeId] = useState<number | undefined>(() => {
+    const defaultType = orderTypes.find(t => t.slug === (table ? 'dine_in' : canDelivery ? 'pickup' : 'dine_in'))
+    return defaultType?.id
+  })
+  const [selectedOrderTypeName, setSelectedOrderTypeName] = useState<string>(() => {
+    const defaultType = orderTypes.find(t => t.slug === (table ? 'dine_in' : canDelivery ? 'pickup' : 'dine_in'))
+    return translateOrderTypeName(defaultType?.slug, defaultType?.order_type_name || (table ? 'Comer aquí' : canDelivery ? 'Recogida' : 'Comer aquí'))
+  })
+  const [selectedDeliveryPlatformId, setSelectedDeliveryPlatformId] = useState<number | null | undefined>(null)
+  const [selectedDeliveryAppName, setSelectedDeliveryAppName] = useState<string | undefined>(undefined)
+  const [roomNumber, setRoomNumber] = useState<string>('')
+  const [customerLat, setCustomerLat] = useState<number | undefined>(undefined)
+  const [customerLng, setCustomerLng] = useState<number | undefined>(undefined)
   const [customerId, setCustomerId] = useState<number | undefined>(table?.customerId)
   const [customerName, setCustomerName] = useState(table?.customerName || '')
   const [customerPhone, setCustomerPhone] = useState(table?.customerPhone || '')
@@ -2829,7 +2846,10 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
   const [customerModalOpen, setCustomerModalOpen] = useState(false)
   const [deliveryAddress, setDeliveryAddress] = useState('')
   const [deliveryTime, setDeliveryTime] = useState('')
-  const [deliveryFee, setDeliveryFee] = useState('')
+  const defaultFee = deliverySettings?.fixed_fee != null
+    ? Number(deliverySettings.fixed_fee)
+    : (deliverySettings?.fee_tiers?.[0]?.fee ?? 150)
+  const [deliveryFee, setDeliveryFee] = useState<string>(String(defaultFee))
   const [deliveryExecutiveId, setDeliveryExecutiveId] = useState('')
   const [lines, setLines] = useState<OrderLine[]>([])
   const [existingItems, setExistingItems] = useState<Array<{ id: number; name: string; quantity: number; amount?: number }>>(() => {
@@ -2897,8 +2917,11 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
   })()
   const estimatedItbis = Math.round(total * 0.18 * 100) / 100
   const estimatedTip = mode === 'dine_in' ? Math.round(total * 0.10 * 100) / 100 : 0
-  const grandEstimatedTotal = serverTotal ?? (total + estimatedItbis + estimatedTip)
-  const deliveryReady = mode !== 'delivery' || (deliverySettings?.is_enabled === true && Boolean(customerName.trim() && customerPhone.trim() && deliveryAddress.trim()) && (deliveryFee.trim() !== '' || deliverySettings.fixed_fee != null))
+  const currentDeliveryFee = mode === 'delivery'
+    ? (deliveryFee.trim() !== '' ? Number(deliveryFee) : (deliverySettings?.fixed_fee ?? 150))
+    : 0
+  const grandEstimatedTotal = serverTotal ?? (total + estimatedItbis + estimatedTip + currentDeliveryFee)
+  const deliveryReady = mode !== 'delivery' || (Boolean(customerName.trim() && customerPhone.trim() && deliveryAddress.trim()) && (deliveryFee.trim() !== '' || deliverySettings?.fixed_fee != null || true))
   const tableReady = mode !== 'dine_in' || table !== null
   const activeElapsed = useElapsedSince(orderStartedAt(orderDetail))
   const activeOrderStatus = orderProgressLabel(latestKotStatus || orderDetail?.order_status || orderDetail?.status || orderDetail?.order?.status || table?.kitchenStatus || table?.currentOrderStatus)
@@ -3010,6 +3033,40 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
       setCustomerId(Number(orderCustId))
     }
 
+    // Sync order type, room service, delivery from order detail if available
+    const oType = (orderDetail?.order_type || orderDetail?.orderType || '').toLowerCase()
+    const customTypeName = orderDetail?.custom_order_type_name || orderDetail?.customOrderTypeName || ''
+    const deliveryAddr = orderDetail?.delivery_address || orderDetail?.deliveryAddress || ''
+    const delivFee = orderDetail?.delivery_fee ?? orderDetail?.deliveryFee
+    const delivExecutive = orderDetail?.delivery_executive_id ?? orderDetail?.deliveryExecutiveId
+    const oTypeId = orderDetail?.order_type_id ?? orderDetail?.orderTypeId
+    const dAppId = orderDetail?.delivery_app_id ?? orderDetail?.deliveryAppId
+
+    if (oType.includes('room') || customTypeName.toLowerCase().includes('habitación') || customTypeName.toLowerCase().includes('habitacion') || deliveryAddr.toLowerCase().includes('habitación') || deliveryAddr.toLowerCase().includes('habitacion')) {
+      setMode('room_service')
+      const roomMatch = (customTypeName + ' ' + deliveryAddr).match(/(\d+)/)
+      if (roomMatch && !roomNumber) {
+        setRoomNumber(roomMatch[1])
+      }
+    } else if (oType.includes('delivery') || delivFee != null || dAppId != null) {
+      setMode('delivery')
+      if (delivFee != null) setDeliveryFee(String(delivFee))
+      if (deliveryAddr && !deliveryAddress) setDeliveryAddress(deliveryAddr)
+      if (delivExecutive) setDeliveryExecutiveId(String(delivExecutive))
+      if (dAppId) setSelectedDeliveryPlatformId(Number(dAppId))
+      if (customTypeName && !selectedDeliveryAppName) setSelectedDeliveryAppName(customTypeName)
+    } else if (oType.includes('pickup') || oType.includes('recogida') || oType.includes('takeaway')) {
+      setMode('pickup')
+    }
+
+    if (oTypeId) {
+      setSelectedOrderTypeId(Number(oTypeId))
+      const matched = orderTypes.find(t => t.id === Number(oTypeId))
+      if (matched) {
+        setSelectedOrderTypeName(translateOrderTypeName(matched.slug, matched.order_type_name))
+      }
+    }
+
     const values = extractOrderItems(orderDetail)
     if (!values.length) return
     // The order detail arrives asynchronously from the API and is normalized
@@ -3020,7 +3077,7 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
       const amount = Number(item.amount ?? item.total ?? item.price ?? 0)
       return { id: Number(item.id || item.order_item_id), name: String(item.name || item.menu_item_name || item.product_name || 'Producto'), quantity, amount: amount || Number(item.price || 0) * quantity }
     }).filter(item => Number.isInteger(item.id) && item.id > 0))
-  }, [orderDetail, table?.customerRnc, table?.customerFiscalName, table?.customerName, table?.customerId, customerName, customerId])
+  }, [orderDetail, table?.customerRnc, table?.customerFiscalName, table?.customerName, table?.customerId, customerName, customerId, orderTypes])
 
   // Auto-resolve customer RNC if customer is known but RNC not yet populated
   useEffect(() => {
@@ -3092,6 +3149,12 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
     try {
       await onSubmit(lines, mode === 'dine_in' ? table : null, {
         mode,
+        orderTypeId: selectedOrderTypeId,
+        deliveryPlatformId: selectedDeliveryPlatformId,
+        deliveryAppName: selectedDeliveryAppName,
+        roomNumber: roomNumber.trim() || undefined,
+        customerLat,
+        customerLng,
         existingOrderId: mode === 'dine_in' ? table?.currentOrderId : undefined,
         customerId,
         customerName: customerName.trim() || undefined,
@@ -3101,7 +3164,7 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
         fiscalName: fiscalName.trim() || undefined,
         deliveryAddress: deliveryAddress.trim() || undefined,
         deliveryTime: deliveryTime || undefined,
-        deliveryFee: deliveryFee === '' ? deliverySettings?.fixed_fee ?? undefined : Number(deliveryFee),
+        deliveryFee: mode === 'delivery' ? currentDeliveryFee : undefined,
         deliveryExecutiveId: deliveryExecutiveId ? Number(deliveryExecutiveId) : undefined,
       })
       setLines([])
@@ -3170,6 +3233,41 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
             <button
               type="button"
               className="pos-drawer-customer-chip"
+              onClick={() => setOrderTypeModalOpen(true)}
+              title="Pulsar para cambiar tipo de servicio (habitación, entrega, comer aquí)"
+              style={{
+                background: mode === 'room_service' ? 'rgba(234, 88, 12, 0.15)' : mode === 'delivery' ? 'rgba(96, 165, 250, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                border: mode === 'room_service' ? '1px solid rgba(234, 88, 12, 0.4)' : mode === 'delivery' ? '1px solid rgba(96, 165, 250, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
+                padding: '2px 8px',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                color: mode === 'room_service' ? '#fb923c' : mode === 'delivery' ? '#60a5fa' : mode === 'pickup' ? '#c084fc' : '#5EDBAC',
+                fontWeight: 600,
+                fontSize: '0.8rem',
+                maxWidth: '48%',
+                textAlign: 'left'
+              }}
+            >
+              {mode === 'room_service' ? <Hotel size={13} style={{ color: '#fb923c', flexShrink: 0 }} /> :
+               mode === 'delivery' ? <Truck size={13} style={{ color: '#60a5fa', flexShrink: 0 }} /> :
+               mode === 'pickup' ? <ShoppingBag size={13} style={{ color: '#c084fc', flexShrink: 0 }} /> :
+               <Utensils size={13} style={{ color: '#5EDBAC', flexShrink: 0 }} />}
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {mode === 'room_service'
+                  ? (roomNumber ? `Hab. ${roomNumber}` : 'Habitación')
+                  : mode === 'delivery'
+                  ? (selectedDeliveryAppName ? `Entrega (${selectedDeliveryAppName})` : 'Entrega')
+                  : selectedOrderTypeName || (mode === 'pickup' ? 'Recogida' : 'Comer aquí')}
+              </span>
+              <Edit3 size={11} style={{ opacity: 0.7, flexShrink: 0 }} />
+            </button>
+            <span style={{ color: 'var(--pos-bg-surface-elevated)' }}>|</span>
+            <button
+              type="button"
+              className="pos-drawer-customer-chip"
               onClick={() => setCustomerModalOpen(true)}
               title="Pulsar para cambiar o actualizar cliente"
               style={{
@@ -3184,13 +3282,13 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
                 color: customerName.trim() ? '#5EDBAC' : 'var(--pos-text-secondary)',
                 fontWeight: 600,
                 fontSize: '0.8rem',
-                maxWidth: '65%',
+                maxWidth: '38%',
                 textAlign: 'left'
               }}
             >
-              <UserCircle2 size={15} style={{ flexShrink: 0, color: customerName.trim() ? '#5EDBAC' : 'var(--color-pos-primary)' }} />
+              <UserCircle2 size={14} style={{ flexShrink: 0, color: customerName.trim() ? '#5EDBAC' : 'var(--color-pos-primary)' }} />
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {customerName.trim() || 'Asignar cliente'}
+                {customerName.trim() || 'Cliente'}
               </span>
               <Edit3 size={11} style={{ opacity: 0.7, flexShrink: 0 }} />
             </button>
@@ -3405,15 +3503,47 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
             </div>
           )}
 
-          {/* Opciones de Cliente / Modo en Drawer */}
+          {/* Opciones de Tipo de Servicio y Cliente en Drawer */}
           <div style={{ marginTop: 'auto', paddingTop: 10 }}>
-            <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
               <button
                 type="button"
                 className="pos-category-chip"
                 style={{
-                  flex: 1,
-                  padding: '0.6rem 0.8rem',
+                  padding: '0.55rem 0.65rem',
+                  fontSize: '0.78rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  background: mode === 'room_service' ? 'rgba(234, 88, 12, 0.12)' : mode === 'delivery' ? 'rgba(96, 165, 250, 0.12)' : undefined,
+                  borderColor: mode === 'room_service' ? 'rgba(234, 88, 12, 0.35)' : mode === 'delivery' ? 'rgba(96, 165, 250, 0.35)' : undefined
+                }}
+                onClick={() => setOrderTypeModalOpen(true)}
+                title="Pulsar para cambiar tipo de servicio, habitación o delivery"
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {mode === 'room_service' ? <Hotel size={14} style={{ color: '#fb923c', flexShrink: 0 }} /> :
+                   mode === 'delivery' ? <Truck size={14} style={{ color: '#60a5fa', flexShrink: 0 }} /> :
+                   mode === 'pickup' ? <ShoppingBag size={14} style={{ color: '#c084fc', flexShrink: 0 }} /> :
+                   <Utensils size={14} style={{ color: '#5EDBAC', flexShrink: 0 }} />}
+                  <strong style={{ color: mode === 'room_service' ? '#fb923c' : mode === 'delivery' ? '#60a5fa' : 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {mode === 'room_service'
+                      ? (roomNumber ? `Hab. ${roomNumber}` : 'Habitación')
+                      : mode === 'delivery'
+                      ? (selectedDeliveryAppName ? `Envío: ${selectedDeliveryAppName}` : 'Entrega')
+                      : (selectedOrderTypeName || (mode === 'pickup' ? 'Recogida' : 'Comer aquí'))}
+                  </strong>
+                </span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--pos-text-secondary)', marginLeft: 4, display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+                  <Edit3 size={10} />
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className="pos-category-chip"
+                style={{
+                  padding: '0.55rem 0.65rem',
                   fontSize: '0.78rem',
                   display: 'flex',
                   alignItems: 'center',
@@ -3425,13 +3555,13 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
                 title="Pulsar para asignar, cambiar o actualizar cliente"
               >
                 <span style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  <UserCircle2 size={15} style={{ color: customerName.trim() ? '#5EDBAC' : 'var(--pos-text-secondary)', flexShrink: 0 }} />
+                  <UserCircle2 size={14} style={{ color: customerName.trim() ? '#5EDBAC' : 'var(--pos-text-secondary)', flexShrink: 0 }} />
                   <strong style={{ color: customerName.trim() ? '#5EDBAC' : 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {customerName.trim() ? `Cliente: ${customerName}` : 'Asignar cliente'}
+                    {customerName.trim() ? customerName : 'Cliente'}
                   </strong>
                 </span>
-                <span style={{ fontSize: '0.72rem', color: 'var(--pos-text-secondary)', marginLeft: 6, display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-                  <Edit3 size={11} /> {customerName.trim() ? 'Cambiar' : 'Buscar'}
+                <span style={{ fontSize: '0.7rem', color: 'var(--pos-text-secondary)', marginLeft: 4, display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+                  <Edit3 size={10} />
                 </span>
               </button>
             </div>
@@ -3465,6 +3595,12 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
               <div className="pos-summary-row">
                 <span>Propina legal (10%)</span>
                 <span>{formatMoney(estimatedTip)}</span>
+              </div>
+            )}
+            {mode === 'delivery' && currentDeliveryFee > 0 && (
+              <div className="pos-summary-row" style={{ color: '#60a5fa', fontWeight: 600 }}>
+                <span>Costo de Envío</span>
+                <span>{formatMoney(currentDeliveryFee)}</span>
               </div>
             )}
           </div>
@@ -3636,6 +3772,40 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
             }}
           />
         )}
+        <OrderTypeModal
+          isOpen={orderTypeModalOpen}
+          onClose={() => setOrderTypeModalOpen(false)}
+          onSelect={sel => {
+            setMode(sel.mode)
+            setSelectedOrderTypeId(sel.orderTypeId)
+            setSelectedOrderTypeName(sel.orderTypeName)
+            setSelectedDeliveryPlatformId(sel.deliveryPlatformId)
+            setSelectedDeliveryAppName(sel.deliveryAppName)
+            if (sel.roomNumber !== undefined) setRoomNumber(sel.roomNumber)
+            if (sel.deliveryExecutiveId !== undefined) setDeliveryExecutiveId(String(sel.deliveryExecutiveId))
+            if (sel.deliveryAddress !== undefined) setDeliveryAddress(sel.deliveryAddress)
+            if (sel.deliveryFee !== undefined) setDeliveryFee(String(sel.deliveryFee))
+            if (sel.customerLat !== undefined) setCustomerLat(sel.customerLat)
+            if (sel.customerLng !== undefined) setCustomerLng(sel.customerLng)
+          }}
+          currentSelection={{
+            mode,
+            orderTypeId: selectedOrderTypeId,
+            orderTypeName: selectedOrderTypeName,
+            deliveryPlatformId: selectedDeliveryPlatformId,
+            deliveryAppName: selectedDeliveryAppName,
+            roomNumber,
+            deliveryExecutiveId: deliveryExecutiveId ? Number(deliveryExecutiveId) : undefined,
+            deliveryAddress,
+            deliveryFee: currentDeliveryFee,
+            customerLat,
+            customerLng,
+          }}
+          orderTypes={orderTypes}
+          deliveryPlatforms={deliveryPlatforms}
+          deliveryExecutives={deliveryExecutives}
+          deliverySettings={deliverySettings}
+        />
         {cancelModalOpen && table?.currentOrderId && (
           <div className="modal-backdrop" onClick={() => !cancelling && setCancelModalOpen(false)}>
             <section className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
