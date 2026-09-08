@@ -1031,7 +1031,7 @@ function SetupScreen({
 
         <header className="brand-lockup">
           {/* Logo oficial de RestaPP Mesero; el asset se comparte con la publicación web y Windows. */}
-          <img src="/assets/restapp-logo.png" alt="RestaPP" className="brand-logo" />
+          <img src="/assets/restapp-logo-20260908.png" alt="RestaPP" className="brand-logo" />
           <div>
             <div className="brand-name">Resta<span>PP</span></div>
             <div className="brand-subtitle">RESTAURANTES · HOTELES · BARES</div>
@@ -1077,7 +1077,7 @@ function SetupScreen({
           </div>
 
           <div className="card-brand">
-            <img src="/assets/restapp-logo.png" alt="RestaPP" />
+            <img src="/assets/restapp-logo-20260908.png" alt="RestaPP" />
             <div className="card-brand-name">Resta<span>PP</span></div>
             <div className="card-brand-subtitle">AUTORIZACIÓN DE TERMINAL</div>
           </div>
@@ -1298,7 +1298,7 @@ function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error,
         <div className="hero-overlay" />
 
         <header className="brand-lockup">
-          <img src="/assets/restapp-logo.png" alt={brand || 'RestaPP'} className="brand-logo" />
+          <img src="/assets/restapp-logo-20260908.png" alt={brand || 'RestaPP'} className="brand-logo" />
           <div>
             {brand && brand.trim().toLowerCase() !== 'restapp' ? (
               <>
@@ -1359,7 +1359,7 @@ function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error,
           </div>
 
           <div className="card-brand">
-            <img src="/assets/restapp-logo.png" alt={brand || 'RestaPP'} />
+            <img src="/assets/restapp-logo-20260908.png" alt={brand || 'RestaPP'} />
             {brand && brand.trim().toLowerCase() !== 'restapp' ? (
               <>
                 <div className="card-brand-name brand-linked">{brand.toUpperCase()}</div>

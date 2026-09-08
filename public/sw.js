@@ -1,16 +1,16 @@
 /* global self, caches, URL, fetch */
 
-const CACHE_VERSION = 'mesero-shell-v5'
+const CACHE_VERSION = 'mesero-shell-v6'
 const SHELL = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
-  '/branding/mesero-app-icon.png',
+  '/branding/mesero-app-icon-20260908.png',
   '/favicon.ico',
-  '/favicon.png',
-  '/icons/mesero-192.png',
-  '/icons/mesero-512.png',
-  '/icons/mesero-1024.png',
+  '/favicon-20260908.png',
+  '/icons/mesero-192-20260908.png',
+  '/icons/mesero-512-20260908.png',
+  '/icons/mesero-1024-20260908.png',
   '/sounds/bell.mp3',
   '/sounds/service-bell.mp3',
   '/sounds/service-bell-strikes.mp3',
