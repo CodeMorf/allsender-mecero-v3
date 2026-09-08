@@ -91,11 +91,10 @@ export interface RoutePrintResult {
 
 /**
  * Enrutador Dinámico de Impresión:
- * 1. Si el modo es 'windows_local', imprime directo a la impresora de Windows vía iframe térmico (80mm/58mm).
+ * 1. Si el modo es 'windows_local', usa el fallback local del navegador (80mm/58mm).
  * 2. Si el modo es 'server_agent', envía la orden al backend (desktop agent).
- * 3. Si el modo es 'auto' (Híbrido Inteligente):
- *    - Si se provee callback de backend y estamos online, despacha al backend.
- *    - Simultáneamente o ante cualquier contingencia, dispara la impresión local de Windows para garantizar que la máquina física jamás se quede sin ticket.
+ * 3. Si el modo es 'auto': usa primero el backend, que es la fuente oficial del
+ *    diseño del POS; solo abre el diálogo local si el backend no está disponible.
  */
 export async function routePrintReceipt(
   data: ThermalReceiptData,
@@ -145,28 +144,28 @@ export async function routePrintReceipt(
     }
   }
 
-  // 3. Modo AUTO (Híbrido Inteligente)
-  // Intenta enviar al backend si está disponible (para que el servidor guarde registro de print_jobs),
-  // y SIEMPRE ejecuta la impresión térmica local de Windows para que el equipo que está cobrando saque el ticket físico.
-  let backendSuccess = false
+  // 3. Modo AUTO: el backend es la fuente oficial y evita abrir una segunda
+  // ventana cuando el agente ya recibió el comprobante.
   if (options?.sendToBackend && navigator.onLine) {
     try {
       await options.sendToBackend()
-      backendSuccess = true
+      return {
+        method: 'server_agent',
+        success: true,
+        message: 'Comprobante enviado a la cola del servidor para el Agente de Impresión.',
+      }
     } catch (e) {
-      console.info('Backend direct print no disponible o sin agente activo; usando impresión local:', e)
+      console.info('Backend direct print no disponible; usando impresión local como fallback:', e)
     }
   }
 
-  // Ejecutamos impresión local de Windows
+  // Solo se ejecuta si no se pudo encolar el comprobante oficial.
   printThermalCustomerReceipt(data, config)
 
   return {
-    method: backendSuccess ? 'server_agent' : 'windows_local',
+    method: 'fallback_local',
     success: true,
-    message: backendSuccess
-      ? 'Ticket registrado en servidor y emitido en impresora local de Windows.'
-      : 'Ticket emitido en la impresora local de Windows.',
+    message: 'Servidor no respondió; comprobante emitido en la impresora local de Windows como contingencia.',
   }
 }
 

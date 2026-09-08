@@ -209,6 +209,7 @@ export default function App() {
   const [isSyncing, setIsSyncing] = useState(false)
   const deviceId = useMemo(() => getDeviceId(), [])
   const syncInFlight = useRef<Promise<void> | null>(null)
+  const workflowRuns = useRef<Map<string, Promise<{ remoteOrderId?: number; firstResponse?: unknown }>>>(new Map())
   const pinSessionRef = useRef<Session | null>(null)
 
   useEffect(() => { pinSessionRef.current = pinSession }, [pinSession])
@@ -519,12 +520,23 @@ export default function App() {
     return { remoteOrderId: workflow.remoteOrderId, firstResponse }
   }
 
+  function executeWorkflowOnce(operation: OfflineOperation) {
+    const current = workflowRuns.current.get(operation.id)
+    if (current) return current
+
+    const run = executeWorkflow(operation).finally(() => {
+      workflowRuns.current.delete(operation.id)
+    })
+    workflowRuns.current.set(operation.id, run)
+    return run
+  }
+
   async function queueAndRun(operation: OfflineOperation) {
     await enqueue(operation)
     setQueueCount((await safeOutbox()).length)
     if (navigator.onLine && api.getToken('pin')) {
       try {
-        const res = await executeWorkflow(operation)
+        const res = await executeWorkflowOnce(operation)
         setQueueCount((await safeOutbox()).length)
         return res
       } catch (err) {
@@ -555,7 +567,7 @@ export default function App() {
         const operations = await safeOutbox(); setQueueCount(operations.length)
         let processed = 0
         for (const operation of operations) {
-          try { await executeWorkflow(operation); processed++ }
+          try { await executeWorkflowOnce(operation); processed++ }
           catch { break }
         }
         const remaining = await safeOutbox(); setQueueCount(remaining.length)
