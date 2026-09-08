@@ -15,6 +15,8 @@ export interface ZReportData {
   cashIn: number
   cashOut: number
   safeDrops?: number
+  refunds?: number
+  changeGiven?: number
   expectedCash: number
   countedCash: number
   discrepancy: number
@@ -267,6 +269,16 @@ export function printThermalZReport(data: ZReportData, config?: StationPrinterCo
   <div class="row">
     <span class="row-label">(-) Caja Fuerte:</span>
     <span class="row-val">${fmt(data.safeDrops)}</span>
+  </div>` : ''}
+  ${data.changeGiven && data.changeGiven > 0 ? `
+  <div class="row">
+    <span class="row-label">(-) Cambio entregado:</span>
+    <span class="row-val">${fmt(data.changeGiven)}</span>
+  </div>` : ''}
+  ${data.refunds && data.refunds > 0 ? `
+  <div class="row">
+    <span class="row-label">(-) Reembolsos:</span>
+    <span class="row-val">${fmt(data.refunds)}</span>
   </div>` : ''}
 
   <div class="double"></div>

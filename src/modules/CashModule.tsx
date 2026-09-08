@@ -47,6 +47,9 @@ export interface CashSummary {
   cash_in: number
   cash_out: number
   safe_drop: number
+  safe_drops?: number
+  refunds?: number
+  change_given?: number
   expected_cash: number
   total_sales: number
   orders_count: number
@@ -117,18 +120,24 @@ export const CashModule: React.FC<CashModuleProps> = ({
     sumTotals.cash_out ?? sumTotals.cash_out_total ?? (activeSession as any)?.cash_out_total ?? 0
   )
   const effectiveSafeDrops = Number(
-    sumTotals.safe_drops ?? sumTotals.safe_drops_total ?? (activeSession as any)?.safe_drops_total ?? 0
+    sumTotals.safe_drops ?? sumTotals.safe_drop ?? sumTotals.safe_drops_total ?? (activeSession as any)?.safe_drops_total ?? 0
+  )
+  const effectiveRefunds = Number(
+    sumTotals.refunds ?? sumTotals.refunds_total ?? (activeSession as any)?.refunds_total ?? 0
+  )
+  const effectiveChangeGiven = Number(
+    sumTotals.change_given ?? sumTotals.change_given_total ?? (activeSession as any)?.change_given_total ?? 0
   )
   const effectiveOpeningFloat = Number(
     sumTotals.opening_float ?? (activeSession as any)?.opening_float ?? 0
   )
-  const effectiveRunningTotal = Number(
-    sumTotals.running_total ?? (activeSession as any)?.running_total ?? 0
+  const calculatedExpected = effectiveOpeningFloat + effectiveCashSales + effectiveCashIn - effectiveCashOut - effectiveSafeDrops - effectiveRefunds - effectiveChangeGiven
+  const persistedExpectedCash = Number(
+    sumTotals.expected_cash ?? (activeSummary as any)?.expected_cash ?? (activeSession as any)?.expected_cash ?? calculatedExpected
   )
-  const calculatedExpected = effectiveOpeningFloat + effectiveCashSales + effectiveCashIn - effectiveCashOut - effectiveSafeDrops
-  const effectiveExpectedCash = effectiveRunningTotal > 0
-    ? effectiveRunningTotal
-    : (Number(activeSummary?.expected_cash) > 0 ? Number(activeSummary?.expected_cash) : calculatedExpected)
+  // An open session is always reconciled from its transactions. The persisted
+  // running amount can be stale when another terminal records a payment.
+  const effectiveExpectedCash = isOpen ? calculatedExpected : persistedExpectedCash
 
   // Format helper
   function fmt(val: number | string | undefined): string {
@@ -589,8 +598,12 @@ export const CashModule: React.FC<CashModuleProps> = ({
                   <strong>{fmt(effectiveCashIn)}</strong>
                 </div>
                 <div className="summary-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>Adelantos / Egresos (-):&nbsp;</span>
+                  <span>Salidas / caja fuerte (-):&nbsp;</span>
                   <strong>{fmt(effectiveCashOut + effectiveSafeDrops)}</strong>
+                </div>
+                <div className="summary-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Cambios / reembolsos (-):&nbsp;</span>
+                  <strong>{fmt(effectiveChangeGiven + effectiveRefunds)}</strong>
                 </div>
                 <div className="summary-row total-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span>Efectivo esperado en caja:&nbsp;</span>
@@ -616,14 +629,13 @@ export const CashModule: React.FC<CashModuleProps> = ({
               {countedCash !== '' && (
                 <div className="posdan-discrepancy-badge">
                   {(() => {
-                    const expectedCash = activeSummary?.expected_cash ?? (Number(activeSession.opening_float) || 0)
-                    const diff = parseFloat(countedCash) - expectedCash
+                    const diff = parseFloat(countedCash) - effectiveExpectedCash
                     if (Math.abs(diff) < 0.01) {
                       return <span className="diff-ok"><CheckCircle2 size={16} /> Caja cuadrada exactamente (Sin diferencia)</span>
                     } else if (diff > 0) {
-                      return <span className="diff-sobrante"><AlertTriangle size={16} /> Sobrante en caja: +{fmt(diff)}</span>
+                      return <span className="diff-sobrante"><AlertTriangle size={16} /> Sobrante en caja: +{fmt(Math.abs(diff))}</span>
                     } else {
-                      return <span className="diff-faltante"><AlertTriangle size={16} /> Faltante en caja: {fmt(diff)}</span>
+                      return <span className="diff-faltante"><AlertTriangle size={16} /> Faltante en caja: -{fmt(Math.abs(diff))}</span>
                     }
                   })()}
                 </div>

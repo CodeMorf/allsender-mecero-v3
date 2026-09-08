@@ -1731,6 +1731,50 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
     loadPosDanData()
   }, [offline])
 
+  // Cash summaries must reflect payments made by another terminal without
+  // forcing the cashier to press F5. Poll only the small cash endpoints while
+  // this module is visible; the broader POS hydration remains user-triggered.
+  useEffect(() => {
+    if (activeNavTab !== 'cash' || offline) return
+
+    let cancelled = false
+    let requestInFlight = false
+
+    const refreshCashSummary = async () => {
+      if (cancelled || requestInFlight || document.visibilityState === 'hidden') return
+      requestInFlight = true
+      try {
+        const session = await api.activeCashSession('pin')
+        if (cancelled) return
+        setActiveCashSession(session)
+
+        if (session?.id) {
+          const summary = await api.cashSessionSummary('pin', session.id)
+          if (!cancelled) setActiveCashSummary(summary)
+        } else if (!cancelled) {
+          setActiveCashSummary(null)
+        }
+      } catch {
+        // Keep the last good values during a transient network/API failure.
+      } finally {
+        requestInFlight = false
+      }
+    }
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void refreshCashSummary()
+    }
+
+    void refreshCashSummary()
+    const timer = window.setInterval(() => void refreshCashSummary(), 3_000)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [activeNavTab, offline])
+
   return (
     <div className="pos-app-shell">
       {/* 1. System Status Bar (Enterprise POS Top Bar) */}
@@ -2207,7 +2251,9 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
                         onNotice(queued?.message || 'Cierre enviado a la impresora configurada de la sucursal.')
                         return
                       } catch (serverError) {
-                        console.warn('No se pudo encolar el reporte de caja; se usará la impresión del navegador.', serverError)
+                        console.error('No se pudo encolar el reporte de caja en la impresora configurada.', serverError)
+                        onNotice('No se pudo enviar el reporte a la impresora configurada. Revise la impresora y vuelva a intentarlo.')
+                        return
                       }
                     }
 
@@ -2229,7 +2275,9 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
                     const cashIn = Number(totals.cash_in ?? totals.cash_in_total ?? sess?.cash_in_total ?? 0)
                     const cashOut = Number(totals.cash_out ?? totals.cash_out_total ?? sess?.cash_out_total ?? 0)
                     const safeDrops = Number(totals.safe_drops ?? totals.safe_drops_total ?? sess?.safe_drops_total ?? 0)
-                    const expected = Number(sess?.expected_cash ?? totals.expected_cash ?? (openingFloat + cashSales + cashIn - cashOut - safeDrops))
+                    const refunds = Number(totals.refunds ?? totals.refunds_total ?? sess?.refunds_total ?? 0)
+                    const changeGiven = Number(totals.change_given ?? totals.change_given_total ?? sess?.change_given_total ?? 0)
+                    const expected = Number(sess?.expected_cash ?? totals.expected_cash ?? (openingFloat + cashSales + cashIn - cashOut - safeDrops - refunds - changeGiven))
                     const counted = Number(sess?.counted_cash ?? expected)
                     const discrepancy = Number(sess?.discrepancy ?? (counted - expected))
 
@@ -2248,6 +2296,8 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
                       cashIn,
                       cashOut,
                       safeDrops,
+                      refunds,
+                      changeGiven,
                       expectedCash: expected,
                       countedCash: counted,
                       discrepancy,
