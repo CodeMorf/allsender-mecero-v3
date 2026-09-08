@@ -1,9 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { api, ApiError, normalizeAttendance } from './api/client'
-import type { AttendanceRecord, Branch, DeliveryExecutive, DeliverySettings, DeviceBinding, FiscalCapabilities, KitchenPlace, KitchenTicket, KitchenView, MenuItem, ModifierGroup, ModifierOption, NotificationSettings, OfflineOperation, OfflineStep, OfflineWorkflow, OrderDraft, OrderLine, OrderMode, PaymentMethodOption, ProductVariation, RestaurantTable, Session, StaffRole, WaiterRequest } from './types'
+import type { AttendanceRecord, Branch, DeliveryExecutive, DeliverySettings, DeviceBinding, FiscalCapabilities, KitchenPlace, KitchenTicket, KitchenView, MenuItem, ModifierGroup, ModifierOption, NotificationSettings, OfflineOperation, OfflineStep, OfflineWorkflow, OrderDraft, OrderLine, OrderMode, PaymentMethodOption, PosCustomer, ProductVariation, RestaurantTable, Session, StaffRole, WaiterRequest } from './types'
 import { clearSession, enqueue, getDeviceId, getStorageScope, listOutbox, newIdempotencyKey, readCache, readSession, removeOutbox, saveCache, saveSession, setStorageScope, updateOutbox } from './storage/offline'
 import { CustomerModal } from './CustomerModal'
+import { PosDanSidebar, PosDanModule } from './components/PosDanSidebar'
+import { PosModule } from './modules/PosModule'
+import { CashModule } from './modules/CashModule'
+import { InvoicesModule } from './modules/InvoicesModule'
+import { CustomersModule } from './modules/CustomersModule'
+import { ProductsModule } from './modules/ProductsModule'
+import { InventoryModule } from './modules/InventoryModule'
+import { AnalyticsModule } from './modules/AnalyticsModule'
+import { DiscountsModule } from './modules/DiscountsModule'
+import { ReturnsModule } from './modules/ReturnsModule'
+import { UsersModule } from './modules/UsersModule'
+import { SettingsModule } from './modules/SettingsModule'
 import { ArrowRightLeft, Banknote, BatteryCharging, BedDouble, Bell, BookOpen, CalendarDays, Check, ChefHat, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, CloudLightning, CloudOff, Clock, Coffee, CreditCard, Delete, Divide, Edit3, FileText, Flame, Globe2, History, LayoutGrid, Lock, LogOut, Map as LucideMap, Martini, Minus, Moon, Plus, Printer, Receipt, Search, Send, ShieldCheck, SlidersHorizontal, ShoppingCart, Sun, Trash2, Unlock, UserCheck, UserCircle2, UserRound, Users, UserX, Utensils, UtensilsCrossed, Wallet, Wifi, X, XCircle } from 'lucide-react'
 
 import { Capacitor } from '@capacitor/core'
@@ -1594,7 +1606,16 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
     return () => window.removeEventListener('restapp:open-waiter-alerts', openWaiterAlerts)
   }, [])
   // Enterprise POS Layout State
-  const [activeNavTab, setActiveNavTab] = useState<'tables' | 'menu' | 'cashier' | 'ops'>('tables')
+  const [activeNavTab, setActiveNavTab] = useState<PosDanModule>('tables')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [posCustomers, setPosCustomers] = useState<PosCustomer[]>([])
+  const [selectedPosCustomer, setSelectedPosCustomer] = useState<PosCustomer | null>(null)
+  const [customerModalOpen, setCustomerModalOpen] = useState(false)
+  const [cashRegisters, setCashRegisters] = useState<any[]>([])
+  const [activeCashSession, setActiveCashSession] = useState<any | null>(null)
+  const [activeCashSummary, setActiveCashSummary] = useState<any | null>(null)
+  const [cashLoading, setCashLoading] = useState(false)
+  const [allOrders, setAllOrders] = useState<any[]>([])
   const [productSearch, setProductSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('Todos')
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
@@ -1624,6 +1645,33 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
   const totalFreeTables = useMemo(() => tables.filter(t => t.status === 'available').length, [tables])
   const totalOccupiedTables = useMemo(() => tables.filter(t => t.status === 'occupied' || t.status === 'waiting_kitchen' || t.status === 'food_ready').length, [tables])
   const totalBillTables = useMemo(() => tables.filter(t => t.status === 'bill_requested').length, [tables])
+
+  // Load POS data on mount / refresh
+  const loadPosDanData = async () => {
+    try {
+      if (!offline) {
+        const [custs, regs, actSess, ords] = await Promise.all([
+          api.customers('pin').catch(() => []),
+          api.cashRegisters('pin').catch(() => []),
+          api.activeCashSession('pin').catch(() => null),
+          api.orders('pin').catch(() => [])
+        ])
+        setPosCustomers(custs)
+        setCashRegisters(regs)
+        setActiveCashSession(actSess)
+        setAllOrders(ords)
+        if (actSess && actSess.id) {
+          api.cashSessionSummary('pin', actSess.id).then(setActiveCashSummary).catch(() => {})
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  useEffect(() => {
+    loadPosDanData()
+  }, [offline])
 
   return (
     <div className="pos-app-shell">
@@ -1716,74 +1764,27 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
 
       {/* 2. Main POS Application Layout with Sidebar + View Layers */}
       <div className="pos-app-layout">
-        {/* Left Sidebar (Desktop fixed left 82px / Mobile bottom bar) */}
-        <nav className="pos-main-sidebar" aria-label="Navegación principal">
-          <div className="pos-sidebar-logo">
-            <ChefHat size={26} color="#ffffff" />
-          </div>
-
-          <div className="pos-sidebar-nav">
-            <button
-              type="button"
-              className={`pos-nav-btn ${activeNavTab === 'tables' ? 'active' : ''}`}
-              onClick={() => setActiveNavTab('tables')}
-              title="Salón Principal"
-            >
-              <LayoutGrid className="nav-icon" />
-              <span className="nav-label">SALÓN</span>
-            </button>
-
-            <button
-              type="button"
-              className={`pos-nav-btn ${activeNavTab === 'menu' ? 'active' : ''}`}
-              onClick={() => setActiveNavTab('menu')}
-              title="Catálogo de Menú"
-            >
-              <BookOpen className="nav-icon" />
-              <span className="nav-label">MENÚ</span>
-            </button>
-
-            <button
-              type="button"
-              className={`pos-nav-btn ${activeNavTab === 'cashier' ? 'active' : ''}`}
-              onClick={() => {
-                if (canCashier) setShowCashier(true)
-                else setShowOps(true)
-              }}
-              title="Módulo de Caja"
-            >
-              <Banknote className="nav-icon" />
-              <span className="nav-label">CAJA</span>
-              <span className="active-indicator-dot" />
-            </button>
-
-            <button
-              type="button"
-              className={`pos-nav-btn ${activeNavTab === 'ops' ? 'active' : ''}`}
-              onClick={() => setShowOps(true)}
-              title="Avisos y Operaciones"
-            >
-              <History className="nav-icon" />
-              <span className="nav-label">AVISOS</span>
-              {unreadNotifications > 0 && (
-                <span className="notification-badge" style={{ position: 'absolute', top: 4, right: 8 }}>
-                  {unreadNotifications}
-                </span>
-              )}
-            </button>
-          </div>
-
-          <div className="pos-sidebar-profile">
-            <button
-              type="button"
-              className="pos-profile-avatar"
-              onClick={onLogout}
-              title={`Cerrar sesión · ${roleLabel(roleKey)}`}
-            >
-              <LogOut size={18} />
-            </button>
-          </div>
-        </nav>
+        {/* POSDAN Professional Sidebar */}
+        <PosDanSidebar
+          activeModule={activeNavTab}
+          onSelectModule={(mod) => {
+            setActiveNavTab(mod)
+            if (mod === 'kds') setShowKitchen(true)
+            if (mod === 'cash') setShowCashier(true)
+            if (mod === 'users') setShowAttendance(true)
+          }}
+          userName={roleLabel(roleKey)}
+          roleKey={roleKey}
+          brandName={brand || 'RestaPP'}
+          permissions={permissions}
+          theme={theme}
+          onToggleTheme={onTheme}
+          onLogout={onLogout}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+          kdsPendingCount={0}
+          waiterCallsCount={waiterRequests.length}
+        />
 
         {/* Main Content Area: Vistas con transición */}
         <main className="pos-main-content">
@@ -2037,6 +2038,167 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
               })}
             </div>
           </div>
+
+          {/* VIEW: POS DIRECT SALE */}
+          {activeNavTab === 'pos' && (
+            <div className="pos-view-layer view-active">
+              <PosModule
+                menuItems={items}
+                tables={tables}
+                customers={posCustomers}
+                selectedCustomer={selectedPosCustomer}
+                onSelectCustomer={setSelectedPosCustomer}
+                onOpenCustomerModal={() => setCustomerModalOpen(true)}
+                onCheckout={async (orderData) => {
+                  try {
+                    const lines = orderData.items.map((i: any) => ({
+                      id: String(i.id),
+                      name: i.name,
+                      price: i.price,
+                      quantity: i.quantity,
+                      taxRate: 0.18,
+                      notes: i.notes
+                    }))
+                    const draft = {
+                      mode: orderData.mode,
+                      discountPercent: orderData.discountPercent,
+                      discountAmount: orderData.discountAmount,
+                      notes: orderData.notes,
+                      deliveryAddress: orderData.deliveryAddress
+                    }
+                    const tableObj = orderData.tableId ? tables.find(t => t.id === orderData.tableId) || null : null
+                    await onSubmitOrder(lines, tableObj, draft)
+                    await loadPosDanData()
+                  } catch (e: any) {
+                    alert(e?.message || 'Error al procesar pedido')
+                  }
+                }}
+                roleKey={roleKey}
+              />
+            </div>
+          )}
+
+          {/* VIEW: CASH REGISTER / SHIFTS */}
+          {activeNavTab === 'cash' && (
+            <div className="pos-view-layer view-active">
+              <CashModule
+                registers={cashRegisters}
+                activeSession={activeCashSession}
+                activeSummary={activeCashSummary}
+                currentCashierName={roleLabel(roleKey)}
+                roleKey={roleKey}
+                currencySymbol="RD$"
+                loading={cashLoading}
+                onRefresh={async () => {
+                  setCashLoading(true)
+                  try {
+                    await loadPosDanData()
+                  } finally {
+                    setCashLoading(false)
+                  }
+                }}
+                onOpenSession={async (registerId, openingFloat, note) => {
+                  await onOpenCashSession(registerId, openingFloat, note, newIdempotencyKey())
+                  await loadPosDanData()
+                }}
+                onCloseSession={async (sessionId, countedCash, expectedCash, note, sendForApproval) => {
+                  await onCloseCashSession(sessionId, countedCash, expectedCash, note, sendForApproval, newIdempotencyKey())
+                  await loadPosDanData()
+                }}
+                onCashMovement={async (type, amount, reason) => {
+                  if (!activeCashSession?.id) return
+                  await onCashMovement(type, activeCashSession.id, amount, reason, newIdempotencyKey())
+                  await loadPosDanData()
+                }}
+                onFetchHistory={async () => {
+                  try {
+                    const res = await api.request<any>('/pos/cash-register/sessions/history', { tokenKind: 'pin' })
+                    const list = res?.data || res?.sessions || res || []
+                    return Array.isArray(list) ? list : []
+                  } catch {
+                    return []
+                  }
+                }}
+                onPrintReport={() => window.print()}
+              />
+            </div>
+          )}
+
+          {/* VIEW: INVOICES */}
+          {activeNavTab === 'invoices' && (
+            <div className="pos-view-layer view-active">
+              <InvoicesModule
+                orders={allOrders}
+                onPrintInvoice={(orderId) => {
+                  onPrintPreBill(orderId, newIdempotencyKey()).catch(() => {})
+                  window.print()
+                }}
+              />
+            </div>
+          )}
+
+          {/* VIEW: CUSTOMERS */}
+          {activeNavTab === 'customers' && (
+            <div className="pos-view-layer view-active">
+              <CustomersModule
+                customers={posCustomers}
+                onOpenCustomerModal={() => setCustomerModalOpen(true)}
+                onEditCustomer={(cust) => {
+                  setSelectedPosCustomer(cust)
+                  setCustomerModalOpen(true)
+                }}
+              />
+            </div>
+          )}
+
+          {/* VIEW: PRODUCTS */}
+          {activeNavTab === 'products' && (
+            <div className="pos-view-layer view-active">
+              <ProductsModule menuItems={items} />
+            </div>
+          )}
+
+          {/* VIEW: INVENTORY */}
+          {activeNavTab === 'inventory' && (
+            <div className="pos-view-layer view-active">
+              <InventoryModule menuItems={items} />
+            </div>
+          )}
+
+          {/* VIEW: ANALYTICS */}
+          {activeNavTab === 'analytics' && (
+            <div className="pos-view-layer view-active">
+              <AnalyticsModule orders={allOrders} />
+            </div>
+          )}
+
+          {/* VIEW: DISCOUNTS */}
+          {activeNavTab === 'discounts' && (
+            <div className="pos-view-layer view-active">
+              <DiscountsModule />
+            </div>
+          )}
+
+          {/* VIEW: RETURNS */}
+          {activeNavTab === 'returns' && (
+            <div className="pos-view-layer view-active">
+              <ReturnsModule />
+            </div>
+          )}
+
+          {/* VIEW: USERS */}
+          {activeNavTab === 'users' && (
+            <div className="pos-view-layer view-active">
+              <UsersModule />
+            </div>
+          )}
+
+          {/* VIEW: SETTINGS */}
+          {activeNavTab === 'settings' && (
+            <div className="pos-view-layer view-active">
+              <SettingsModule onTestPrint={() => window.print()} />
+            </div>
+          )}
         </main>
 
         {/* 3. Right Enterprise Order Drawer (Slide over on Mobile, column on Desktop) */}
