@@ -105,6 +105,31 @@ export const CashModule: React.FC<CashModuleProps> = ({
 
   const isOpen = activeSession && activeSession.status === 'open'
 
+  // Normalización robusta de totales desde activeSummary (API retorna totals: { ... }), activeSession o raíz
+  const sumTotals = (activeSummary as any)?.totals || activeSummary || {}
+  const effectiveCashSales = Number(
+    sumTotals.cash_sales ?? sumTotals.cash_sales_total ?? (activeSession as any)?.cash_sales_total ?? 0
+  )
+  const effectiveCashIn = Number(
+    sumTotals.cash_in ?? sumTotals.cash_in_total ?? (activeSession as any)?.cash_in_total ?? 0
+  )
+  const effectiveCashOut = Number(
+    sumTotals.cash_out ?? sumTotals.cash_out_total ?? (activeSession as any)?.cash_out_total ?? 0
+  )
+  const effectiveSafeDrops = Number(
+    sumTotals.safe_drops ?? sumTotals.safe_drops_total ?? (activeSession as any)?.safe_drops_total ?? 0
+  )
+  const effectiveOpeningFloat = Number(
+    sumTotals.opening_float ?? (activeSession as any)?.opening_float ?? 0
+  )
+  const effectiveRunningTotal = Number(
+    sumTotals.running_total ?? (activeSession as any)?.running_total ?? 0
+  )
+  const calculatedExpected = effectiveOpeningFloat + effectiveCashSales + effectiveCashIn - effectiveCashOut - effectiveSafeDrops
+  const effectiveExpectedCash = effectiveRunningTotal > 0
+    ? effectiveRunningTotal
+    : (Number(activeSummary?.expected_cash) > 0 ? Number(activeSummary?.expected_cash) : calculatedExpected)
+
   // Format helper
   function fmt(val: number | string | undefined): string {
     const num = Number(val || 0)
@@ -181,7 +206,7 @@ export const CashModule: React.FC<CashModuleProps> = ({
     setActionLoading(true)
     setActionError('')
     try {
-      const expected = activeSummary?.expected_cash ?? (Number(activeSession.opening_float) || 0)
+      const expected = effectiveExpectedCash
       const hasDiscrepancy = Math.abs(counted - expected) > 0.01
       await onCloseSession(activeSession.id, counted, expected, closingNote, hasDiscrepancy)
       if (onPrintReport) {
@@ -282,36 +307,36 @@ export const CashModule: React.FC<CashModuleProps> = ({
           {isOpen ? (
             <>
               <div className="posdan-reg-meta-rows">
-                <div className="posdan-meta-row">
-                  <span className="meta-label">Cajero activo:</span>
+                <div className="posdan-meta-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                  <span className="meta-label">Cajero activo:&nbsp;</span>
                   <span className="meta-value bold">{currentCashierName || activeSession.opened_by_user?.name || 'Cajero'}</span>
                 </div>
-                <div className="posdan-meta-row">
-                  <span className="meta-label">Apertura:</span>
-                  <span className="meta-value green-text bold">{fmt(activeSession.opening_float)}</span>
+                <div className="posdan-meta-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                  <span className="meta-label">Apertura:&nbsp;</span>
+                  <span className="meta-value green-text bold">{fmt(effectiveOpeningFloat)}</span>
                 </div>
-                <div className="posdan-meta-row">
-                  <span className="meta-label">Desde:</span>
+                <div className="posdan-meta-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                  <span className="meta-label">Desde:&nbsp;</span>
                   <span className="meta-value muted-time">{formatTime(activeSession.opened_at)}</span>
                 </div>
 
                 {isOpen && (
-                  <div className="posdan-reg-summary-strip">
-                    <div className="summary-chip">
-                      <small>Ventas Efectivo</small>
-                      <strong>{fmt(activeSummary?.cash_sales ?? 0)}</strong>
+                  <div className="posdan-reg-summary-strip" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <div className="summary-chip" style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      <small className="summary-chip-label">Ventas Efectivo</small>
+                      <strong className="summary-chip-value">{fmt(effectiveCashSales)}</strong>
                     </div>
-                    <div className="summary-chip">
-                      <small>Ingresos (+)</small>
-                      <strong>{fmt(activeSummary?.cash_in ?? 0)}</strong>
+                    <div className="summary-chip" style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      <small className="summary-chip-label">Ingresos (+)</small>
+                      <strong className="summary-chip-value">{fmt(effectiveCashIn)}</strong>
                     </div>
-                    <div className="summary-chip">
-                      <small>Adelantos (-)</small>
-                      <strong>{fmt(activeSummary?.cash_out ?? 0)}</strong>
+                    <div className="summary-chip" style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      <small className="summary-chip-label">Adelantos (-)</small>
+                      <strong className="summary-chip-value">{fmt(effectiveCashOut + effectiveSafeDrops)}</strong>
                     </div>
-                    <div className="summary-chip highlight">
-                      <small>En Caja Estimado</small>
-                      <strong>{fmt(activeSummary?.expected_cash ?? (Number(activeSession.opening_float) || 0))}</strong>
+                    <div className="summary-chip highlight" style={{ display: 'flex', flexDirection: 'column', gap: '3px', gridColumn: 'span 2' }}>
+                      <small className="summary-chip-label">En Caja Estimado</small>
+                      <strong className="summary-chip-value">{fmt(effectiveExpectedCash)}</strong>
                     </div>
                   </div>
                 )}
@@ -537,27 +562,27 @@ export const CashModule: React.FC<CashModuleProps> = ({
 
             <form onSubmit={handleCloseSubmit}>
               <div className="posdan-close-summary-card">
-                  <div className="summary-row">
-                    <span>Fondo de apertura:</span>
-                    <strong>{fmt(activeSummary?.opening_float ?? activeSession.opening_float)}</strong>
-                  </div>
-                  <div className="summary-row">
-                    <span>Ventas en efectivo (+):</span>
-                    <strong>{fmt(activeSummary?.cash_sales ?? 0)}</strong>
-                  </div>
-                  <div className="summary-row">
-                    <span>Ingresos manuales (+):</span>
-                    <strong>{fmt(activeSummary?.cash_in ?? 0)}</strong>
-                  </div>
-                  <div className="summary-row">
-                    <span>Adelantos / Egresos (-):</span>
-                    <strong>{fmt(activeSummary?.cash_out ?? 0)}</strong>
-                  </div>
-                  <div className="summary-row total-row">
-                    <span>Efectivo esperado en caja:</span>
-                    <strong className="orange-text">{fmt(activeSummary?.expected_cash ?? (Number(activeSession.opening_float) || 0))}</strong>
-                  </div>
+                <div className="summary-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Fondo de apertura:&nbsp;</span>
+                  <strong>{fmt(effectiveOpeningFloat)}</strong>
                 </div>
+                <div className="summary-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Ventas en efectivo (+):&nbsp;</span>
+                  <strong>{fmt(effectiveCashSales)}</strong>
+                </div>
+                <div className="summary-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Ingresos manuales (+):&nbsp;</span>
+                  <strong>{fmt(effectiveCashIn)}</strong>
+                </div>
+                <div className="summary-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Adelantos / Egresos (-):&nbsp;</span>
+                  <strong>{fmt(effectiveCashOut + effectiveSafeDrops)}</strong>
+                </div>
+                <div className="summary-row total-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Efectivo esperado en caja:&nbsp;</span>
+                  <strong className="orange-text">{fmt(effectiveExpectedCash)}</strong>
+                </div>
+              </div>
 
               <div className="posdan-form-group">
                 <label>EFECTIVO CONTADO EN CAJA</label>

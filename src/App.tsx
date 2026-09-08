@@ -1696,7 +1696,14 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
         if (delExecs) setDeliveryExecutives(delExecs)
         if (delSets) setDeliverySettings(delSets)
         if (actSess && actSess.id) {
-          api.cashSessionSummary('pin', actSess.id).then(setActiveCashSummary).catch(() => {})
+          try {
+            const summary = await api.cashSessionSummary('pin', actSess.id)
+            setActiveCashSummary(summary)
+          } catch {
+            setActiveCashSummary(null)
+          }
+        } else {
+          setActiveCashSummary(null)
         }
       }
     } catch {

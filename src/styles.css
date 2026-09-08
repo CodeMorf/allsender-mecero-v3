@@ -4538,6 +4538,47 @@ h2 { margin-bottom: 0; font-size: 22px; letter-spacing: -.02em; }
 /* ==========================================================================
    POSDAN CASH MODULE & SHIFT MANAGEMENT STYLES
    ========================================================================== */
+.posdan-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #2563eb;
+  color: #ffffff;
+  border: 1px solid #1d4ed8;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.posdan-btn-primary:hover {
+  background: #1d4ed8;
+}
+
+.posdan-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #1e293b;
+  color: #e2e8f0;
+  border: 1px solid #334155;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.posdan-btn-secondary:hover {
+  background: #334155;
+  color: #ffffff;
+}
+
 .posdan-cash-container {
   padding: 24px;
   max-width: 1200px;
@@ -4676,14 +4717,18 @@ h2 { margin-bottom: 0; font-size: 22px; letter-spacing: -.02em; }
   justify-content: space-between;
   align-items: center;
   font-size: 0.85rem;
+  padding: 2px 0;
+  gap: 8px;
 }
 
 .posdan-meta-row .meta-label {
   color: #94a3b8;
+  white-space: nowrap;
 }
 
 .posdan-meta-row .meta-value {
   color: #e2e8f0;
+  text-align: right;
 }
 
 .posdan-meta-row .meta-value.bold {
@@ -4710,22 +4755,27 @@ h2 { margin-bottom: 0; font-size: 22px; letter-spacing: -.02em; }
 
 .summary-chip {
   background: #131b2e;
-  padding: 8px 10px;
+  padding: 8px 12px;
   border-radius: 8px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
+  border: 1px solid #1e293b;
 }
 
-.summary-chip small {
-  font-size: 0.7rem;
+.summary-chip small,
+.summary-chip .summary-chip-label {
+  font-size: 0.72rem;
   color: #94a3b8;
+  display: block;
 }
 
-.summary-chip strong {
+.summary-chip strong,
+.summary-chip .summary-chip-value {
   font-size: 0.95rem;
   font-weight: 700;
   color: #f1f5f9;
+  display: block;
 }
 
 .summary-chip.highlight {
