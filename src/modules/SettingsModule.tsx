@@ -117,7 +117,7 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({ onTestPrint }) =
                 </div>
                 <p style={{ margin: '3px 0 0', fontSize: 12.5, color: '#94a3b8' }}>
                   {config.mode === 'auto'
-                    ? 'Modo Híbrido: Detecta Windows local y sincroniza con el servidor automáticamente.'
+                    ? 'Modo Backend: usa el diseño oficial y la cola de la sucursal; la impresión local solo queda como contingencia sin conexión.'
                     : config.mode === 'windows_local'
                     ? 'Modo Local: Imprime directamente en la impresora predeterminada de Windows (USB/Red).'
                     : 'Modo Servidor: Encola en el backend para Desktop Agent.'}
@@ -232,10 +232,10 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({ onTestPrint }) =
                   </span>
                 </div>
                 <h5 style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 700, color: '#f0f6fc' }}>
-                  Híbrido Inteligente
+                  Backend oficial (automático)
                 </h5>
                 <p style={{ margin: 0, fontSize: 11.5, color: '#8b949e', lineHeight: 1.45 }}>
-                  Utiliza lo configurado en backend si está disponible. Si la máquina tiene la impresora por Windows, imprime directo sin fallas.
+                  Envía KOT, precuentas, comprobantes y reportes al backend para usar los diseños y parámetros configurados en la sucursal. No abre una ventana local mientras exista conexión.
                 </p>
               </div>
               <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: config.mode === 'auto' ? '#f97316' : '#64748b', fontWeight: 600 }}>

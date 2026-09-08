@@ -1594,6 +1594,506 @@ h2 { margin-bottom: 0; font-size: 22px; letter-spacing: -.02em; }
   to { transform: rotate(360deg); }
 }
 
+/* ==========================================================================
+   RESPONSIVE POS CONTRACT
+   Web/PWA layout shared by phone, tablet, laptop and desktop wrappers.
+   Printing remains backend-owned; these rules only adapt the operator UI.
+   ========================================================================== */
+
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 320px;
+  max-width: 100%;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+button,
+input,
+select,
+textarea,
+[role="button"] {
+  touch-action: manipulation;
+}
+
+.pos-app-shell,
+.pos-app-layout,
+.pos-main-content,
+.pos-view-layer,
+.pos-products-grid,
+.pos-tables-grid,
+.pos-order-drawer,
+.posdan-root-shell,
+.posdan-workspace,
+.posdan-pos-layout,
+.posdan-pos-main,
+.posdan-products-grid,
+.posdan-cart-sidebar {
+  min-width: 0;
+  min-height: 0;
+}
+
+.pos-app-shell,
+.posdan-root-shell {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100dvh;
+}
+
+.pos-view-title,
+.pos-view-actions,
+.pos-view-header > div,
+.posdan-pos-topbar > * {
+  min-width: 0;
+}
+
+.pos-view-title h1,
+.posdan-brand-name,
+.posdan-pos-topbar span {
+  overflow-wrap: anywhere;
+}
+
+.pos-view-actions,
+.posdan-pos-topbar {
+  flex-wrap: wrap;
+}
+
+.pos-products-grid > *,
+.pos-tables-grid > *,
+.posdan-products-grid > *,
+.posdan-cart-list > * {
+  min-width: 0;
+}
+
+.pos-product-image-wrap,
+.posdan-item-image-wrap {
+  height: clamp(104px, 10vw, 150px);
+}
+
+.pos-order-drawer {
+  width: min(410px, 36vw);
+  max-width: 44vw;
+}
+
+.posdan-cart-sidebar {
+  width: clamp(320px, 29vw, 400px);
+}
+
+@media (max-width: 1100px) {
+  .posdan-sidebar:not(.collapsed) {
+    width: 220px;
+  }
+
+  .pos-order-drawer {
+    width: min(380px, 42vw);
+    max-width: 42vw;
+  }
+
+  .pos-view-header {
+    height: auto;
+    min-height: 64px;
+    padding-inline: clamp(12px, 2vw, 24px);
+  }
+
+  .pos-products-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+    padding-inline: clamp(12px, 2vw, 24px);
+  }
+
+  .posdan-products-grid {
+    grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+    gap: 11px;
+    padding: 12px;
+  }
+
+  .posdan-cart-sidebar {
+    width: 320px;
+  }
+}
+
+/* At tablet widths the full sidebar becomes a compact bottom navigation. */
+@media (max-width: 900px) {
+  .pos-app-layout {
+    flex-direction: column;
+  }
+
+  .pos-main-content {
+    order: 1;
+    flex: 1 1 auto;
+  }
+
+  .posdan-sidebar {
+    order: 2;
+    width: 100%;
+    height: calc(68px + env(safe-area-inset-bottom, 0px));
+    min-height: 68px;
+    flex: 0 0 auto;
+    flex-direction: row;
+    border-right: 0;
+    border-top: 1px solid #21262d;
+  }
+
+  .posdan-sidebar-header {
+    width: 54px;
+    height: 68px;
+    padding: 8px;
+    flex: 0 0 54px;
+    border-bottom: 0;
+    justify-content: center;
+  }
+
+  .posdan-brand-info,
+  .posdan-user-pill,
+  .posdan-collapse-toggle {
+    display: none;
+  }
+
+  .posdan-brand-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    font-size: 16px;
+  }
+
+  .posdan-nav-list {
+    min-width: 0;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: row;
+    align-items: stretch;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 5px 4px;
+    gap: 3px;
+  }
+
+  .posdan-nav-item {
+    width: auto;
+    min-width: 68px;
+    min-height: 56px;
+    flex: 0 0 auto;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    padding: 6px 8px;
+    text-align: center;
+    font-size: 10px;
+  }
+
+  .posdan-nav-label {
+    flex: 0 0 auto;
+    max-width: 78px;
+    font-size: 10px;
+    text-align: center;
+  }
+
+  .posdan-nav-badge {
+    position: absolute;
+    top: 3px;
+    right: 4px;
+  }
+
+  .posdan-sidebar-footer {
+    flex: 0 0 auto;
+    flex-direction: row;
+    gap: 3px;
+    padding: 5px 5px calc(5px + env(safe-area-inset-bottom, 0px));
+    border-top: 0;
+    border-left: 1px solid #21262d;
+  }
+
+  .posdan-footer-btn {
+    width: 40px;
+    min-height: 56px;
+    padding: 7px 5px;
+    justify-content: center;
+  }
+
+  .posdan-footer-btn span {
+    display: none;
+  }
+
+  .posdan-pos-layout {
+    flex-direction: column;
+  }
+
+  .posdan-pos-main {
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .posdan-pos-topbar {
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .posdan-mode-selector,
+  .posdan-table-picker,
+  .posdan-pos-topbar .posdan-search-box {
+    width: auto !important;
+    flex: 1 1 180px;
+  }
+
+  .posdan-cart-sidebar {
+    width: 100%;
+    max-height: 44%;
+    border-top: 1px solid #21262d;
+    border-left: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .system-status-bar {
+    min-height: 36px;
+    height: auto;
+    padding: 6px 10px;
+    gap: 6px;
+    font-size: 10px;
+  }
+
+  .system-status-bar > div {
+    min-width: 0;
+    gap: 8px !important;
+  }
+
+  .system-status-bar > div:first-child {
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+
+  .system-status-bar > div:first-child > span:last-child {
+    min-width: 0;
+    max-width: 48vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .system-status-bar > div:last-child {
+    flex: 0 0 auto;
+  }
+
+  .pos-view-header {
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .pos-view-title h1 {
+    font-size: 1.1rem;
+  }
+
+  .pos-view-title p {
+    flex-wrap: wrap;
+    gap: 5px 9px;
+    font-size: 11px;
+  }
+
+  .pos-view-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .pos-view-actions > * {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .pos-category-bar {
+    padding: 8px 10px;
+  }
+
+  .pos-products-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    padding: 10px 10px calc(4rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .pos-product-image-wrap {
+    height: clamp(96px, 30vw, 130px);
+  }
+
+  .pos-product-body {
+    padding: 10px;
+  }
+
+  .pos-product-name {
+    font-size: 0.84rem;
+  }
+
+  .pos-product-price {
+    font-size: 0.95rem;
+  }
+
+  .pos-order-drawer {
+    width: 100%;
+    max-width: none;
+  }
+
+  .pos-drawer-header {
+    padding: 12px;
+  }
+
+  .pos-drawer-info-strip {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  .pos-order-items-list {
+    padding: 10px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .posdan-products-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 10px;
+    gap: 10px;
+  }
+
+  .posdan-item-image-wrap {
+    height: clamp(96px, 30vw, 130px);
+  }
+
+  .posdan-cart-sidebar {
+    max-height: 50%;
+  }
+
+  .modal-backdrop,
+  .posdan-modal-overlay {
+    padding: max(8px, env(safe-area-inset-top, 0px)) max(8px, env(safe-area-inset-right, 0px)) max(8px, env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px));
+  }
+
+  .modal,
+  .posdan-modal-content {
+    max-height: calc(100dvh - 16px);
+  }
+
+  .modal-content {
+    padding: 14px;
+  }
+
+  .modal > header,
+  .modal > footer {
+    padding-inline: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .system-status-bar .hidden {
+    display: none;
+  }
+
+  .pos-view-actions > * {
+    min-height: 40px;
+  }
+
+  .pos-products-grid,
+  .posdan-products-grid {
+    gap: 8px;
+    padding-inline: 8px;
+  }
+
+  .pos-product-card,
+  .posdan-item-card {
+    border-radius: 11px;
+  }
+
+  .pos-product-image-wrap,
+  .posdan-item-image-wrap {
+    height: clamp(88px, 28vw, 112px);
+  }
+
+  .pos-product-body {
+    padding: 8px;
+  }
+
+  .pos-category-chip,
+  .pos-filter-pill-btn,
+  .posdan-cat-btn,
+  .posdan-btn-primary {
+    min-height: 40px;
+  }
+
+  .posdan-pos-topbar .posdan-search-box {
+    flex-basis: 100%;
+  }
+
+  .table-payment-form,
+  .pos-table-payment-form {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 350px) {
+  .pos-products-grid,
+  .posdan-products-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .posdan-nav-item {
+    min-width: 62px;
+    padding-inline: 5px;
+  }
+}
+
+@media (max-height: 560px) and (orientation: landscape) {
+  .system-status-bar {
+    min-height: 28px;
+    padding-block: 3px;
+  }
+
+  .posdan-sidebar {
+    height: 58px;
+    min-height: 58px;
+  }
+
+  .posdan-sidebar-header,
+  .posdan-nav-item,
+  .posdan-footer-btn {
+    min-height: 48px;
+    height: 48px;
+  }
+
+  .pos-view-header {
+    min-height: 50px;
+    padding-block: 6px;
+  }
+
+  .pos-product-image-wrap,
+  .posdan-item-image-wrap {
+    height: 84px;
+  }
+
+  .modal,
+  .posdan-modal-content {
+    max-height: calc(100dvh - 8px);
+  }
+}
+
+@media (pointer: coarse) {
+  .pos-category-chip,
+  .pos-filter-pill-btn,
+  .posdan-cat-btn,
+  .posdan-btn-primary,
+  .posdan-btn-action-green,
+  .posdan-btn-action-orange,
+  .posdan-nav-item,
+  .posdan-footer-btn {
+    min-height: 44px;
+  }
+
+  .pos-product-add-btn {
+    width: 44px;
+    height: 44px;
+  }
+}
+
 /* Modern Product Picker & Category Chips */
 .product-picker-modern {
   display: flex;
@@ -5167,4 +5667,168 @@ h2 { margin-bottom: 0; font-size: 22px; letter-spacing: -.02em; }
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+/* ==========================================================================
+   RESPONSIVE POS FINAL OVERRIDES
+   Shared web/PWA layout for phone, tablet, laptop and desktop wrappers.
+   Printing remains backend-owned; these rules only adapt the operator UI.
+   ========================================================================== */
+
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 320px;
+  max-width: 100%;
+}
+
+body { overflow-x: hidden; }
+
+.pos-app-shell,
+.pos-app-layout,
+.pos-main-content,
+.pos-view-layer,
+.pos-products-grid,
+.pos-tables-grid,
+.pos-order-drawer,
+.posdan-root-shell,
+.posdan-workspace,
+.posdan-pos-layout,
+.posdan-pos-main,
+.posdan-products-grid,
+.posdan-cart-sidebar,
+.pos-view-title,
+.pos-view-actions,
+.pos-view-header > div,
+.posdan-pos-topbar > * {
+  min-width: 0;
+  min-height: 0;
+}
+
+.pos-app-shell,
+.posdan-root-shell {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100dvh;
+}
+
+.pos-view-title h1,
+.posdan-brand-name,
+.posdan-pos-topbar span {
+  overflow-wrap: anywhere;
+}
+
+.pos-view-actions,
+.posdan-pos-topbar {
+  flex-wrap: wrap;
+}
+
+.pos-products-grid > *,
+.pos-tables-grid > *,
+.posdan-products-grid > *,
+.posdan-cart-list > * {
+  min-width: 0;
+}
+
+.pos-order-drawer { width: min(410px, 36vw); max-width: 44vw; }
+.posdan-cart-sidebar { width: clamp(320px, 29vw, 400px); }
+
+@media (max-width: 1100px) {
+  .posdan-sidebar:not(.collapsed) { width: 220px; }
+  .pos-order-drawer { width: min(380px, 42vw); max-width: 42vw; }
+  .pos-view-header { height: auto; min-height: 64px; padding-inline: clamp(12px, 2vw, 24px); }
+  .pos-products-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; padding-inline: clamp(12px, 2vw, 24px); }
+  .posdan-products-grid { grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); gap: 11px; padding: 12px; }
+  .posdan-cart-sidebar { width: 320px; }
+}
+
+@media (max-width: 900px) {
+  .pos-app-layout { flex-direction: column; }
+  .pos-main-content { order: 1; flex: 1 1 auto; }
+  .posdan-sidebar {
+    order: 2;
+    width: 100%;
+    height: calc(68px + env(safe-area-inset-bottom, 0px));
+    min-height: 68px;
+    flex: 0 0 auto;
+    flex-direction: row;
+    border-right: 0;
+    border-top: 1px solid #21262d;
+  }
+  .posdan-sidebar-header { width: 54px; height: 68px; padding: 8px; flex: 0 0 54px; border-bottom: 0; justify-content: center; }
+  .posdan-brand-info, .posdan-user-pill, .posdan-collapse-toggle { display: none; }
+  .posdan-brand-avatar { width: 34px; height: 34px; border-radius: 10px; font-size: 16px; }
+  .posdan-nav-list { min-width: 0; min-height: 0; flex: 1 1 auto; flex-direction: row; align-items: stretch; overflow-x: auto; overflow-y: hidden; padding: 5px 4px; gap: 3px; }
+  .posdan-nav-item { width: auto; min-width: 68px; min-height: 56px; flex: 0 0 auto; flex-direction: column; justify-content: center; gap: 3px; padding: 6px 8px; text-align: center; font-size: 10px; }
+  .posdan-nav-label { flex: 0 0 auto; max-width: 78px; font-size: 10px; text-align: center; }
+  .posdan-nav-badge { position: absolute; top: 3px; right: 4px; }
+  .posdan-sidebar-footer { flex: 0 0 auto; flex-direction: row; gap: 3px; padding: 5px 5px calc(5px + env(safe-area-inset-bottom, 0px)); border-top: 0; border-left: 1px solid #21262d; }
+  .posdan-footer-btn { width: 40px; min-height: 56px; padding: 7px 5px; justify-content: center; }
+  .posdan-footer-btn span { display: none; }
+  .posdan-pos-layout { flex-direction: column; }
+  .posdan-pos-main { min-height: 0; flex: 1 1 auto; }
+  .posdan-pos-topbar { align-items: stretch; gap: 8px; padding: 10px; }
+  .posdan-mode-selector, .posdan-table-picker, .posdan-pos-topbar .posdan-search-box { width: auto !important; flex: 1 1 180px; }
+  .posdan-cart-sidebar { width: 100%; max-height: 44%; border-top: 1px solid #21262d; border-left: 0; }
+}
+
+@media (max-width: 768px) {
+  .system-status-bar { min-height: 36px; height: auto; padding: 6px 10px; gap: 6px; font-size: 10px; }
+  .system-status-bar > div { min-width: 0; gap: 8px !important; }
+  .system-status-bar > div:first-child { flex: 1 1 auto; overflow: hidden; }
+  .system-status-bar > div:first-child > span:last-child { min-width: 0; max-width: 48vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .system-status-bar > div:last-child { flex: 0 0 auto; }
+  .pos-view-header { align-items: flex-start; gap: 10px; padding: 10px 12px; }
+  .pos-view-title h1 { font-size: 1.1rem; }
+  .pos-view-title p { flex-wrap: wrap; gap: 5px 9px; font-size: 11px; }
+  .pos-view-actions { width: 100%; justify-content: stretch; }
+  .pos-view-actions > * { flex: 1 1 auto; min-width: 0; }
+  .pos-category-bar { padding: 8px 10px; }
+  .pos-products-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 10px 10px calc(4rem + env(safe-area-inset-bottom, 0px)); }
+  .pos-product-image-wrap, .posdan-item-image-wrap { height: clamp(96px, 30vw, 130px); }
+  .pos-product-body { padding: 10px; }
+  .pos-product-name { font-size: 0.84rem; }
+  .pos-product-price { font-size: 0.95rem; }
+  .pos-order-drawer { width: 100%; max-width: none; }
+  .pos-drawer-header { padding: 12px; }
+  .pos-drawer-info-strip { flex-wrap: wrap; row-gap: 6px; }
+  .pos-order-items-list { padding: 10px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+  .posdan-products-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 10px; gap: 10px; }
+  .posdan-cart-sidebar { max-height: 50%; }
+  .modal-backdrop, .posdan-modal-overlay { padding: max(8px, env(safe-area-inset-top, 0px)) max(8px, env(safe-area-inset-right, 0px)) max(8px, env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)); }
+  .modal, .posdan-modal-content { max-height: calc(100dvh - 16px); }
+  .modal-content { padding: 14px; }
+  .modal > header, .modal > footer { padding-inline: 14px; }
+}
+
+@media (max-width: 480px) {
+  .system-status-bar .hidden { display: none; }
+  .pos-view-actions > * { min-height: 40px; }
+  .pos-products-grid, .posdan-products-grid { gap: 8px; padding-inline: 8px; }
+  .pos-product-card, .posdan-item-card { border-radius: 11px; }
+  .pos-product-image-wrap, .posdan-item-image-wrap { height: clamp(88px, 28vw, 112px); }
+  .pos-product-body { padding: 8px; }
+  .pos-category-chip, .pos-filter-pill-btn, .posdan-cat-btn, .posdan-btn-primary { min-height: 40px; }
+  .posdan-pos-topbar .posdan-search-box { flex-basis: 100%; }
+  .table-payment-form, .pos-table-payment-form { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 350px) {
+  .pos-products-grid, .posdan-products-grid { grid-template-columns: 1fr; }
+  .posdan-nav-item { min-width: 62px; padding-inline: 5px; }
+}
+
+@media (max-height: 560px) and (orientation: landscape) {
+  .system-status-bar { min-height: 28px; padding-block: 3px; }
+  .posdan-sidebar { height: 58px; min-height: 58px; }
+  .posdan-sidebar-header, .posdan-nav-item, .posdan-footer-btn { min-height: 48px; height: 48px; }
+  .pos-view-header { min-height: 50px; padding-block: 6px; }
+  .pos-product-image-wrap, .posdan-item-image-wrap { height: 84px; }
+  .modal, .posdan-modal-content { max-height: calc(100dvh - 8px); }
+}
+
+@media (pointer: coarse) {
+  .pos-category-chip, .pos-filter-pill-btn, .posdan-cat-btn, .posdan-btn-primary, .posdan-btn-action-green, .posdan-btn-action-orange, .posdan-nav-item, .posdan-footer-btn { min-height: 44px; }
+  .pos-product-add-btn { width: 44px; height: 44px; }
 }
