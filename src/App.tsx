@@ -25,7 +25,8 @@ import { LocalNotifications } from '@capacitor/local-notifications'
 import { Network } from '@capacitor/network'
 import { normalizeReceiptSettings } from './receipt/profile'
 import { buildReceiptDocumentViewModel } from './receipt/renderer'
-import { printThermalZReport } from './utils/thermalPrinter'
+import { printThermalZReport, printThermalCustomerReceipt } from './utils/thermalPrinter'
+import { getStationPrinterConfig, routePrintReceipt, routePrintTest, type ThermalReceiptData } from './utils/printRouter'
 
 type Screen = 'setup' | 'branches' | 'pin' | 'floor'
 type LiveNotification = { id: string; type: string; title: string; message: string; createdAt?: string; unread: boolean }
@@ -2243,8 +2244,43 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
               <InvoicesModule
                 orders={allOrders}
                 onPrintInvoice={(orderId) => {
-                  onPrintPreBill(orderId, newIdempotencyKey()).catch(() => {})
-                  window.print()
+                  const ord = allOrders.find(o => o.id === orderId)
+                  if (ord) {
+                    const cached = readCache()
+                    const thermalData: ThermalReceiptData = {
+                      restaurantName: cached.restaurantName || 'Restaurante',
+                      tableNumber: ord.table_number || ord.table?.number,
+                      orderNumber: ord.order_number || ord.id,
+                      customerName: ord.customer_name || ord.customer?.name || 'Cliente Final',
+                      customerRnc: ord.customer?.rnc_cedula || ord.rnc_cedula,
+                      ncf: ord.ncf,
+                      receiptType: ord.receipt_type,
+                      items: (ord.items || []).map((it: any) => ({
+                        name: it.menu_item_name || it.name || 'Artículo',
+                        quantity: Number(it.quantity || 1),
+                        amount: Number(it.amount || it.price || 0)
+                      })),
+                      subtotal: Number(ord.sub_total || ord.subtotal || ord.total || 0),
+                      tax: Number(ord.tax || ord.total_tax || 0),
+                      tip: Number(ord.tip || 0),
+                      discount: Number(ord.discount || 0),
+                      total: Number(ord.total || 0),
+                      amountPaid: Number(ord.amount_paid || ord.total || 0),
+                      paymentMethod: ord.payment_method || ord.payments?.[0]?.payment_method || 'Completado',
+                      isPreBill: false
+                    }
+                    void routePrintReceipt(thermalData, {
+                      sendToBackend: async () => {
+                        await api.request(`/pos/orders/${orderId}/print`, {
+                          method: 'POST',
+                          body: JSON.stringify({ document: 'receipt' }),
+                          tokenKind: 'pin'
+                        })
+                      }
+                    })
+                  } else {
+                    onPrintPreBill(orderId, newIdempotencyKey()).catch(() => {})
+                  }
                 }}
                 onSendEmail={async (orderId, email) => {
                   try {
@@ -2338,7 +2374,7 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
           {/* VIEW: SETTINGS */}
           {activeNavTab === 'settings' && (
             <div className="pos-view-layer view-active">
-              <SettingsModule onTestPrint={() => window.print()} />
+              <SettingsModule onTestPrint={() => routePrintTest()} />
             </div>
           )}
         </main>
@@ -2602,6 +2638,7 @@ function TablePaymentPanel({
   const [searchingRnc, setSearchingRnc] = useState(false)
   const [rncStatusMsg, setRncStatusMsg] = useState('')
   const [showFiscalDetails, setShowFiscalDetails] = useState(Boolean(initialRnc || initialFiscalName))
+  const [printReceiptOnPay, setPrintReceiptOnPay] = useState(() => getStationPrinterConfig().autoPrintOnPayment)
 
   // Initialize fiscal data from payload / customer
   useEffect(() => {
@@ -2677,7 +2714,7 @@ function TablePaymentPanel({
     }
   }
 
-  async function charge() {
+  async function charge(withPrint = printReceiptOnPay) {
     const numericAmount = Number(amount)
     if (!table.currentOrderId || summary.due <= 0) { setError('Esta mesa no tiene saldo pendiente de pago.'); return }
     if (!Number.isFinite(numericAmount) || numericAmount <= 0 || numericAmount > summary.due + 0.01) { setError(`El monto debe estar entre ${formatMoney(0.01)} y ${formatMoney(summary.due)}.`); return }
@@ -2698,8 +2735,52 @@ function TablePaymentPanel({
           fiscalName.trim() || undefined
         ).catch(() => undefined)
       }
+      const orderIdToPrint = table.currentOrderId
       const result = await onPay(table.currentOrderId, numericAmount, selectedMethod, newIdempotencyKey())
       setStatus(result.message)
+
+      if (withPrint && orderIdToPrint) {
+        const cached = readCache()
+        const thermalData: ThermalReceiptData = {
+          restaurantName: cached.restaurantName || 'Restaurante',
+          rncCedula: rncCedula.trim() || undefined,
+          fiscalName: fiscalName.trim() || undefined,
+          receiptType: receiptType || undefined,
+          ncf: payload?.ncf || payload?.invoice?.ncf || undefined,
+          tableNumber: table.number,
+          orderNumber: table.currentOrderNumber || orderIdToPrint,
+          cashierName: (readSession('pin') as any)?.userName || 'Cajero',
+          customerName: effectiveCustName || table.customerName || 'Cliente Final',
+          customerRnc: rncCedula.trim() || undefined,
+          items: (items || []).map((it: any) => ({
+            name: it.name || it.menu_item_name || 'Artículo',
+            quantity: Number(it.quantity || 1),
+            amount: Number(it.amount || it.price || 0),
+          })),
+          subtotal: summary.subtotal ?? 0,
+          tax: summary.tax ?? 0,
+          tip: summary.tip ?? 0,
+          discount: summary.discount ?? 0,
+          total: summary.total ?? numericAmount,
+          amountPaid: numericAmount,
+          changeDue: Math.max(0, numericAmount - (summary.due ?? 0)),
+          paymentMethod: enabledMethods.find(m => m.code === selectedMethod)?.label || selectedMethod,
+          isPreBill: false,
+        }
+
+        void routePrintReceipt(thermalData, {
+          sendToBackend: async () => {
+            if (orderIdToPrint) {
+              await api.request(`/pos/orders/${orderIdToPrint}/print`, {
+                method: 'POST',
+                body: JSON.stringify({ document: 'receipt' }),
+                tokenKind: 'pin'
+              })
+            }
+          }
+        })
+      }
+
       if (!result.queued) onClose()
     } catch (cause) {
       setError(normalizeError(cause, 'No se pudo procesar el cobro. Verifique la conexion o el monto e intente de nuevo.'))
@@ -2865,10 +2946,26 @@ function TablePaymentPanel({
         )}
       </div>
 
+      <div style={{ margin: '12px 0 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--surface, #181a1d)', borderRadius: 10, border: '1px solid var(--line, #333)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.82rem', color: '#e2e8f0' }}>
+          <Printer size={16} style={{ color: '#f97316' }} />
+          <span>Imprimir ticket / comprobante al cobrar</span>
+        </div>
+        <input
+          type="checkbox"
+          checked={printReceiptOnPay}
+          onChange={e => setPrintReceiptOnPay(e.target.checked)}
+          style={{ width: 18, height: 18, accentColor: '#f97316', cursor: 'pointer' }}
+        />
+      </div>
+
       <footer>
         <button className="button outline" onClick={onClose}>Cancelar</button>
-        <button className="button primary" disabled={busy || !enabledMethods.length || summary.due <= 0} onClick={() => void charge()}>
-          <CreditCard size={16} />{busy ? 'Registrando…' : 'Registrar cobro'}
+        <button className="button outline" disabled={busy || !enabledMethods.length || summary.due <= 0} onClick={() => void charge(false)}>
+          <CreditCard size={16} />{busy ? 'Registrando…' : 'Solo cobrar'}
+        </button>
+        <button className="button primary" disabled={busy || !enabledMethods.length || summary.due <= 0} onClick={() => void charge(true)} style={{ background: '#f97316', borderColor: '#f97316', color: '#fff' }}>
+          <Printer size={16} />{busy ? 'Procesando…' : 'Cobrar e Imprimir'}
         </button>
       </footer>
     </section>
