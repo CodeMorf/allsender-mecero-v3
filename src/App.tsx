@@ -2261,9 +2261,9 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
                   await loadPosDanData()
                 }}
                 onCloseSession={async (sessionId, countedCash, expectedCash, note, sendForApproval) => {
-                  await onCloseCashSession(sessionId, countedCash, expectedCash, note, sendForApproval, newIdempotencyKey())
-                  await loadPosDanData()
+                  return onCloseCashSession(sessionId, countedCash, expectedCash, note, sendForApproval, newIdempotencyKey())
                 }}
+                onSessionClosed={onLogout}
                 onCashMovement={async (type, amount, reason) => {
                   if (!activeCashSession?.id) return
                   await onCashMovement(type, activeCashSession.id, amount, reason, newIdempotencyKey())

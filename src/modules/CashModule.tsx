@@ -66,7 +66,8 @@ interface CashModuleProps {
   loading?: boolean
   onRefresh: () => Promise<void>
   onOpenSession: (registerId: number, openingFloat: number, note: string) => Promise<void>
-  onCloseSession: (sessionId: number, countedCash: number, expectedCash: number | undefined, note: string, sendForApproval: boolean) => Promise<void>
+  onCloseSession: (sessionId: number, countedCash: number, expectedCash: number | undefined, note: string, sendForApproval: boolean) => Promise<{ queued?: boolean } | void>
+  onSessionClosed?: () => Promise<void> | void
   onCashMovement: (type: 'cash-in' | 'cash-out' | 'safe-drop', amount: number, reason: string) => Promise<void>
   onFetchHistory?: () => Promise<CashSession[]>
   onPrintReport?: (sessionId: number, type: 'x_report' | 'z_report', sessionData?: any) => void | Promise<void>
@@ -83,6 +84,7 @@ export const CashModule: React.FC<CashModuleProps> = ({
   onRefresh,
   onOpenSession,
   onCloseSession,
+  onSessionClosed,
   onCashMovement,
   onFetchHistory,
   onPrintReport,
@@ -226,7 +228,7 @@ export const CashModule: React.FC<CashModuleProps> = ({
     try {
       const expected = effectiveExpectedCash
       const hasDiscrepancy = Math.abs(counted - expected) > 0.01
-      await onCloseSession(activeSession.id, counted, expected, closingNote, hasDiscrepancy)
+      const closeResult = await onCloseSession(activeSession.id, counted, expected, closingNote, hasDiscrepancy)
       if (onPrintReport) {
         await onPrintReport(activeSession.id, 'z_report', {
           ...activeSession,
@@ -243,6 +245,10 @@ export const CashModule: React.FC<CashModuleProps> = ({
           safe_drops: effectiveSafeDrops,
           effectiveExpectedCash,
         })
+      }
+      if (onSessionClosed && !closeResult?.queued) {
+        await onSessionClosed()
+        return
       }
       setModalType(null)
       setCountedCash('')
