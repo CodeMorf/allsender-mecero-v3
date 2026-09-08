@@ -880,11 +880,15 @@ export default function App() {
 
   async function payOrder(orderId: number, amount: number, method: string, idempotencyKey: string) {
     if (!navigator.onLine) {
-      throw new Error('Para cobrar debe existir un turno de caja abierto y conexión con el servidor.')
-    }
-    const activeCashSession = await api.activeCashSession('pin').catch(() => null)
-    if (!activeCashSession || activeCashSession.status !== 'open') {
-      throw new Error('Debe abrir un turno de caja antes de cobrar.')
+      const cachedCashSession = readCache().cashSession as any
+      if (!cachedCashSession || cachedCashSession.status !== 'open') {
+        throw new Error('Debe abrir un turno de caja antes de cobrar. Sin conexión, solo se permite cobrar con un turno abierto previamente en este dispositivo.')
+      }
+    } else {
+      const activeCashSession = await api.activeCashSession('pin').catch(() => null)
+      if (!activeCashSession || activeCashSession.status !== 'open') {
+        throw new Error('Debe abrir un turno de caja antes de cobrar.')
+      }
     }
     const operation = makeWorkflow([makeStep('POST', `/pos/orders/${orderId}/pay`, { amount, method }, idempotencyKey)], { remoteOrderId: orderId, label: 'payment' })
     try {
@@ -1718,19 +1722,23 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
         if (delPlats) setDeliveryPlatforms(delPlats)
         if (delExecs) setDeliveryExecutives(delExecs)
         if (delSets) setDeliverySettings(delSets)
+        let cashSummary = null
         if (actSess && actSess.id) {
           try {
-            const summary = await api.cashSessionSummary('pin', actSess.id)
-            setActiveCashSummary(summary)
+            cashSummary = await api.cashSessionSummary('pin', actSess.id)
+            setActiveCashSummary(cashSummary)
           } catch {
             setActiveCashSummary(null)
           }
         } else {
           setActiveCashSummary(null)
         }
+        saveCache({ cashRegisters: regs, cashSession: actSess, cashSummary })
       } else {
-        setActiveCashSession(null)
-        setActiveCashSummary(null)
+        const cached = readCache()
+        setCashRegisters(cached.cashRegisters || [])
+        setActiveCashSession(cached.cashSession || null)
+        setActiveCashSummary(cached.cashSummary || null)
       }
     } catch {
       // ignore
