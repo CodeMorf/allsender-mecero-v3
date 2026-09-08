@@ -2062,9 +2062,9 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
                             return
                           }
                           setMobileDrawerOpen(true)
-                          const hasRequired = Array.isArray(item.modifiers) && item.modifiers.some((m: any) => m.required)
+                          const hasModifiers = Array.isArray(item.modifiers) && item.modifiers.length > 0
                           const hasVars = Array.isArray(item.variations) && item.variations.length > 0
-                          if (hasRequired || hasVars) {
+                          if (hasModifiers || hasVars) {
                             window.dispatchEvent(new CustomEvent('restapp:customize-item', { detail: item }))
                           } else {
                             window.dispatchEvent(new CustomEvent('restapp:quick-add-item', { detail: item }))
@@ -2501,6 +2501,18 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
               }
               return [customer, ...prev]
             })
+          }}
+        />
+      )}
+      {posCustomizingItem && (
+        <ModifierModal
+          item={posCustomizingItem}
+          onClose={() => setPosCustomizingItem(null)}
+          onAdd={line => {
+            // PosModule escucha este evento para conservar el carrito en su
+            // propia instancia sin enviar todavía la orden al backend.
+            window.dispatchEvent(new CustomEvent('restapp:pos-add-line', { detail: line }))
+            setPosCustomizingItem(null)
           }}
         />
       )}
