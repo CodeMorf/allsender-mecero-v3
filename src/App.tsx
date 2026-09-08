@@ -689,7 +689,10 @@ export default function App() {
     }
 
     const localOrderId = table && draft.mode === 'dine_in' ? -Date.now() : undefined
-    const update: Record<string, unknown> = { waiter_id: pinSession.userId, actions: ['kot'] }
+    // The /kot endpoint is the single owner of KOT creation and printing.
+    // Keeping actions:['kot'] here would make PUT /orders create one KOT and
+    // the following POST /kot process the same order a second time.
+    const update: Record<string, unknown> = { waiter_id: pinSession.userId }
     if (draft.mode === 'dine_in' && table) update.table_id = table.id
     const operation = makeWorkflow([
       makeStep('POST', '/pos/orders', body),
@@ -705,6 +708,9 @@ export default function App() {
       } else {
         const data = responseData(result.firstResponse)
         const newOrderId = result.remoteOrderId
+        const kotPrintErrors = Array.isArray((data as any)?.data?.print?.errors)
+          ? (data as any).data.print.errors.filter(Boolean).map(String)
+          : []
         if (table) {
           updateTableLocally(table.id, current => ({
             ...current,
@@ -730,7 +736,10 @@ export default function App() {
             }
           })
         }
-        setNotice(`${draft.mode === 'delivery' ? 'Entrega a domicilio' : draft.mode === 'pickup' ? 'Retiro en el local' : 'Comanda'} n.º ${result.remoteOrderId} enviada a cocina.${formatFiscalSummary(data)}`)
+        const printWarning = kotPrintErrors.length
+          ? ` La comanda fue creada, pero no se pudo encolar la impresión: ${kotPrintErrors[0]}`
+          : ''
+        setNotice(`${draft.mode === 'delivery' ? 'Entrega a domicilio' : draft.mode === 'pickup' ? 'Retiro en el local' : 'Comanda'} n.º ${result.remoteOrderId} enviada a cocina.${printWarning}${formatFiscalSummary(data)}`)
         if (pinSessionRef.current) {
           void hydrate(pinSessionRef.current)
         }
@@ -2384,11 +2393,7 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
                     }
                     void routePrintReceipt(thermalData, {
                       sendToBackend: async () => {
-                        await api.request(`/pos/orders/${orderId}/print`, {
-                          method: 'POST',
-                          body: JSON.stringify({ document: 'receipt' }),
-                          tokenKind: 'pin'
-                        })
+                        await api.printOrder('pin', orderId, 'receipt', newIdempotencyKey())
                       }
                     })
                   } else {
@@ -2774,7 +2779,11 @@ function TablePaymentPanel({
   // Determine branch fiscal configuration
   // Fallback to cache if not passed directly
   const cachedCaps = fiscalCapabilities || readCache().fiscalCapabilities
-  const isElectronicActive = Boolean(cachedCaps?.electronic?.ready || (cachedCaps?.electronic?.enabled && !cachedCaps?.traditional?.enabled))
+  // "enabled" only means configured. The backend contract exposes "ready"
+  // for a mode that can actually issue a document now (including sequences or
+  // verified e-CF acceptance), so the UI must never advertise an unready mode.
+  const isElectronicActive = Boolean(cachedCaps?.electronic?.ready)
+  const isTraditionalActive = Boolean(cachedCaps?.traditional?.ready)
   const defaultConsumerType = isElectronicActive ? 'E32' : 'B02'
   const defaultCreditType = isElectronicActive ? 'E31' : 'B01'
 
@@ -2904,6 +2913,7 @@ function TablePaymentPanel({
       const orderIdToPrint = table.currentOrderId
       const result = await onPay(table.currentOrderId, numericAmount, selectedMethod, newIdempotencyKey())
       setStatus(result.message)
+      let printSucceeded = true
 
       if (withPrint && orderIdToPrint) {
         const cached = readCache()
@@ -2934,20 +2944,20 @@ function TablePaymentPanel({
           isPreBill: false,
         }
 
-        void routePrintReceipt(thermalData, {
+        const printResult = await routePrintReceipt(thermalData, {
           sendToBackend: async () => {
             if (orderIdToPrint) {
-              await api.request(`/pos/orders/${orderIdToPrint}/print`, {
-                method: 'POST',
-                body: JSON.stringify({ document: 'receipt' }),
-                tokenKind: 'pin'
-              })
+              await api.printOrder('pin', orderIdToPrint, 'receipt', newIdempotencyKey())
             }
           }
         })
+        if (!printResult.success) {
+          printSucceeded = false
+          setError(`${result.message} ${printResult.message}`)
+        }
       }
 
-      if (!result.queued) onClose()
+      if (!result.queued && printSucceeded) onClose()
     } catch (cause) {
       setError(normalizeError(cause, 'No se pudo procesar el cobro. Verifique la conexion o el monto e intente de nuevo.'))
     } finally { setBusy(false) }
@@ -2994,7 +3004,7 @@ function TablePaymentPanel({
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--pos-text-primary, #fff)', display: 'flex', alignItems: 'center', gap: 6 }}>
             <FileText size={15} style={{ color: 'var(--color-pos-primary, #5EDBAC)' }} />
-            {isElectronicActive ? 'Factura Electrónica (DGII / e-CF)' : 'Comprobante Fiscal (DGII / NCF)'}
+            {isElectronicActive ? 'Factura Electrónica (DGII / e-CF)' : isTraditionalActive ? 'Comprobante Fiscal (DGII / NCF)' : 'Documento fiscal no disponible'}
           </span>
           <button
             type="button"
@@ -3016,7 +3026,7 @@ function TablePaymentPanel({
 
         <label style={{ display: 'block', fontSize: '0.82rem', marginBottom: 6 }}>
           <span style={{ color: 'var(--pos-text-secondary, #aaa)', display: 'block', marginBottom: 4 }}>
-            Tipo de Comprobante ({isElectronicActive ? 'Modalidad Electrónica Activa' : 'Modalidad Tradicional Activa'}):
+            Tipo de Comprobante ({isElectronicActive ? 'Modalidad Electrónica Lista' : isTraditionalActive ? 'Modalidad Tradicional Lista' : 'Fiscalidad no lista'}):
           </span>
           <select
             value={receiptType}
@@ -3029,35 +3039,29 @@ function TablePaymentPanel({
           >
             {isElectronicActive ? (
               <>
-                <optgroup label="Factura Electrónica (e-CF) · Activo en esta sucursal">
+                <optgroup label="Factura Electrónica (e-CF) · Lista en esta sucursal">
                   <option value="E32">E32 - Consumo Electrónica (Consumidor Final)</option>
                   <option value="E31">E31 - Crédito Fiscal Electrónica</option>
                   <option value="E44">E44 - Régimen Especial Electrónico</option>
                   <option value="E45">E45 - Gubernamental Electrónico</option>
                 </optgroup>
-                <optgroup label="Comprobantes Tradicionales (NCF)">
+                {isTraditionalActive && <optgroup label="Comprobantes Tradicionales (NCF) · Listos">
                   <option value="B02">B02 - Factura de Consumo (Consumidor Final)</option>
                   <option value="B01">B01 - Factura de Crédito Fiscal</option>
                   <option value="B14">B14 - Régimen Especial</option>
                   <option value="B15">B15 - Gubernamental</option>
-                </optgroup>
+                </optgroup>}
               </>
-            ) : (
+            ) : isTraditionalActive ? (
               <>
-                <optgroup label="Comprobantes Tradicionales (NCF) · Activo en esta sucursal">
+                <optgroup label="Comprobantes Tradicionales (NCF) · Listos en esta sucursal">
                   <option value="B02">B02 - Factura de Consumo (Consumidor Final)</option>
                   <option value="B01">B01 - Factura de Crédito Fiscal</option>
                   <option value="B14">B14 - Régimen Especial</option>
                   <option value="B15">B15 - Gubernamental</option>
                 </optgroup>
-                <optgroup label="Factura Electrónica (e-CF)">
-                  <option value="E32">E32 - Consumo Electrónica (Consumidor Final)</option>
-                  <option value="E31">E31 - Crédito Fiscal Electrónica</option>
-                  <option value="E44">E44 - Régimen Especial Electrónico</option>
-                  <option value="E45">E45 - Gubernamental Electrónico</option>
-                </optgroup>
               </>
-            )}
+            ) : <option value="B02">Recibo de venta (fiscalidad no disponible en esta sucursal)</option>}
           </select>
         </label>
 

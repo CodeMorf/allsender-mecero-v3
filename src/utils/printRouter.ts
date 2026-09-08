@@ -94,7 +94,8 @@ export interface RoutePrintResult {
  * 1. Si el modo es 'windows_local', usa el fallback local del navegador (80mm/58mm).
  * 2. Si el modo es 'server_agent', envía la orden al backend (desktop agent).
  * 3. Si el modo es 'auto': usa primero el backend, que es la fuente oficial del
- *    diseño del POS; solo abre el diálogo local si el backend no está disponible.
+ *    diseño del POS. Si el backend falla estando conectado, devuelve el fallo y
+ *    no fabrica un segundo comprobante local.
  */
 export async function routePrintReceipt(
   data: ThermalReceiptData,
@@ -126,20 +127,18 @@ export async function routePrintReceipt(
           message: 'Trabajo enviado a la cola del servidor para el Agente de Impresión.',
         }
       } catch (err: any) {
-        console.warn('Error en impresión por servidor, aplicando fallback a Windows local:', err)
-        printThermalCustomerReceipt(data, config)
+        console.error('Error en impresión por servidor:', err)
         return {
-          method: 'fallback_local',
-          success: true,
-          message: 'Servidor no respondió; impreso en la impresora local de Windows como contingencia.',
+          method: 'server_agent',
+          success: false,
+          message: 'El backend no pudo encolar el comprobante oficial. No se abrió una impresión local; revise el log de impresión.',
         }
       }
     } else {
-      printThermalCustomerReceipt(data, config)
       return {
-        method: 'fallback_local',
-        success: true,
-        message: 'No se configuró cola de servidor; impreso localmente.',
+        method: 'server_agent',
+        success: false,
+        message: 'No hay una cola backend configurada para este comprobante.',
       }
     }
   }
@@ -155,17 +154,31 @@ export async function routePrintReceipt(
         message: 'Comprobante enviado a la cola del servidor para el Agente de Impresión.',
       }
     } catch (e) {
-      console.info('Backend direct print no disponible; usando impresión local como fallback:', e)
+      console.error('Backend direct print no disponible:', e)
+      return {
+        method: 'server_agent',
+        success: false,
+        message: 'El backend no pudo encolar el comprobante oficial. No se abrió una impresión local; revise el log de impresión.',
+      }
     }
   }
 
-  // Solo se ejecuta si no se pudo encolar el comprobante oficial.
+  if (navigator.onLine) {
+    return {
+      method: 'server_agent',
+      success: false,
+      message: 'No se configuró la cola backend para este comprobante.',
+    }
+  }
+
+  // Sin conexión, la impresión local solo es una contingencia explícita del
+  // modo offline. Nunca se presenta como el comprobante oficial del backend.
   printThermalCustomerReceipt(data, config)
 
   return {
     method: 'fallback_local',
     success: true,
-    message: 'Servidor no respondió; comprobante emitido en la impresora local de Windows como contingencia.',
+    message: 'Sin conexión: comprobante enviado a la impresora local como contingencia offline.',
   }
 }
 

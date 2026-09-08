@@ -271,7 +271,14 @@ export class ApiClient {
   }
   async orders(kind: TokenKind) { return asArray<any>(await this.request('/pos/orders', { tokenKind: kind })) }
   async getOrder(kind: TokenKind, orderId: number) { return unwrap<any>(await this.request(`/pos/orders/${orderId}`, { tokenKind: kind })) }
-  async printOrder(kind: TokenKind, orderId: number, idempotencyKey: string) { return this.request(`/pos/orders/${orderId}/print`, { method: 'POST', tokenKind: kind, headers: { 'Idempotency-Key': idempotencyKey }, body: JSON.stringify({ document: 'prebill' }) }) }
+  async printOrder(kind: TokenKind, orderId: number, document: 'prebill' | 'receipt', idempotencyKey: string) {
+    return this.request(`/pos/orders/${orderId}/print`, {
+      method: 'POST',
+      tokenKind: kind,
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify({ document }),
+    })
+  }
   async payOrder(kind: TokenKind, orderId: number, amount: number, method: string, idempotencyKey: string) { return this.request(`/pos/orders/${orderId}/pay`, { method: 'POST', tokenKind: kind, headers: { 'Idempotency-Key': idempotencyKey }, body: JSON.stringify({ amount, method }) }) }
   async paymentMethods(kind: TokenKind): Promise<PaymentMethodOption[]> {
     const payload = unwrap<any>(await this.request('/pos/payment-methods', { tokenKind: kind }))
