@@ -20,6 +20,24 @@ export interface ZReportData {
   discrepancy: number
   currencySymbol?: string
   note?: string
+  transactions?: Array<{
+    type?: string
+    amount?: number
+    running_amount?: number
+    reason?: string
+    reference?: string
+    payment_method?: string
+    happened_at?: string
+  }>
+}
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
 }
 
 function getPaperStyles(width: '80mm' | '58mm' = '80mm') {
@@ -147,6 +165,43 @@ export function printThermalZReport(data: ZReportData, config?: StationPrinterCo
     ? `SOBRANTE (+${fmt(discrepancy)})`
     : `FALTANTE (${fmt(discrepancy)})`
 
+  const transactionLabel = (type?: string) => ({
+    opening_float: 'Apertura',
+    cash_sale: 'Venta efectivo',
+    order_payment: 'Pago de orden',
+    cash_in: 'Ingreso manual',
+    cash_out: 'Salida / adelanto',
+    safe_drop: 'Caja fuerte',
+    refund: 'Reembolso',
+    change_given: 'Cambio entregado',
+  } as Record<string, string>)[String(type || '')] || String(type || 'Movimiento').replace(/[_-]+/g, ' ')
+
+  const formatTransactionTime = (value?: string) => {
+    if (!value) return '--/-- --:--:--'
+    try {
+      const date = new Date(value)
+      return `${date.toLocaleDateString('es-DO')} ${date.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}`
+    } catch {
+      return value
+    }
+  }
+
+  const transactionHistoryHtml = (data.transactions || []).map(transaction => {
+    const type = String(transaction.type || '')
+    const credit = ['opening_float', 'cash_sale', 'order_payment', 'cash_in'].includes(type)
+    const detail = [transaction.reason, transaction.reference, transaction.payment_method ? `Pago: ${transaction.payment_method}` : '']
+      .filter(Boolean)
+      .join(' · ')
+    return `
+      <div class="dashed"></div>
+      <div class="row" style="font-size: 10px;">
+        <span class="row-label">${escapeHtml(formatTransactionTime(transaction.happened_at))} · <b>${escapeHtml(transactionLabel(type))}</b></span>
+        <span class="row-val">${credit ? '+' : '-'}${fmt(Number(transaction.amount || 0))}</span>
+      </div>
+      ${detail ? `<div style="font-size: 10px; word-break: break-word;">${escapeHtml(detail)}</div>` : ''}
+      <div style="font-size: 10px; text-align: right;">Saldo: ${fmt(Number(transaction.running_amount || 0))}</div>`
+  }).join('')
+
   const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -238,6 +293,11 @@ export function printThermalZReport(data: ZReportData, config?: StationPrinterCo
   <div style="font-size: 10.5px; margin-top: 5px;">
     <b>Nota:</b> ${data.note}
   </div>` : ''}
+
+  ${transactionHistoryHtml ? `
+  <div class="double"></div>
+  <div class="text-center bold" style="font-size: 11.5px; margin-bottom: 3px;">HISTORIAL DE MOVIMIENTOS</div>
+  ${transactionHistoryHtml}` : ''}
 
   <div class="signatures">
     <div class="sig-block">

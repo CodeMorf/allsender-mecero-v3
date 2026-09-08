@@ -366,6 +366,16 @@ export class ApiClient {
     return unwrap(await this.request(`/pos/cash-register/sessions/${sessionId}/summary`, { tokenKind: kind }))
   }
 
+  async printCashSession(kind: TokenKind, sessionId: number, reportType: 'x_report' | 'z_report' = 'z_report', idempotencyKey?: string) {
+    const headers = idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined
+    return this.request(`/pos/cash-register/sessions/${sessionId}/print`, {
+      method: 'POST',
+      tokenKind: kind,
+      headers,
+      body: JSON.stringify({ report_type: reportType }),
+    })
+  }
+
   async openCashSession(kind: TokenKind, body: unknown, idempotencyKey: string) {
     return this.request('/pos/cash-register/sessions/open', { method: 'POST', tokenKind: kind, headers: { 'Idempotency-Key': idempotencyKey }, body: JSON.stringify(body) })
   }

@@ -65,7 +65,7 @@ interface CashModuleProps {
   onCloseSession: (sessionId: number, countedCash: number, expectedCash: number | undefined, note: string, sendForApproval: boolean) => Promise<void>
   onCashMovement: (type: 'cash-in' | 'cash-out' | 'safe-drop', amount: number, reason: string) => Promise<void>
   onFetchHistory?: () => Promise<CashSession[]>
-  onPrintReport?: (sessionId: number, type: 'x_report' | 'z_report', sessionData?: any) => void
+  onPrintReport?: (sessionId: number, type: 'x_report' | 'z_report', sessionData?: any) => void | Promise<void>
 }
 
 export const CashModule: React.FC<CashModuleProps> = ({
@@ -210,7 +210,7 @@ export const CashModule: React.FC<CashModuleProps> = ({
       const hasDiscrepancy = Math.abs(counted - expected) > 0.01
       await onCloseSession(activeSession.id, counted, expected, closingNote, hasDiscrepancy)
       if (onPrintReport) {
-        onPrintReport(activeSession.id, 'z_report', {
+        await onPrintReport(activeSession.id, 'z_report', {
           ...activeSession,
           counted_cash: counted,
           expected_cash: expected,
