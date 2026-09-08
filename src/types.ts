@@ -1,6 +1,8 @@
 export type TokenKind = 'admin' | 'pin'
 export type StaffRole = 'head' | 'mesero' | 'chef' | 'cajero' | 'repartidor'
-export type OrderMode = 'dine_in' | 'delivery' | 'pickup'
+export type OrderMode = 'dine_in' | 'delivery' | 'pickup' | 'room_service'
+export type OrderTypeSlug = 'dine_in' | 'delivery' | 'pickup' | 'room_service' | string
+
 
 export type ApiErrorShape = {
   message?: string
@@ -173,6 +175,20 @@ export type DeliveryExecutive = {
   status?: string
 }
 
+export type DeliveryPlatform = {
+  id: number
+  name: string
+  logo?: string
+  logo_url?: string
+}
+
+export type OrderTypeConfig = {
+  id: number
+  slug: OrderTypeSlug
+  order_type_name: string
+  type: string
+}
+
 export type DeliverySettings = {
   is_enabled: boolean
   fixed_fee?: number | null
@@ -180,6 +196,7 @@ export type DeliverySettings = {
   fee_tiers?: Array<{ id: number; min_distance: number; max_distance: number; fee: number }>
   prep_time_minutes?: number
 }
+
 
 export type ReceiptSettingValue = boolean | number | string
 
@@ -276,6 +293,10 @@ export type Printer = {
 
 export type OrderDraft = {
   mode: OrderMode
+  orderTypeId?: number
+  deliveryPlatformId?: number | null
+  deliveryAppName?: string
+  roomNumber?: string
   existingOrderId?: number
   customerId?: number
   customerName?: string
@@ -285,11 +306,14 @@ export type OrderDraft = {
   deliveryTime?: string
   deliveryFee?: number
   deliveryExecutiveId?: number
+  customerLat?: number
+  customerLng?: number
   rncCedula?: string
   fiscalName?: string
   receiptType?: string
   ecfType?: string
 }
+
 
 export type KitchenOrderItem = {
   id: number

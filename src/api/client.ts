@@ -1,4 +1,4 @@
-import type { ApiErrorShape, AttendanceRecord, Branch, DeliveryExecutive, DeliverySettings, DeviceBinding, FiscalCapabilities, KitchenPlace, KitchenTicket, MenuItem, PaymentMethodOption, PosCustomer, Printer, ReceiptSettings, RestaurantTable, Session, StaffRole, StaffSchedule, TokenKind, WaiterRequest } from '../types'
+import type { ApiErrorShape, AttendanceRecord, Branch, DeliveryExecutive, DeliveryPlatform, DeliverySettings, DeviceBinding, FiscalCapabilities, KitchenPlace, KitchenTicket, MenuItem, OrderTypeConfig, PaymentMethodOption, PosCustomer, Printer, ReceiptSettings, RestaurantTable, Session, StaffRole, StaffSchedule, TokenKind, WaiterRequest } from '../types'
 
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'https://restapp.allsender.tech/api/application-integration').replace(/\/$/, '')
 
@@ -163,9 +163,25 @@ export class ApiClient {
     const value = unwrap<any>(await this.request('/platform/receipt-settings', { tokenKind: kind }))
     return value && typeof value === 'object' ? value as ReceiptSettings : null
   }
-  async orderTypes(kind: TokenKind) { return asArray<any>(await this.request('/pos/order-types', { tokenKind: kind })) }
+  async orderTypes(kind: TokenKind): Promise<OrderTypeConfig[]> {
+    return asArray<any>(await this.request('/pos/order-types', { tokenKind: kind })).map((ot: any) => ({
+      id: Number(ot.id),
+      slug: (ot.slug || ot.type || 'dine_in') as any,
+      order_type_name: String(ot.order_type_name || ot.name || ot.slug || 'Tipo'),
+      type: String(ot.type || ot.slug || '')
+    }))
+  }
+  async deliveryPlatforms(kind: TokenKind): Promise<DeliveryPlatform[]> {
+    return asArray<any>(await this.request('/pos/delivery-platforms', { tokenKind: kind })).map((p: any) => ({
+      id: Number(p.id),
+      name: String(p.name || `Plataforma ${p.id}`),
+      logo: p.logo,
+      logo_url: p.logo_url
+    }))
+  }
   async deliveryExecutives(kind: TokenKind): Promise<DeliveryExecutive[]> { return asArray<any>(await this.request('/pos/delivery-executives', { tokenKind: kind })).map((value: any) => ({ id: Number(value.id), name: String(value.name || `Repartidor ${value.id}`), phone: value.phone, status: value.status || value.status_raw })) }
   async deliverySettings(kind: TokenKind): Promise<DeliverySettings | null> { const value = await this.request<any>('/pos/delivery-settings', { tokenKind: kind }); const data = value?.data; if (!data) return null; return { ...data, is_enabled: data.is_enabled === true || data.is_enabled === 1 || data.is_enabled === '1', fixed_fee: data.fixed_fee == null ? null : Number(data.fixed_fee) } }
+
   async customers(kind: TokenKind, search = ''): Promise<PosCustomer[]> {
     const query = search ? `?search=${encodeURIComponent(search)}` : ''
     return asArray<any>(await this.request(`/pos/customers${query}`, { tokenKind: kind })).map(normalizeCustomer)

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { api, ApiError, normalizeAttendance } from './api/client'
-import type { AttendanceRecord, Branch, DeliveryExecutive, DeliverySettings, DeviceBinding, FiscalCapabilities, KitchenPlace, KitchenTicket, KitchenView, MenuItem, ModifierGroup, ModifierOption, NotificationSettings, OfflineOperation, OfflineStep, OfflineWorkflow, OrderDraft, OrderLine, OrderMode, PaymentMethodOption, PosCustomer, ProductVariation, RestaurantTable, Session, StaffRole, WaiterRequest } from './types'
+import type { AttendanceRecord, Branch, DeliveryExecutive, DeliveryPlatform, DeliverySettings, DeviceBinding, FiscalCapabilities, KitchenPlace, KitchenTicket, KitchenView, MenuItem, ModifierGroup, ModifierOption, NotificationSettings, OfflineOperation, OfflineStep, OfflineWorkflow, OrderDraft, OrderLine, OrderMode, OrderTypeConfig, PaymentMethodOption, PosCustomer, ProductVariation, RestaurantTable, Session, StaffRole, WaiterRequest } from './types'
 import { clearSession, enqueue, getDeviceId, getStorageScope, listOutbox, newIdempotencyKey, readCache, readSession, removeOutbox, saveCache, saveSession, setStorageScope, updateOutbox } from './storage/offline'
 import { CustomerModal } from './CustomerModal'
 import { PosDanSidebar, PosDanModule } from './components/PosDanSidebar'
@@ -589,20 +589,34 @@ export default function App() {
       rnc_cedula: draft.rncCedula,
       fiscal_name: draft.fiscalName,
     } : undefined
+    const orderTypeName = draft.mode === 'room_service'
+      ? 'Room Service'
+      : draft.mode === 'delivery'
+      ? 'Delivery'
+      : draft.mode === 'pickup'
+      ? 'Pickup'
+      : 'Dine In'
+
     const body: Record<string, unknown> = {
       uuid: newIdempotencyKey(),
-      order_type: draft.mode === 'delivery' ? 'Delivery' : draft.mode === 'pickup' ? 'Pickup' : 'Dine In',
+      order_type: orderTypeName,
+      order_type_id: draft.orderTypeId !== undefined ? draft.orderTypeId : undefined,
+      delivery_app_id: draft.deliveryPlatformId !== undefined ? draft.deliveryPlatformId : undefined,
+      custom_order_type_name: draft.deliveryAppName || (draft.roomNumber ? `Habitación ${draft.roomNumber}` : undefined),
       items: itemPayload,
       customer: customerPayload,
       customer_id: draft.customerId || undefined,
-      delivery_address: draft.deliveryAddress || undefined,
+      delivery_address: draft.deliveryAddress || (draft.roomNumber ? `Habitación: ${draft.roomNumber}` : undefined),
       delivery_time: draft.deliveryTime ? new Date(draft.deliveryTime).toISOString() : undefined,
       delivery_fee: draft.deliveryFee !== undefined ? draft.deliveryFee : undefined,
-      delivery_executive_id: draft.deliveryExecutiveId !== undefined ? draft.deliveryExecutiveId : undefined
+      delivery_executive_id: draft.deliveryExecutiveId !== undefined ? draft.deliveryExecutiveId : undefined,
+      customer_lat: draft.customerLat !== undefined ? draft.customerLat : undefined,
+      customer_lng: draft.customerLng !== undefined ? draft.customerLng : undefined,
     }
-    if (draft.mode === 'dine_in' && table) {
+    if ((draft.mode === 'dine_in' || draft.mode === 'room_service') && table) {
       body.table_id = table.id
     }
+
     if (draft.existingOrderId) {
       if (draft.existingOrderId < 0) {
         const appended = await appendToPendingLocalOrder(draft.existingOrderId, itemPayload)
@@ -1449,7 +1463,8 @@ function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error,
 }
 
 function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, tables, items, kitchenPlaces, paymentMethods, fiscalCapabilities, offline, queueCount, isSyncing, notice, error, theme, onTheme, onLogout, onRefresh, onSubmitOrder, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onCancelOrder, onOpenCashSession, onCloseCashSession, onApproveCashSession, onRejectCashSession, onReopenCashSession, onCashMovement, onClockIn, onClockOut, onUpdateKotStatus, onSelectTable, activeTable }: { brand: string; branch: string; roleKey: StaffRole; userId?: number; deviceId: string; permissions: Record<string, boolean>; tables: RestaurantTable[]; items: MenuItem[]; kitchenPlaces: KitchenPlace[]; paymentMethods: PaymentMethodOption[]; fiscalCapabilities?: FiscalCapabilities | null; offline: boolean; queueCount: number; isSyncing?: boolean; notice: string; error: string; theme: 'light' | 'dark'; onTheme: () => void; onLogout: () => void; onRefresh: () => void; onSubmitOrder: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onCancelOrder?: (table: RestaurantTable, reason?: string) => Promise<{ queued: boolean; message: string }>; onOpenCashSession: (registerId: number, openingFloat: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCloseCashSession: (sessionId: number, countedCash: number, expectedCash: number | undefined, note: string, sendForApproval: boolean, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onApproveCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onRejectCashSession: (sessionId: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onReopenCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCashMovement: (movement: 'cash-in' | 'cash-out' | 'safe-drop', sessionId: number, amount: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onClockIn: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onClockOut: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onUpdateKotStatus: (kotId: number, status: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onSelectTable: (table: RestaurantTable | null) => void; activeTable: RestaurantTable | null }) {
-  const [showMenu, setShowMenu] = useState(false); const [showQuick, setShowQuick] = useState(false); const [showOps, setShowOps] = useState(false); const [showKitchen, setShowKitchen] = useState(false); const [showCashier, setShowCashier] = useState(false); const [showAttendance, setShowAttendance] = useState(false); const [opsLoading, setOpsLoading] = useState(false); const [notifications, setNotifications] = useState<LiveNotification[]>([]); const [deliverySettings, setDeliverySettings] = useState<DeliverySettings | null>(null); const [deliveryExecutives, setDeliveryExecutives] = useState<DeliveryExecutive[]>([])
+  const [showMenu, setShowMenu] = useState(false); const [showQuick, setShowQuick] = useState(false); const [showOps, setShowOps] = useState(false); const [showKitchen, setShowKitchen] = useState(false); const [showCashier, setShowCashier] = useState(false); const [showAttendance, setShowAttendance] = useState(false); const [opsLoading, setOpsLoading] = useState(false); const [notifications, setNotifications] = useState<LiveNotification[]>([]); const [deliverySettings, setDeliverySettings] = useState<DeliverySettings | null>(null); const [deliveryExecutives, setDeliveryExecutives] = useState<DeliveryExecutive[]>([]); const [deliveryPlatforms, setDeliveryPlatforms] = useState<DeliveryPlatform[]>([]); const [orderTypes, setOrderTypes] = useState<OrderTypeConfig[]>([])
+
   const canCreate = permissions['orders.create'] === true
   const canDelivery = roleKey === 'cajero' && canCreate
   const canQuickSale = canDelivery
@@ -1661,16 +1676,24 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
   const loadPosDanData = async () => {
     try {
       if (!offline) {
-        const [custs, regs, actSess, ords] = await Promise.all([
+        const [custs, regs, actSess, ords, oTypes, delPlats, delExecs, delSets] = await Promise.all([
           api.customers('pin').catch(() => []),
           api.cashRegisters('pin').catch(() => []),
           api.activeCashSession('pin').catch(() => null),
-          api.orders('pin').catch(() => [])
+          api.orders('pin').catch(() => []),
+          api.orderTypes('pin').catch(() => []),
+          api.deliveryPlatforms('pin').catch(() => []),
+          api.deliveryExecutives('pin').catch(() => []),
+          api.deliverySettings('pin').catch(() => null)
         ])
         setPosCustomers(custs)
         setCashRegisters(regs)
         setActiveCashSession(actSess)
         setAllOrders(ords)
+        if (oTypes && oTypes.length > 0) setOrderTypes(oTypes)
+        if (delPlats) setDeliveryPlatforms(delPlats)
+        if (delExecs) setDeliveryExecutives(delExecs)
+        if (delSets) setDeliverySettings(delSets)
         if (actSess && actSess.id) {
           api.cashSessionSummary('pin', actSess.id).then(setActiveCashSummary).catch(() => {})
         }
@@ -1679,6 +1702,7 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
       // ignore
     }
   }
+
 
   useEffect(() => {
     loadPosDanData()
@@ -2061,22 +2085,42 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
                 onSelectCustomer={setSelectedPosCustomer}
                 onOpenCustomerModal={() => setCustomerModalOpen(true)}
                 onCustomizeItem={(item) => setPosCustomizingItem(item)}
+                orderTypes={orderTypes}
+                deliveryPlatforms={deliveryPlatforms}
+                deliveryExecutives={deliveryExecutives}
+                deliverySettings={deliverySettings}
                 onCheckout={async (orderData) => {
                   try {
                     const lines = orderData.items.map((i: any) => ({
-                      id: String(i.id),
+                      clientId: crypto.randomUUID(),
+                      itemId: Number(i.id),
                       name: i.name,
                       price: i.price,
                       quantity: i.quantity,
-                      taxRate: 0.18,
-                      notes: i.notes
+                      variationId: i.variationId,
+                      variationName: i.variationName,
+                      modifiers: i.modifiers || [],
+                      note: i.notes
                     }))
-                    const draft = {
+                    const draft: OrderDraft = {
                       mode: orderData.mode,
-                      discountPercent: orderData.discountPercent,
-                      discountAmount: orderData.discountAmount,
-                      notes: orderData.notes,
-                      deliveryAddress: orderData.deliveryAddress
+                      orderTypeId: orderData.orderTypeId,
+                      deliveryPlatformId: orderData.deliveryPlatformId,
+                      deliveryAppName: orderData.deliveryAppName,
+                      roomNumber: orderData.roomNumber,
+                      deliveryAddress: orderData.deliveryAddress,
+                      deliveryFee: orderData.deliveryFee,
+                      deliveryExecutiveId: orderData.deliveryExecutiveId,
+                      customerLat: orderData.customerLat,
+                      customerLng: orderData.customerLng,
+                      customerId: orderData.customerId,
+                      customerName: selectedPosCustomer?.name,
+                      customerPhone: selectedPosCustomer?.phone,
+                      customerEmail: selectedPosCustomer?.email,
+                      rncCedula: selectedPosCustomer?.rncCedula,
+                      fiscalName: selectedPosCustomer?.fiscalName,
+                      receiptType: undefined,
+                      ecfType: undefined
                     }
                     const tableObj = orderData.tableId ? tables.find(t => t.id === orderData.tableId) || null : null
                     await onSubmitOrder(lines, tableObj, draft)
@@ -2087,6 +2131,7 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
                 }}
                 roleKey={roleKey}
               />
+
             </div>
           )}
 

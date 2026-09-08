@@ -13,11 +13,12 @@ import {
   DollarSign,
   X,
   Sliders,
-  Sparkles
+  Sparkles,
+  Hotel,
+  ChevronDown
 } from 'lucide-react'
-import type { MenuItem, PosCustomer, RestaurantTable, StaffRole } from '../types'
-
-export type OrderMode = 'dine_in' | 'takeaway' | 'delivery'
+import type { DeliveryExecutive, DeliveryPlatform, DeliverySettings, MenuItem, PosCustomer, RestaurantTable, StaffRole, OrderTypeConfig } from '../types'
+import { OrderTypeModal, type OrderTypeSelection } from '../components/OrderTypeModal'
 
 export interface PosModuleProps {
   menuItems: MenuItem[]
@@ -30,7 +31,12 @@ export interface PosModuleProps {
   onCustomizeItem?: (item: MenuItem) => void
   roleKey: StaffRole
   currencySymbol?: string
+  orderTypes?: OrderTypeConfig[]
+  deliveryPlatforms?: DeliveryPlatform[]
+  deliveryExecutives?: DeliveryExecutive[]
+  deliverySettings?: DeliverySettings | null
 }
+
 
 export interface PosCartItem {
   id: string
@@ -52,9 +58,18 @@ export const PosModule: React.FC<PosModuleProps> = ({
   onOpenCustomerModal,
   onCheckout,
   onCustomizeItem,
-  currencySymbol = 'RD$'
+  currencySymbol = 'RD$',
+  orderTypes = [],
+  deliveryPlatforms = [],
+  deliveryExecutives = [],
+  deliverySettings = null
 }) => {
-  const [orderMode, setOrderMode] = useState<OrderMode>('dine_in')
+  const [orderTypeModalOpen, setOrderTypeModalOpen] = useState(false)
+  const [orderSelection, setOrderSelection] = useState<OrderTypeSelection>(() => ({
+    mode: 'dine_in',
+    orderTypeId: orderTypes.find(t => t.slug === 'dine_in')?.id ?? 25,
+    orderTypeName: 'Comer aquí'
+  }))
   const [selectedTableId, setSelectedTableId] = useState<number | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL')
@@ -163,18 +178,35 @@ export const PosModule: React.FC<PosModuleProps> = ({
     setOrderNotes('')
   }
 
-  const subtotal = cart.reduce((sum, ci) => sum + ci.price * ci.quantity, 0)
-  const discountAmount = (subtotal * discountPercent) / 100
-  const itbis = (subtotal - discountAmount) * 0.18
-  const total = subtotal - discountAmount + itbis
+  const subtotal = useMemo(() => {
+    return cart.reduce((sum, ci) => sum + ci.price * ci.quantity, 0)
+  }, [cart])
+
+  const discountAmount = useMemo(() => {
+    return (subtotal * discountPercent) / 100
+  }, [subtotal, discountPercent])
+
+  const discountedSubtotal = subtotal - discountAmount
+  const itbis = discountedSubtotal * 0.18
+  const total = discountedSubtotal + itbis
 
   const handlePay = async () => {
     if (cart.length === 0) return
     setIsProcessing(true)
     try {
       await onCheckout({
-        mode: orderMode,
-        tableId: orderMode === 'dine_in' ? selectedTableId : null,
+        mode: orderSelection.mode,
+        orderTypeId: orderSelection.orderTypeId,
+        orderTypeName: orderSelection.orderTypeName,
+        deliveryPlatformId: orderSelection.deliveryPlatformId,
+        deliveryAppName: orderSelection.deliveryAppName,
+        roomNumber: orderSelection.roomNumber,
+        deliveryExecutiveId: orderSelection.deliveryExecutiveId,
+        deliveryAddress: orderSelection.deliveryAddress,
+        deliveryFee: orderSelection.deliveryFee,
+        customerLat: orderSelection.customerLat,
+        customerLng: orderSelection.customerLng,
+        tableId: orderSelection.mode === 'dine_in' ? selectedTableId : null,
         customerId: selectedCustomer?.id || null,
         items: cart.map(c => ({
           id: c.itemId,
@@ -201,33 +233,56 @@ export const PosModule: React.FC<PosModuleProps> = ({
 
   return (
     <div className="posdan-pos-layout">
+      {/* Modal for Order Types and Delivery Platforms */}
+      <OrderTypeModal
+        isOpen={orderTypeModalOpen}
+        onClose={() => setOrderTypeModalOpen(false)}
+        onSelect={(selection) => {
+          setOrderSelection(selection)
+          if (selection.mode !== 'dine_in') {
+            setSelectedTableId(null)
+          }
+        }}
+        currentSelection={orderSelection}
+        orderTypes={orderTypes}
+        deliveryPlatforms={deliveryPlatforms}
+        deliveryExecutives={deliveryExecutives}
+        deliverySettings={deliverySettings}
+      />
+
       <div className="posdan-pos-main">
         <div className="posdan-pos-topbar">
-          <div className="posdan-mode-selector">
+          <div className="posdan-mode-selector" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {/* Primary button opening OrderTypeModal */}
             <button
-              onClick={() => setOrderMode('dine_in')}
-              className={`posdan-mode-btn ${orderMode === 'dine_in' ? 'active' : ''}`}
+              type="button"
+              onClick={() => setOrderTypeModalOpen(true)}
+              className="posdan-mode-btn active"
+              style={{
+                background: '#ea580c',
+                color: '#ffffff',
+                borderColor: '#ea580c',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 14px'
+              }}
+              title="Haz clic para cambiar tipo de pedido o plataforma de entrega"
             >
-              <Utensils size={15} />
-              <span>Comer Aquí</span>
-            </button>
-            <button
-              onClick={() => setOrderMode('takeaway')}
-              className={`posdan-mode-btn ${orderMode === 'takeaway' ? 'active' : ''}`}
-            >
-              <ShoppingBag size={15} />
-              <span>Para Llevar</span>
-            </button>
-            <button
-              onClick={() => setOrderMode('delivery')}
-              className={`posdan-mode-btn ${orderMode === 'delivery' ? 'active' : ''}`}
-            >
-              <Truck size={15} />
-              <span>A Domicilio</span>
+              {orderSelection.mode === 'dine_in' && <Utensils size={16} />}
+              {orderSelection.mode === 'pickup' && <ShoppingBag size={16} />}
+              {orderSelection.mode === 'room_service' && <Hotel size={16} />}
+              {orderSelection.mode === 'delivery' && <Truck size={16} />}
+              <span>
+                {orderSelection.orderTypeName}
+                {orderSelection.roomNumber ? ` (${orderSelection.roomNumber})` : ''}
+              </span>
+              <ChevronDown size={14} style={{ opacity: 0.8 }} />
             </button>
           </div>
 
-          {orderMode === 'dine_in' && (
+          {orderSelection.mode === 'dine_in' && (
             <div className="posdan-table-picker">
               <span style={{ fontSize: 12, fontWeight: 600, color: '#8b949e' }}>Mesa:</span>
               <select
@@ -243,6 +298,51 @@ export const PosModule: React.FC<PosModuleProps> = ({
                   </option>
                 ))}
               </select>
+            </div>
+          )}
+
+          {orderSelection.mode === 'room_service' && (
+            <div
+              onClick={() => setOrderTypeModalOpen(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                background: '#21262d',
+                padding: '6px 12px',
+                borderRadius: 8,
+                border: '1px solid #30363d',
+                fontSize: 12.5,
+                color: '#f0f6fc',
+                cursor: 'pointer'
+              }}
+            >
+              <Hotel size={15} color="#ea580c" />
+              <span>Habitación: <strong>{orderSelection.roomNumber || 'Sin indicar'}</strong></span>
+            </div>
+          )}
+
+          {orderSelection.mode === 'delivery' && (
+            <div
+              onClick={() => setOrderTypeModalOpen(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                background: '#21262d',
+                padding: '6px 12px',
+                borderRadius: 8,
+                border: '1px solid #30363d',
+                fontSize: 12.5,
+                color: '#f0f6fc',
+                cursor: 'pointer'
+              }}
+            >
+              <Truck size={15} color="#ea580c" />
+              <span>
+                {orderSelection.deliveryAppName || 'Entrega'}
+                {orderSelection.deliveryExecutiveId ? ' · Chofer asignado' : ''}
+              </span>
             </div>
           )}
 
