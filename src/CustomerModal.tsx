@@ -23,7 +23,10 @@ export interface CustomerModalProps {
 }
 
 export function CustomerModal({ currentCustomer, canManageFiscal = true, fiscalCapabilities, offline, onClose, onSelect }: CustomerModalProps) {
-  const isElectronicReady = Boolean(fiscalCapabilities?.electronic?.ready || fiscalCapabilities?.electronic?.enabled)
+  // `enabled` only means that the module is switched on. The backend is the
+  // source of truth for whether a document can actually be issued.
+  const isElectronicReady = Boolean(fiscalCapabilities?.electronic?.ready)
+  const isTraditionalReady = Boolean(fiscalCapabilities?.traditional?.ready)
   const defaultFinalConsumer = isElectronicReady ? 'E32' : 'B02'
   const defaultFiscalCredit = isElectronicReady ? 'E31' : 'B01'
 
@@ -506,36 +509,24 @@ export function CustomerModal({ currentCustomer, canManageFiscal = true, fiscalC
                             onChange={e => setReceiptType(e.target.value)}
                             style={{ marginTop: 4, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)' }}
                           >
-                            {isElectronicReady ? (
-                              <>
-                                <optgroup label="Factura Electrónica (e-CF) · Activo en esta sucursal">
-                                  <option value="E32">E32 - Factura de Consumo Electrónica (Consumidor Final)</option>
-                                  <option value="E31">E31 - Factura de Crédito Fiscal Electrónica</option>
-                                  <option value="E44">E44 - Régimen Especial Electrónico</option>
-                                  <option value="E45">E45 - Gubernamental Electrónico</option>
-                                </optgroup>
-                                <optgroup label="Comprobantes Tradicionales (NCF Serie B)">
-                                  <option value="B02">B02 - Factura de Consumo (Consumidor Final)</option>
-                                  <option value="B01">B01 - Factura de Crédito Fiscal</option>
-                                  <option value="B14">B14 - Régimen Especial de Tributación</option>
-                                  <option value="B15">B15 - Comprobante Gubernamental</option>
-                                </optgroup>
-                              </>
-                            ) : (
-                              <>
-                                <optgroup label="Comprobantes Tradicionales (NCF Serie B) · Activo en esta sucursal">
-                                  <option value="B02">B02 - Factura de Consumo (Consumidor Final)</option>
-                                  <option value="B01">B01 - Factura de Crédito Fiscal</option>
-                                  <option value="B14">B14 - Régimen Especial de Tributación</option>
-                                  <option value="B15">B15 - Comprobante Gubernamental</option>
-                                </optgroup>
-                                <optgroup label="Factura Electrónica (e-CF)">
-                                  <option value="E32">E32 - Factura de Consumo Electrónica (Consumidor Final)</option>
-                                  <option value="E31">E31 - Factura de Crédito Fiscal Electrónica</option>
-                                  <option value="E44">E44 - Régimen Especial Electrónico</option>
-                                  <option value="E45">E45 - Gubernamental Electrónico</option>
-                                </optgroup>
-                              </>
+                            {isElectronicReady && (
+                              <optgroup label="Factura Electrónica (e-CF) · Lista en esta sucursal">
+                                <option value="E32">E32 - Factura de Consumo Electrónica (Consumidor Final)</option>
+                                <option value="E31">E31 - Factura de Crédito Fiscal Electrónica</option>
+                                <option value="E44">E44 - Régimen Especial Electrónico</option>
+                                <option value="E45">E45 - Gubernamental Electrónico</option>
+                              </optgroup>
+                            )}
+                            {isTraditionalReady && (
+                              <optgroup label="Comprobantes Tradicionales (NCF Serie B) · Listos en esta sucursal">
+                                <option value="B02">B02 - Factura de Consumo (Consumidor Final)</option>
+                                <option value="B01">B01 - Factura de Crédito Fiscal</option>
+                                <option value="B14">B14 - Régimen Especial de Tributación</option>
+                                <option value="B15">B15 - Comprobante Gubernamental</option>
+                              </optgroup>
+                            )}
+                            {!isElectronicReady && !isTraditionalReady && (
+                              <option value="B02">Recibo de venta (fiscalidad no disponible en esta sucursal)</option>
                             )}
                           </select>
                         </label>
