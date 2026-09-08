@@ -11,7 +11,9 @@ import {
   Truck,
   FileText,
   DollarSign,
-  X
+  X,
+  Sliders,
+  Sparkles
 } from 'lucide-react'
 import type { MenuItem, PosCustomer, RestaurantTable, StaffRole } from '../types'
 
@@ -25,13 +27,20 @@ export interface PosModuleProps {
   onSelectCustomer: (cust: PosCustomer | null) => void
   onOpenCustomerModal: () => void
   onCheckout: (orderData: any) => Promise<void>
+  onCustomizeItem?: (item: MenuItem) => void
   roleKey: StaffRole
   currencySymbol?: string
 }
 
-interface CartItem {
-  item: MenuItem
+export interface PosCartItem {
+  id: string
+  itemId: number
+  name: string
+  price: number
   quantity: number
+  variationName?: string
+  variationId?: number
+  modifiers?: Array<{ id: number; name: string; price: number }>
   notes?: string
 }
 
@@ -42,13 +51,14 @@ export const PosModule: React.FC<PosModuleProps> = ({
   onSelectCustomer,
   onOpenCustomerModal,
   onCheckout,
+  onCustomizeItem,
   currencySymbol = 'RD$'
 }) => {
   const [orderMode, setOrderMode] = useState<OrderMode>('dine_in')
   const [selectedTableId, setSelectedTableId] = useState<number | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL')
-  const [cart, setCart] = useState<CartItem[]>([])
+  const [cart, setCart] = useState<PosCartItem[]>([])
   const [discountPercent, setDiscountPercent] = useState<number>(0)
   const [isProcessing, setIsProcessing] = useState(false)
   const [orderNotes, setOrderNotes] = useState('')
@@ -71,9 +81,19 @@ export const PosModule: React.FC<PosModuleProps> = ({
     })
   }, [menuItems, selectedCategory, searchQuery])
 
-  const addToCart = (item: MenuItem) => {
+  const handleProductClick = (item: MenuItem) => {
+    const hasVars = Array.isArray(item.variations) && item.variations.length > 0
+    const hasMods = Array.isArray(item.modifiers) && item.modifiers.length > 0
+    if ((hasVars || hasMods) && onCustomizeItem) {
+      onCustomizeItem(item)
+    } else {
+      addToCartDirect(item)
+    }
+  }
+
+  const addToCartDirect = (item: MenuItem) => {
     setCart(prev => {
-      const existingIndex = prev.findIndex(ci => ci.item.id === item.id)
+      const existingIndex = prev.findIndex(ci => ci.itemId === item.id && !ci.variationId && (!ci.modifiers || ci.modifiers.length === 0))
       if (existingIndex > -1) {
         const next = [...prev]
         next[existingIndex] = {
@@ -82,26 +102,59 @@ export const PosModule: React.FC<PosModuleProps> = ({
         }
         return next
       }
-      return [...prev, { item, quantity: 1 }]
+      return [
+        ...prev,
+        {
+          id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
+          itemId: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: 1
+        }
+      ]
     })
   }
 
-  const updateQuantity = (itemId: number, delta: number) => {
+  // Listen for customized item additions from the customization modal
+  React.useEffect(() => {
+    const handleLineAdded = (e: any) => {
+      const line = e.detail
+      if (!line) return
+      setCart(prev => [
+        ...prev,
+        {
+          id: line.clientId || crypto.randomUUID(),
+          itemId: line.itemId,
+          name: line.name,
+          price: line.price + (line.modifiers?.reduce((s: number, m: any) => s + (m.price || 0), 0) || 0),
+          quantity: line.quantity || 1,
+          variationName: line.variationName,
+          variationId: line.variationId,
+          modifiers: line.modifiers,
+          notes: line.note
+        }
+      ])
+    }
+    window.addEventListener('restapp:pos-add-line', handleLineAdded)
+    return () => window.removeEventListener('restapp:pos-add-line', handleLineAdded)
+  }, [])
+
+  const updateQuantity = (cartItemId: string, delta: number) => {
     setCart(prev => {
       return prev
         .map(ci => {
-          if (ci.item.id === itemId) {
+          if (ci.id === cartItemId) {
             const newQty = ci.quantity + delta
             return newQty > 0 ? { ...ci, quantity: newQty } : null
           }
           return ci
         })
-        .filter(Boolean) as CartItem[]
+        .filter(Boolean) as PosCartItem[]
     })
   }
 
-  const removeFromCart = (itemId: number) => {
-    setCart(prev => prev.filter(ci => ci.item.id !== itemId))
+  const removeFromCart = (cartItemId: string) => {
+    setCart(prev => prev.filter(ci => ci.id !== cartItemId))
   }
 
   const clearCart = () => {
@@ -110,7 +163,7 @@ export const PosModule: React.FC<PosModuleProps> = ({
     setOrderNotes('')
   }
 
-  const subtotal = cart.reduce((sum, ci) => sum + ci.item.price * ci.quantity, 0)
+  const subtotal = cart.reduce((sum, ci) => sum + ci.price * ci.quantity, 0)
   const discountAmount = (subtotal * discountPercent) / 100
   const itbis = (subtotal - discountAmount) * 0.18
   const total = subtotal - discountAmount + itbis
@@ -124,10 +177,13 @@ export const PosModule: React.FC<PosModuleProps> = ({
         tableId: orderMode === 'dine_in' ? selectedTableId : null,
         customerId: selectedCustomer?.id || null,
         items: cart.map(c => ({
-          id: c.item.id,
-          name: c.item.name,
-          price: c.item.price,
+          id: c.itemId,
+          name: c.name,
+          price: c.price,
           quantity: c.quantity,
+          variationId: c.variationId,
+          variationName: c.variationName,
+          modifiers: c.modifiers,
           notes: c.notes
         })),
         subtotal,
@@ -223,54 +279,63 @@ export const PosModule: React.FC<PosModuleProps> = ({
         </div>
 
         <div className="posdan-products-grid">
-          {filteredItems.map(item => (
-            <button
-              key={item.id}
-              onClick={() => addToCart(item)}
-              disabled={!item.available}
-              className="posdan-item-card"
-            >
-              <div className="posdan-item-image-wrap">
-                {item.imageUrl ? (
-                  <img
-                    src={item.imageUrl}
-                    alt={item.name}
-                    onError={e => {
-                      ;(e.currentTarget as HTMLElement).style.display = 'none'
-                    }}
-                  />
-                ) : (
-                  <Utensils style={{ color: '#484f58' }} size={28} />
-                )}
-                {!item.available && (
-                  <div style={{ position: 'absolute', inset: 0, background: 'rgba(9, 13, 20, 0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span className="posdan-badge-danger" style={{ fontSize: 10 }}>Agotado</span>
-                  </div>
-                )}
-              </div>
+          {filteredItems.map(item => {
+            const hasOptions = (item.variations && item.variations.length > 0) || (item.modifiers && item.modifiers.length > 0)
 
-              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between' }}>
-                <div>
-                  <h4 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#f0f6fc', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                    {item.name}
-                  </h4>
-                  {item.categoryName && (
-                    <span style={{ fontSize: 11, color: '#8b949e', display: 'block', marginTop: 3 }}>
-                      {item.categoryName}
-                    </span>
+            return (
+              <button
+                key={item.id}
+                onClick={() => handleProductClick(item)}
+                disabled={!item.available}
+                className="posdan-item-card"
+              >
+                <div className="posdan-item-image-wrap">
+                  {item.imageUrl ? (
+                    <img
+                      src={item.imageUrl}
+                      alt={item.name}
+                      onError={e => {
+                        ;(e.currentTarget as HTMLElement).style.display = 'none'
+                      }}
+                    />
+                  ) : (
+                    <Utensils style={{ color: '#484f58' }} size={28} />
+                  )}
+                  {!item.available && (
+                    <div style={{ position: 'absolute', inset: 0, background: 'rgba(9, 13, 20, 0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <span className="posdan-badge-danger" style={{ fontSize: 10 }}>Agotado</span>
+                    </div>
+                  )}
+                  {hasOptions && item.available && (
+                    <div style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(249, 115, 22, 0.9)', color: '#fff', borderRadius: 6, padding: '2px 5px', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
+                      <Sliders size={10} /> Opciones
+                    </div>
                   )}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
-                  <span style={{ fontSize: 14, fontWeight: 800, fontFamily: 'monospace', color: '#34d399' }}>
-                    {currencySymbol} {item.price.toFixed(2)}
-                  </span>
-                  <span style={{ width: 26, height: 26, borderRadius: 8, background: '#21262d', color: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Plus size={15} />
-                  </span>
+
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between' }}>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#f0f6fc', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                      {item.name}
+                    </h4>
+                    {item.categoryName && (
+                      <span style={{ fontSize: 11, color: '#8b949e', display: 'block', marginTop: 3 }}>
+                        {item.categoryName}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
+                    <span style={{ fontSize: 14, fontWeight: 800, fontFamily: 'monospace', color: '#34d399' }}>
+                      {currencySymbol} {item.price.toFixed(2)}
+                    </span>
+                    <span style={{ width: 26, height: 26, borderRadius: 8, background: '#21262d', color: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {hasOptions ? <Sliders size={14} /> : <Plus size={15} />}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </button>
-          ))}
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -324,31 +389,46 @@ export const PosModule: React.FC<PosModuleProps> = ({
         <div className="posdan-cart-list">
           {cart.map(ci => (
             <div
-              key={ci.item.id}
+              key={ci.id}
               className="posdan-cart-item"
             >
               <div style={{ minWidth: 0, flex: 1 }}>
-                <h5 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#f0f6fc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ci.item.name}</h5>
+                <h5 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#f0f6fc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ci.name}</h5>
+                {ci.variationName && (
+                  <span style={{ fontSize: 11, color: '#38bdf8', display: 'block', marginTop: 1 }}>
+                    Variación: {ci.variationName}
+                  </span>
+                )}
+                {ci.modifiers && ci.modifiers.length > 0 && (
+                  <div style={{ fontSize: 11, color: '#f97316', marginTop: 1 }}>
+                    + {ci.modifiers.map(m => m.name).join(', ')}
+                  </div>
+                )}
+                {ci.notes && (
+                  <div style={{ fontSize: 11, color: '#8b949e', fontStyle: 'italic', marginTop: 1 }}>
+                    Nota: {ci.notes}
+                  </div>
+                )}
                 <div style={{ marginTop: 2 }}>
                   <span style={{ fontSize: 12, color: '#34d399', fontWeight: 800, fontFamily: 'monospace' }}>
-                    {currencySymbol} {(ci.item.price * ci.quantity).toFixed(2)}
+                    {currencySymbol} {(ci.price * ci.quantity).toFixed(2)}
                   </span>
                   <span style={{ fontSize: 11, color: '#8b949e', marginLeft: 6 }}>
-                    ({currencySymbol} {ci.item.price.toFixed(2)} c/u)
+                    ({currencySymbol} {ci.price.toFixed(2)} c/u)
                   </span>
                 </div>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#0d1117', padding: '3px 6px', borderRadius: 8, border: '1px solid #21262d' }}>
                 <button
-                  onClick={() => updateQuantity(ci.item.id, -1)}
+                  onClick={() => updateQuantity(ci.id, -1)}
                   style={{ width: 22, height: 22, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', color: '#c9d1d9', cursor: 'pointer' }}
                 >
                   <Minus size={12} />
                 </button>
                 <span style={{ fontSize: 13, fontWeight: 800, color: '#f0f6fc', width: 20, textAlign: 'center' }}>{ci.quantity}</span>
                 <button
-                  onClick={() => updateQuantity(ci.item.id, 1)}
+                  onClick={() => updateQuantity(ci.id, 1)}
                   style={{ width: 22, height: 22, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', color: '#c9d1d9', cursor: 'pointer' }}
                 >
                   <Plus size={12} />
@@ -356,7 +436,7 @@ export const PosModule: React.FC<PosModuleProps> = ({
               </div>
 
               <button
-                onClick={() => removeFromCart(ci.item.id)}
+                onClick={() => removeFromCart(ci.id)}
                 style={{ background: 'transparent', border: 'none', color: '#6e7681', cursor: 'pointer', padding: 4 }}
               >
                 <Trash2 size={14} />

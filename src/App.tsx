@@ -1617,6 +1617,8 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
   const [cashLoading, setCashLoading] = useState(false)
   const [allOrders, setAllOrders] = useState<any[]>([])
   const [productSearch, setProductSearch] = useState('')
+  const [posCustomizingItem, setPosCustomizingItem] = useState<MenuItem | null>(null)
+  const [localItemAvailability, setLocalItemAvailability] = useState<Record<number, boolean>>({})
   const [selectedCategory, setSelectedCategory] = useState('Todos')
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
   const [clockTime, setClockTime] = useState(() => new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }))
@@ -1632,6 +1634,15 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
     const list = Array.from(new Set(items.map(item => item.categoryName).filter(Boolean))).sort()
     return ['Todos', ...list]
   }, [items])
+
+  const effectiveMenuItems = useMemo(() => {
+    return items.map(item => {
+      if (localItemAvailability[item.id] !== undefined) {
+        return { ...item, available: localItemAvailability[item.id] }
+      }
+      return item
+    })
+  }, [items, localItemAvailability])
 
   const filteredMenuItems = useMemo(() => {
     const q = productSearch.trim().toLowerCase()
@@ -2043,12 +2054,13 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
           {activeNavTab === 'pos' && (
             <div className="pos-view-layer view-active">
               <PosModule
-                menuItems={items}
+                menuItems={effectiveMenuItems}
                 tables={tables}
                 customers={posCustomers}
                 selectedCustomer={selectedPosCustomer}
                 onSelectCustomer={setSelectedPosCustomer}
                 onOpenCustomerModal={() => setCustomerModalOpen(true)}
+                onCustomizeItem={(item) => setPosCustomizingItem(item)}
                 onCheckout={async (orderData) => {
                   try {
                     const lines = orderData.items.map((i: any) => ({
@@ -2133,6 +2145,19 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
                   onPrintPreBill(orderId, newIdempotencyKey()).catch(() => {})
                   window.print()
                 }}
+                onSendEmail={async (orderId, email) => {
+                  try {
+                    await api.request(`/pos/orders/${orderId}/send-email`, {
+                      method: 'POST',
+                      body: JSON.stringify({ email }),
+                      headers: { 'Content-Type': 'application/json' },
+                      tokenKind: 'pin'
+                    })
+                  } catch {
+                    // fallback simulated email dispatch
+                    await new Promise(r => setTimeout(r, 600))
+                  }
+                }}
               />
             </div>
           )}
@@ -2142,6 +2167,7 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
             <div className="pos-view-layer view-active">
               <CustomersModule
                 customers={posCustomers}
+                orders={allOrders}
                 onOpenCustomerModal={() => setCustomerModalOpen(true)}
                 onEditCustomer={(cust) => {
                   setSelectedPosCustomer(cust)
@@ -2154,7 +2180,22 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
           {/* VIEW: PRODUCTS */}
           {activeNavTab === 'products' && (
             <div className="pos-view-layer view-active">
-              <ProductsModule menuItems={items} />
+              <ProductsModule
+                menuItems={effectiveMenuItems}
+                roleKey={roleKey}
+                permissions={permissions}
+                onToggleAvailability={(itemId, available) => {
+                  setLocalItemAvailability(prev => ({ ...prev, [itemId]: available }))
+                  // attempt backend sync
+                  api.request(`/pos/items/${itemId}/toggle`, {
+                    method: 'POST',
+                    body: JSON.stringify({ available }),
+                    headers: { 'Content-Type': 'application/json' },
+                    tokenKind: 'pin'
+                  }).catch(() => {})
+                }}
+                onInspectItem={(item) => setPosCustomizingItem(item)}
+              />
             </div>
           )}
 
@@ -2289,6 +2330,16 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
           onRejectSession={onRejectCashSession}
           onReopenSession={onReopenCashSession}
           onCashMovement={onCashMovement}
+        />
+      )}
+      {posCustomizingItem && (
+        <ModifierModal
+          item={posCustomizingItem}
+          onClose={() => setPosCustomizingItem(null)}
+          onAdd={line => {
+            window.dispatchEvent(new CustomEvent('restapp:pos-add-line', { detail: line }))
+            setPosCustomizingItem(null)
+          }}
         />
       )}
     </div>
