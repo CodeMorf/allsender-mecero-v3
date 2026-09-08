@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ApiError, normalizeAttendance, normalizeItem, normalizeKitchenPlace, normalizeKitchenTicket, normalizeStaffSchedule, normalizeTable, normalizeWaiterRequest } from './api/client'
+import { cartItemUnitPrice } from './modules/PosModule'
 import { newIdempotencyKey, readCache, saveCache, setStorageScope } from './storage/offline'
 
 describe('contrato base del mesero', () => {
@@ -30,6 +31,26 @@ describe('contrato base del mesero', () => {
     expect(item.allergens).toEqual(['dairy'])
     expect(item.dietaryTags).toEqual(['gluten-free'])
     expect(item.modifiers).toHaveLength(1)
+  })
+
+  it('conserva las variaciones del catálogo para abrir el personalizador', () => {
+    const item = normalizeItem({
+      id: 18,
+      item_name: 'Hamburguesa',
+      price: 350,
+      variations: [
+        { id: 41, variation: 'Doble', price: '475.00' },
+        { id: 42, name: 'Triple', final_price: '575.00' },
+      ],
+    })
+    expect(item.variations).toEqual([
+      { id: 41, name: 'Doble', price: 475 },
+      { id: 42, name: 'Triple', price: 575 },
+    ])
+  })
+
+  it('suma los suplementos una sola vez en el precio de la línea POS', () => {
+    expect(cartItemUnitPrice({ price: 475, modifiers: [{ id: 7, name: 'Extra queso', price: 35 }] })).toBe(510)
   })
 
   it('normaliza la foto publicada por el tenant sin inventar una URL', () => {

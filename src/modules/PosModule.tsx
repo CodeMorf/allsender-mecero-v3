@@ -50,6 +50,10 @@ export interface PosCartItem {
   notes?: string
 }
 
+export function cartItemUnitPrice(item: Pick<PosCartItem, 'price' | 'modifiers'>) {
+  return item.price + (item.modifiers || []).reduce((sum, modifier) => sum + Number(modifier.price || 0), 0)
+}
+
 export const PosModule: React.FC<PosModuleProps> = ({
   menuItems,
   tables,
@@ -141,7 +145,10 @@ export const PosModule: React.FC<PosModuleProps> = ({
           id: line.clientId || crypto.randomUUID(),
           itemId: line.itemId,
           name: line.name,
-          price: line.price + (line.modifiers?.reduce((s: number, m: any) => s + (m.price || 0), 0) || 0),
+          // Keep the base/variation price separate from supplements. The
+          // checkout payload sends modifiers independently and the backend
+          // adds them exactly once to the item total.
+          price: Number(line.price || 0),
           quantity: line.quantity || 1,
           variationName: line.variationName,
           variationId: line.variationId,
@@ -179,7 +186,7 @@ export const PosModule: React.FC<PosModuleProps> = ({
   }
 
   const subtotal = useMemo(() => {
-    return cart.reduce((sum, ci) => sum + ci.price * ci.quantity, 0)
+    return cart.reduce((sum, ci) => sum + cartItemUnitPrice(ci) * ci.quantity, 0)
   }, [cart])
 
   const discountAmount = useMemo(() => {
@@ -517,10 +524,10 @@ export const PosModule: React.FC<PosModuleProps> = ({
                 )}
                 <div style={{ marginTop: 2 }}>
                   <span style={{ fontSize: 12, color: '#34d399', fontWeight: 800, fontFamily: 'monospace' }}>
-                    {currencySymbol} {(ci.price * ci.quantity).toFixed(2)}
+                    {currencySymbol} {(cartItemUnitPrice(ci) * ci.quantity).toFixed(2)}
                   </span>
                   <span style={{ fontSize: 11, color: '#8b949e', marginLeft: 6 }}>
-                    ({currencySymbol} {ci.price.toFixed(2)} c/u)
+                    ({currencySymbol} {cartItemUnitPrice(ci).toFixed(2)} c/u)
                   </span>
                 </div>
               </div>

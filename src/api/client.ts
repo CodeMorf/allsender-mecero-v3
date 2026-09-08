@@ -1,4 +1,4 @@
-import type { ApiErrorShape, AttendanceRecord, Branch, DeliveryExecutive, DeliveryPlatform, DeliverySettings, DeviceBinding, FiscalCapabilities, KitchenPlace, KitchenTicket, MenuItem, OrderTypeConfig, PaymentMethodOption, PosCustomer, Printer, ReceiptSettings, RestaurantTable, Session, StaffRole, StaffSchedule, TokenKind, WaiterRequest } from '../types'
+import type { ApiErrorShape, AttendanceRecord, Branch, DeliveryExecutive, DeliveryPlatform, DeliverySettings, DeviceBinding, FiscalCapabilities, KitchenPlace, KitchenTicket, MenuItem, OrderTypeConfig, PaymentMethodOption, PosCustomer, Printer, ProductVariation, ReceiptSettings, RestaurantTable, Session, StaffRole, StaffSchedule, TokenKind, WaiterRequest } from '../types'
 
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'https://restapp.allsender.tech/api/application-integration').replace(/\/$/, '')
 
@@ -458,10 +458,18 @@ export function normalizeItem(raw: any): MenuItem {
   const dineInPrice = (raw.prices || []).find((value: any) => value?.order_type?.order_type_name === 'Comer aquí' || value?.order_type?.translated_name === 'Dine In')?.final_price
   const allergens = raw.allergens || raw.eu_allergen_keys || []
   const dietaryTags = raw.dietary_tags || raw.dietary_labels || raw.tags || []
+  const rawVariations = raw.variations ?? raw.item_variations ?? raw.menu_item_variations
+  const variations: ProductVariation[] | undefined = Array.isArray(rawVariations)
+    ? rawVariations.map((variation: any) => ({
+      id: Number(variation.id),
+      name: String(variation.name || variation.variation || variation.variation_name || variation.title || `Variación ${variation.id}`),
+      price: Number(variation.price ?? variation.final_price ?? variation.amount ?? 0),
+    })).filter((variation: ProductVariation) => variation.id > 0)
+    : undefined
   const computedPhotoUrl = raw.item_photo_url || raw.itemPhotoUrl
   const hasRealComputedPhoto = typeof computedPhotoUrl === 'string' && computedPhotoUrl.trim() && !/(?:^|\/)food\.svg(?:\?|$)/i.test(computedPhotoUrl) && !/(?:^|\/)transparent\.svg(?:\?|$)/i.test(computedPhotoUrl)
   const imageSource = raw.image_url || raw.imageUrl || raw.photo_url || raw.thumbnail_url || raw.image?.url || raw.image?.path || raw.photo?.url || raw.images?.[0]?.url || raw.images?.[0]?.path || (hasRealComputedPhoto ? computedPhotoUrl : undefined)
-  return { id: Number(raw.id), name: raw.name || raw.item_name || raw.menu_item_name || `Producto ${raw.id}`, imageUrl: normalizeMediaUrl(imageSource), code: raw.code || raw.item_code || raw.sku || String(raw.id), price: Number(dineInPrice ?? raw.price ?? raw.selling_price ?? raw.final_price ?? 0), categoryId: raw.category_id || raw.item_category_id, categoryName: raw.category_name || raw.category?.name || raw.category || raw.item_category?.name || `Categoría ${raw.item_category_id || ''}`.trim(), available: raw.available !== false && raw.is_available !== false && raw.in_stock !== 0 && raw.status !== 'sold_out', availabilityReason: raw.availability_reason || raw.reason || (raw.in_stock === 0 ? 'Sin existencia' : undefined), allergens: (Array.isArray(allergens) ? allergens : String(allergens).split(',').filter(Boolean)).map((x: any) => typeof x === 'string' ? x : x.name || x.code || x.key), dietaryTags: (Array.isArray(dietaryTags) ? dietaryTags : String(dietaryTags).split(',').filter(Boolean)).map((x: any) => typeof x === 'string' ? x : x.name || x.code), modifiers: raw.modifiers || raw.modifier_groups }
+  return { id: Number(raw.id), name: raw.name || raw.item_name || raw.menu_item_name || `Producto ${raw.id}`, imageUrl: normalizeMediaUrl(imageSource), code: raw.code || raw.item_code || raw.sku || String(raw.id), price: Number(dineInPrice ?? raw.price ?? raw.selling_price ?? raw.final_price ?? 0), categoryId: raw.category_id || raw.item_category_id, categoryName: raw.category_name || raw.category?.name || raw.category || raw.item_category?.name || `Categoría ${raw.item_category_id || ''}`.trim(), available: raw.available !== false && raw.is_available !== false && raw.in_stock !== 0 && raw.status !== 'sold_out', availabilityReason: raw.availability_reason || raw.reason || (raw.in_stock === 0 ? 'Sin existencia' : undefined), allergens: (Array.isArray(allergens) ? allergens : String(allergens).split(',').filter(Boolean)).map((x: any) => typeof x === 'string' ? x : x.name || x.code || x.key), dietaryTags: (Array.isArray(dietaryTags) ? dietaryTags : String(dietaryTags).split(',').filter(Boolean)).map((x: any) => typeof x === 'string' ? x : x.name || x.code), modifiers: raw.modifiers || raw.modifier_groups, variations }
 }
 
 export function normalizeKitchenTicket(raw: any): KitchenTicket {
