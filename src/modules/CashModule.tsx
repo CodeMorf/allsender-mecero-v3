@@ -295,23 +295,23 @@ export const CashModule: React.FC<CashModuleProps> = ({
                   <span className="meta-value muted-time">{formatTime(activeSession.opened_at)}</span>
                 </div>
 
-                {activeSummary && (
+                {isOpen && (
                   <div className="posdan-reg-summary-strip">
                     <div className="summary-chip">
                       <small>Ventas Efectivo</small>
-                      <strong>{fmt(activeSummary.cash_sales)}</strong>
+                      <strong>{fmt(activeSummary?.cash_sales ?? 0)}</strong>
                     </div>
                     <div className="summary-chip">
                       <small>Ingresos (+)</small>
-                      <strong>{fmt(activeSummary.cash_in)}</strong>
+                      <strong>{fmt(activeSummary?.cash_in ?? 0)}</strong>
                     </div>
                     <div className="summary-chip">
                       <small>Adelantos (-)</small>
-                      <strong>{fmt(activeSummary.cash_out)}</strong>
+                      <strong>{fmt(activeSummary?.cash_out ?? 0)}</strong>
                     </div>
                     <div className="summary-chip highlight">
                       <small>En Caja Estimado</small>
-                      <strong>{fmt(activeSummary.expected_cash)}</strong>
+                      <strong>{fmt(activeSummary?.expected_cash ?? (Number(activeSession.opening_float) || 0))}</strong>
                     </div>
                   </div>
                 )}
@@ -536,30 +536,28 @@ export const CashModule: React.FC<CashModuleProps> = ({
             {actionError && <div className="posdan-modal-error">{actionError}</div>}
 
             <form onSubmit={handleCloseSubmit}>
-              {activeSummary && (
-                <div className="posdan-close-summary-card">
+              <div className="posdan-close-summary-card">
                   <div className="summary-row">
                     <span>Fondo de apertura:</span>
-                    <strong>{fmt(activeSummary.opening_float)}</strong>
+                    <strong>{fmt(activeSummary?.opening_float ?? activeSession.opening_float)}</strong>
                   </div>
                   <div className="summary-row">
                     <span>Ventas en efectivo (+):</span>
-                    <strong>{fmt(activeSummary.cash_sales)}</strong>
+                    <strong>{fmt(activeSummary?.cash_sales ?? 0)}</strong>
                   </div>
                   <div className="summary-row">
                     <span>Ingresos manuales (+):</span>
-                    <strong>{fmt(activeSummary.cash_in)}</strong>
+                    <strong>{fmt(activeSummary?.cash_in ?? 0)}</strong>
                   </div>
                   <div className="summary-row">
                     <span>Adelantos / Egresos (-):</span>
-                    <strong>{fmt(activeSummary.cash_out)}</strong>
+                    <strong>{fmt(activeSummary?.cash_out ?? 0)}</strong>
                   </div>
                   <div className="summary-row total-row">
                     <span>Efectivo esperado en caja:</span>
-                    <strong className="orange-text">{fmt(activeSummary.expected_cash)}</strong>
+                    <strong className="orange-text">{fmt(activeSummary?.expected_cash ?? (Number(activeSession.opening_float) || 0))}</strong>
                   </div>
                 </div>
-              )}
 
               <div className="posdan-form-group">
                 <label>EFECTIVO CONTADO EN CAJA</label>
@@ -576,10 +574,11 @@ export const CashModule: React.FC<CashModuleProps> = ({
                 />
               </div>
 
-              {countedCash !== '' && activeSummary && (
+              {countedCash !== '' && (
                 <div className="posdan-discrepancy-badge">
                   {(() => {
-                    const diff = parseFloat(countedCash) - (activeSummary.expected_cash || 0)
+                    const expectedCash = activeSummary?.expected_cash ?? (Number(activeSession.opening_float) || 0)
+                    const diff = parseFloat(countedCash) - expectedCash
                     if (Math.abs(diff) < 0.01) {
                       return <span className="diff-ok"><CheckCircle2 size={16} /> Caja cuadrada exactamente (Sin diferencia)</span>
                     } else if (diff > 0) {
