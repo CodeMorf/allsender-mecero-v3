@@ -7,7 +7,7 @@
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "theme_color": "#d97706",
+  "theme_color": "#0b1118",
   "background_color": "#0f172a",
   "icons": [
     { "src": "/icons/mesero-192-20260908.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },

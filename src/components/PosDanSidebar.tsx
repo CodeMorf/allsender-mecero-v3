@@ -13,8 +13,6 @@ import {
   RotateCcw,
   UserCheck,
   Settings,
-  Sun,
-  Moon,
   LogOut,
   ChevronLeft,
   ChevronRight,
@@ -56,8 +54,6 @@ interface PosDanSidebarProps {
   roleKey: StaffRole
   brandName: string
   permissions: Record<string, boolean>
-  theme: 'light' | 'dark'
-  onToggleTheme: () => void
   onLogout: () => void
   collapsed?: boolean
   onToggleCollapse?: () => void
@@ -117,8 +113,6 @@ export const PosDanSidebar: React.FC<PosDanSidebarProps> = ({
   roleKey,
   brandName,
   permissions,
-  theme,
-  onToggleTheme,
   onLogout,
   collapsed = false,
   onToggleCollapse,
@@ -202,16 +196,6 @@ export const PosDanSidebar: React.FC<PosDanSidebarProps> = ({
 
       {/* Bottom Controls */}
       <div className="posdan-sidebar-footer">
-        <button
-          type="button"
-          className="posdan-footer-btn"
-          onClick={onToggleTheme}
-          title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
-        >
-          {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
-          {!collapsed && <span>{theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}</span>}
-        </button>
-
         <button
           type="button"
           className="posdan-footer-btn logout"

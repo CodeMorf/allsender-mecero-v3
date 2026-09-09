@@ -18,7 +18,7 @@ import { ReturnsModule } from './modules/ReturnsModule'
 import { UsersModule } from './modules/UsersModule'
 import { SettingsModule } from './modules/SettingsModule'
 import { OrderTypeModal, type OrderTypeSelection, translateOrderTypeName } from './components/OrderTypeModal'
-import { ArrowRightLeft, Banknote, BatteryCharging, BedDouble, Bell, BookOpen, CalendarDays, Check, ChefHat, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, CloudLightning, CloudOff, Clock, Coffee, CreditCard, Delete, Divide, Edit3, FileText, Flame, Globe2, History, Hotel, LayoutGrid, Lock, LogOut, Map as LucideMap, Martini, Minus, Moon, Plus, Printer, Receipt, Search, Send, ShieldCheck, SlidersHorizontal, ShoppingBag, ShoppingCart, Sun, Trash2, Truck, Unlock, UserCheck, UserCircle2, UserRound, Users, UserX, Utensils, UtensilsCrossed, Wallet, Wifi, X, XCircle } from 'lucide-react'
+import { ArrowRightLeft, Banknote, BatteryCharging, BedDouble, Bell, BookOpen, CalendarDays, Check, ChefHat, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, CloudLightning, CloudOff, Clock, Coffee, CreditCard, Delete, Divide, Edit3, FileText, Flame, Globe2, History, Hotel, LayoutGrid, Lock, LogOut, Map as LucideMap, Martini, Minus, Plus, Printer, Receipt, Search, Send, ShieldCheck, SlidersHorizontal, ShoppingBag, ShoppingCart, Trash2, Truck, Unlock, UserCheck, UserCircle2, UserRound, Users, UserX, Utensils, UtensilsCrossed, Wallet, Wifi, X, XCircle } from 'lucide-react'
 
 import { Capacitor } from '@capacitor/core'
 import { Haptics } from '@capacitor/haptics'
@@ -210,14 +210,6 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    try {
-      const stored = localStorage.getItem('restapp:theme')
-      return stored === 'dark' || stored === 'light' ? stored : 'light'
-    } catch {
-      return 'light'
-    }
-  })
   const [queueCount, setQueueCount] = useState(0)
   const [restaurantName, setRestaurantName] = useState('RestaPP')
   const [restaurantHash, setRestaurantHash] = useState('')
@@ -248,9 +240,9 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    document.documentElement.dataset.theme = theme
-    try { localStorage.setItem('restapp:theme', theme) } catch { /* ignore */ }
-  }, [theme])
+    document.documentElement.dataset.theme = 'dark'
+    try { localStorage.setItem('restapp:theme', 'dark') } catch { /* ignore */ }
+  }, [])
 
   useEffect(() => {
     if (screen !== 'floor' || !pinSession || offline) return
@@ -1050,10 +1042,10 @@ export default function App() {
     setScreen('pin'); setNotice('Sesión cerrada. Introduzca el código del siguiente empleado.')
   }
 
-  if (screen === 'setup') return <SetupScreen loading={loading} error={error} defaultDeviceId={deviceId} onSubmit={handleAdminLogin} onDirectPin={handleDirectPin} theme={theme} onTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')} />
+  if (screen === 'setup') return <SetupScreen loading={loading} error={error} defaultDeviceId={deviceId} onSubmit={handleAdminLogin} onDirectPin={handleDirectPin} />
   if (screen === 'branches') return <BranchScreen branches={branches} loading={loading} error={error} offline={offline} onSelect={chooseBranch} onBack={() => { clearSession('admin'); setScreen('setup') }} />
-  if (screen === 'pin') return <PinScreen brand={restaurantName} branch={activeBranch?.name || ''} role={staffRole} onRoleChange={setStaffRole} offline={offline} loading={loading} error={error} notice={notice} onSubmit={handlePin} canChangeBranch={Boolean(adminSession)} onBack={() => setScreen('branches')} theme={theme} onTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')} />
-  return <FloorScreen brand={restaurantName} branch={activeBranch?.name || ''} roleKey={pinSession?.roleKey || staffRole} userId={pinSession?.userId} deviceId={deviceId} permissions={pinSession?.permissions || {}} tables={tables} items={items} kitchenPlaces={kitchenPlaces} paymentMethods={paymentMethods} fiscalCapabilities={fiscalCapabilities} offline={offline} queueCount={queueCount} isSyncing={isSyncing} notice={notice} onNotice={setNotice} error={error} theme={theme} onTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')} onLogout={logout} onRefresh={() => pinSession && hydrate(pinSession)} onSubmitOrder={submitOrder} onSaveCustomer={saveTableCustomer} onRemoveOrderItem={removeOrderItem} onPrintPreBill={printPreBill} onPayOrder={payOrder} onTransferTable={transferTableOrder} onCancelOrder={cancelTableOrder} onOpenCashSession={openCashSession} onCloseCashSession={closeCashSession} onApproveCashSession={approveCashSession} onRejectCashSession={rejectCashSession} onReopenCashSession={reopenCashSession} onCashMovement={cashMovement} onClockIn={clockInAttendance} onClockOut={clockOutAttendance} onUpdateKotStatus={updateKotStatus} onSelectTable={setActiveTable} activeTable={activeTable} />
+  if (screen === 'pin') return <PinScreen brand={restaurantName} branch={activeBranch?.name || ''} role={staffRole} onRoleChange={setStaffRole} offline={offline} loading={loading} error={error} notice={notice} onSubmit={handlePin} canChangeBranch={Boolean(adminSession)} onBack={() => setScreen('branches')} />
+  return <FloorScreen brand={restaurantName} branch={activeBranch?.name || ''} roleKey={pinSession?.roleKey || staffRole} userId={pinSession?.userId} deviceId={deviceId} permissions={pinSession?.permissions || {}} tables={tables} items={items} kitchenPlaces={kitchenPlaces} paymentMethods={paymentMethods} fiscalCapabilities={fiscalCapabilities} offline={offline} queueCount={queueCount} isSyncing={isSyncing} notice={notice} onNotice={setNotice} error={error} onLogout={logout} onRefresh={() => pinSession && hydrate(pinSession)} onSubmitOrder={submitOrder} onSaveCustomer={saveTableCustomer} onRemoveOrderItem={removeOrderItem} onPrintPreBill={printPreBill} onPayOrder={payOrder} onTransferTable={transferTableOrder} onCancelOrder={cancelTableOrder} onOpenCashSession={openCashSession} onCloseCashSession={closeCashSession} onApproveCashSession={approveCashSession} onRejectCashSession={rejectCashSession} onReopenCashSession={reopenCashSession} onCashMovement={cashMovement} onClockIn={clockInAttendance} onClockOut={clockOutAttendance} onUpdateKotStatus={updateKotStatus} onSelectTable={setActiveTable} activeTable={activeTable} />
 }
 
 function nextAdminRestaurantId(session: Session) { return session.restaurantId }
@@ -1064,16 +1056,12 @@ function SetupScreen({
   defaultDeviceId,
   onSubmit,
   onDirectPin,
-  theme,
-  onTheme
 }: {
   loading: boolean
   error: string
   defaultDeviceId: string
   onSubmit: (email: string, password: string) => void
   onDirectPin: (pin: string, hash: string, deviceId: string, role: StaffRole) => void
-  theme?: 'light' | 'dark'
-  onTheme?: () => void
 }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -1083,7 +1071,7 @@ function SetupScreen({
   const [role, setRole] = useState<StaffRole>('mesero')
 
   return (
-    <main className={`login-shell theme-${theme || 'light'}`}>
+    <main className="login-shell theme-dark">
       <section className="hero-panel" aria-label="RestaPP Hospitality">
         <div className="hero-overlay" />
 
@@ -1121,17 +1109,6 @@ function SetupScreen({
               <span>ES</span>
               <ChevronDown size={14} />
             </button>
-            {onTheme && (
-              <button
-                className="theme-button"
-                type="button"
-                onClick={onTheme}
-                aria-label="Cambiar apariencia"
-                title={`Cambiar a modo ${theme === 'light' ? 'oscuro' : 'claro'}`}
-              >
-                {theme === 'light' ? <Moon size={17} /> : <Sun size={17} />}
-              </button>
-            )}
           </div>
 
           <div className="card-brand">
@@ -1297,7 +1274,7 @@ function BranchScreen({ branches, loading, error, offline, onSelect, onBack }: {
   return <main className="page padded"><header className="simple-header"><button className="icon-button" onClick={onBack}><ChevronLeft /></button><div><p className="eyebrow">AUTORIZACIÓN DEL DISPOSITIVO</p><h1>Seleccione la sucursal</h1></div>{offline && <CloudOff className="warning-icon" />}</header><div className="branch-grid">{branches.length ? branches.map(branch => <button className="branch-card" key={branch.id} onClick={() => onSelect(branch)} disabled={loading}><LucideMap size={24} /><span>{branch.name}</span><small>Identificador {branch.id}</small></button>) : <div className="empty"><p>No hay sucursales disponibles.</p><button className="button outline" onClick={onBack}>Volver a configurar</button></div>}</div>{error && <Alert>{error}</Alert>}</main>
 }
 
-function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error, notice, onSubmit, canChangeBranch, onBack, theme, onTheme }: { brand: string; branch: string; role: StaffRole; onRoleChange: (role: StaffRole) => void; offline: boolean; loading: boolean; error: string; notice: string; onSubmit: (pin: string) => void; canChangeBranch: boolean; onBack: () => void; theme?: 'light' | 'dark'; onTheme?: () => void }) {
+function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error, notice, onSubmit, canChangeBranch, onBack }: { brand: string; branch: string; role: StaffRole; onRoleChange: (role: StaffRole) => void; offline: boolean; loading: boolean; error: string; notice: string; onSubmit: (pin: string) => void; canChangeBranch: boolean; onBack: () => void }) {
   const [pin, setPin] = useState('')
 
   const dots = useMemo(() => Array.from({ length: 4 }, (_, i) => i < pin.length), [pin])
@@ -1351,7 +1328,7 @@ function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error,
       : notice || (offline ? 'Sin conexión · sesión local' : 'Sesión cerrada. Introduce el código del siguiente empleado.')
 
   return (
-    <main className={`login-shell theme-${theme || 'light'}`}>
+    <main className="login-shell theme-dark">
       <section className="hero-panel" aria-label="RestaPP Hospitality">
         <div className="hero-overlay" />
 
@@ -1403,17 +1380,6 @@ function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error,
               <span>ES</span>
               <ChevronDown size={14} />
             </button>
-            {onTheme && (
-              <button
-                className="theme-button"
-                type="button"
-                onClick={onTheme}
-                aria-label="Cambiar apariencia"
-                title={`Cambiar a modo ${theme === 'light' ? 'oscuro' : 'claro'}`}
-              >
-                {theme === 'light' ? <Moon size={17} /> : <Sun size={17} />}
-              </button>
-            )}
           </div>
 
           <div className="card-brand">
@@ -1524,7 +1490,7 @@ function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error,
   )
 }
 
-function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, tables, items, kitchenPlaces, paymentMethods, fiscalCapabilities, offline, queueCount, isSyncing, notice, onNotice, error, theme, onTheme, onLogout, onRefresh, onSubmitOrder, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onCancelOrder, onOpenCashSession, onCloseCashSession, onApproveCashSession, onRejectCashSession, onReopenCashSession, onCashMovement, onClockIn, onClockOut, onUpdateKotStatus, onSelectTable, activeTable }: { brand: string; branch: string; roleKey: StaffRole; userId?: number; deviceId: string; permissions: Record<string, boolean>; tables: RestaurantTable[]; items: MenuItem[]; kitchenPlaces: KitchenPlace[]; paymentMethods: PaymentMethodOption[]; fiscalCapabilities?: FiscalCapabilities | null; offline: boolean; queueCount: number; isSyncing?: boolean; notice: string; onNotice: (message: string) => void; error: string; theme: 'light' | 'dark'; onTheme: () => void; onLogout: () => void; onRefresh: () => void; onSubmitOrder: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onCancelOrder?: (table: RestaurantTable, reason?: string) => Promise<{ queued: boolean; message: string }>; onOpenCashSession: (registerId: number, openingFloat: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCloseCashSession: (sessionId: number, countedCash: number, expectedCash: number | undefined, note: string, sendForApproval: boolean, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onApproveCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onRejectCashSession: (sessionId: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onReopenCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCashMovement: (movement: 'cash-in' | 'cash-out' | 'safe-drop', sessionId: number, amount: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onClockIn: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onClockOut: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onUpdateKotStatus: (kotId: number, status: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onSelectTable: (table: RestaurantTable | null) => void; activeTable: RestaurantTable | null }) {
+function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, tables, items, kitchenPlaces, paymentMethods, fiscalCapabilities, offline, queueCount, isSyncing, notice, onNotice, error, onLogout, onRefresh, onSubmitOrder, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onCancelOrder, onOpenCashSession, onCloseCashSession, onApproveCashSession, onRejectCashSession, onReopenCashSession, onCashMovement, onClockIn, onClockOut, onUpdateKotStatus, onSelectTable, activeTable }: { brand: string; branch: string; roleKey: StaffRole; userId?: number; deviceId: string; permissions: Record<string, boolean>; tables: RestaurantTable[]; items: MenuItem[]; kitchenPlaces: KitchenPlace[]; paymentMethods: PaymentMethodOption[]; fiscalCapabilities?: FiscalCapabilities | null; offline: boolean; queueCount: number; isSyncing?: boolean; notice: string; onNotice: (message: string) => void; error: string; onLogout: () => void; onRefresh: () => void; onSubmitOrder: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onCancelOrder?: (table: RestaurantTable, reason?: string) => Promise<{ queued: boolean; message: string }>; onOpenCashSession: (registerId: number, openingFloat: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCloseCashSession: (sessionId: number, countedCash: number, expectedCash: number | undefined, note: string, sendForApproval: boolean, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onApproveCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onRejectCashSession: (sessionId: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onReopenCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCashMovement: (movement: 'cash-in' | 'cash-out' | 'safe-drop', sessionId: number, amount: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onClockIn: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onClockOut: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onUpdateKotStatus: (kotId: number, status: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onSelectTable: (table: RestaurantTable | null) => void; activeTable: RestaurantTable | null }) {
   const [showMenu, setShowMenu] = useState(false); const [showQuick, setShowQuick] = useState(false); const [showOps, setShowOps] = useState(false); const [showKitchen, setShowKitchen] = useState(false); const [showCashier, setShowCashier] = useState(false); const [showAttendance, setShowAttendance] = useState(false); const [opsLoading, setOpsLoading] = useState(false); const [notifications, setNotifications] = useState<LiveNotification[]>([]); const [deliverySettings, setDeliverySettings] = useState<DeliverySettings | null>(null); const [deliveryExecutives, setDeliveryExecutives] = useState<DeliveryExecutive[]>([]); const [deliveryPlatforms, setDeliveryPlatforms] = useState<DeliveryPlatform[]>([]); const [orderTypes, setOrderTypes] = useState<OrderTypeConfig[]>([])
   const [pickupPaymentTarget, setPickupPaymentTarget] = useState<{ summary: any; detail: any } | null>(null)
   const [pickupPaymentLoading, setPickupPaymentLoading] = useState(false)
@@ -2007,8 +1973,6 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
           roleKey={roleKey}
           brandName={brand || 'RestaPP'}
           permissions={permissions}
-          theme={theme}
-          onToggleTheme={onTheme}
           onLogout={onLogout}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
