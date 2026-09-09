@@ -2959,32 +2959,32 @@ function TablePaymentPanel({
       const result = await onPay(table.currentOrderId, numericAmount, selectedMethod, newIdempotencyKey())
       setStatus(result.message)
       let printSucceeded = true
+      let printDocument: 'receipt' | 'fiscal' = 'receipt'
+
+      if (wantsTraditionalFiscal) {
+        if (result.queued) {
+          printSucceeded = false
+          setError('El cobro quedó pendiente y todavía no se emitió el comprobante fiscal. Se requiere confirmación online para emitirlo.')
+        } else {
+          await api.issueFiscalDocument(
+            'pin',
+            orderIdToPrint,
+            'traditional',
+            receiptType,
+            newIdempotencyKey(),
+            undefined,
+            { rncCedula: rncCedula.trim() || undefined, fiscalName: fiscalName.trim() || undefined },
+          )
+          printDocument = 'fiscal'
+        }
+      }
+
+      if (!printSucceeded) {
+        setBusy(false)
+        return
+      }
 
       if (withPrint && orderIdToPrint) {
-        let printDocument: 'receipt' | 'fiscal' = 'receipt'
-        if (wantsTraditionalFiscal) {
-          if (result.queued) {
-            printSucceeded = false
-            setError('El cobro quedó pendiente y todavía no se emitió el comprobante fiscal. Se requiere confirmación online para imprimirlo.')
-          } else {
-            await api.issueFiscalDocument(
-              'pin',
-              orderIdToPrint,
-              'traditional',
-              receiptType,
-              newIdempotencyKey(),
-              undefined,
-              { rncCedula: rncCedula.trim() || undefined, fiscalName: fiscalName.trim() || undefined },
-            )
-            printDocument = 'fiscal'
-          }
-        }
-
-        if (!printSucceeded) {
-          setBusy(false)
-          return
-        }
-
         const cached = readCache()
         const thermalData: ThermalReceiptData = {
           restaurantName: cached.restaurantName || 'Restaurante',
