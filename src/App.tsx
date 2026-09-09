@@ -4767,6 +4767,7 @@ function KitchenPanel({ offline, places, standalone = false, allowAll = true, vi
   const [areaLocked, setAreaLocked] = useState(() => Boolean(cachedViewIsUsable))
   const seenTicketIds = useRef<Set<number> | null>(null)
   const seenFilter = useRef<string | null>(null)
+  const loadRequestId = useRef(0)
   const activeStatuses = ['pending_confirmation', 'in_kitchen', 'food_ready']
   const placeOptions = useMemo(() => {
     const known = new globalThis.Map<number, KitchenPlace>()
@@ -4792,16 +4793,20 @@ function KitchenPanel({ offline, places, standalone = false, allowAll = true, vi
     saveCache({ kitchenView: { scope: viewScope, placeId: activePlaceId, locked } })
   }
   async function load(placeId: number | 'all' = activePlaceId) {
+    const requestId = ++loadRequestId.current
     const filterKey = placeId === 'all' ? 'all' : String(placeId)
     if (offline) {
       const cached = readCache().kots || []
-      setTickets(cached.filter(ticket => activeStatuses.includes(ticket.status) && (placeId === 'all' || ticket.kitchenPlaceId === placeId)))
-      setLoading(false)
+      if (requestId === loadRequestId.current) {
+        setTickets(cached.filter(ticket => activeStatuses.includes(ticket.status) && (placeId === 'all' || ticket.kitchenPlaceId === placeId)))
+        setLoading(false)
+      }
       return
     }
     setLoading(true); setError('')
     try {
       const values = await api.kots('pin', { kitchenPlaceId: placeId === 'all' ? undefined : Number(placeId) })
+      if (requestId !== loadRequestId.current) return
       const currentIds = new Set(values.map(ticket => ticket.id))
       if (seenFilter.current === filterKey && seenTicketIds.current && values.some(ticket => !seenTicketIds.current?.has(ticket.id))) {
         const newest = values.find(ticket => !seenTicketIds.current?.has(ticket.id))
@@ -4811,10 +4816,18 @@ function KitchenPanel({ offline, places, standalone = false, allowAll = true, vi
       }
       seenFilter.current = filterKey
       seenTicketIds.current = currentIds
-      saveCache({ kots: values })
+      const cachedKots = readCache().kots || []
+      const cacheValues = placeId === 'all'
+        ? values
+        : [...cachedKots.filter(ticket => ticket.kitchenPlaceId !== placeId && !currentIds.has(ticket.id)), ...values]
+      saveCache({ kots: cacheValues })
       setTickets(values.filter(ticket => activeStatuses.includes(ticket.status)))
-    } catch (cause) { setError(normalizeError(cause, 'No se pudieron cargar las órdenes de cocina.')) }
-    finally { setLoading(false) }
+    } catch (cause) {
+      if (requestId === loadRequestId.current) setError(normalizeError(cause, 'No se pudieron cargar las órdenes de cocina.'))
+    }
+    finally {
+      if (requestId === loadRequestId.current) setLoading(false)
+    }
   }
   // KDS refresh is an external API synchronization triggered by the panel.
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps

@@ -5790,10 +5790,19 @@ body { overflow-x: hidden; }
   .pos-product-body { padding: 10px; }
   .pos-product-name { font-size: 0.84rem; }
   .pos-product-price { font-size: 0.95rem; }
-  .pos-order-drawer { width: 100%; max-width: none; }
+  .pos-order-drawer {
+    width: 100%;
+    max-width: none;
+    bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+    height: auto !important;
+  }
+  .pos-drawer-overlay {
+    bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+  }
   .pos-drawer-header { padding: 12px; }
   .pos-drawer-info-strip { flex-wrap: wrap; row-gap: 6px; }
-  .pos-order-items-list { padding: 10px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+  .pos-order-items-list { padding: 10px; }
+  .pos-drawer-footer { padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px)); }
   .posdan-products-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 10px; gap: 10px; }
   .posdan-cart-sidebar { max-height: 50%; }
   .modal-backdrop, .posdan-modal-overlay { padding: max(8px, env(safe-area-inset-top, 0px)) max(8px, env(safe-area-inset-right, 0px)) max(8px, env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)); }
@@ -5822,6 +5831,8 @@ body { overflow-x: hidden; }
 @media (max-height: 560px) and (orientation: landscape) {
   .system-status-bar { min-height: 28px; padding-block: 3px; }
   .posdan-sidebar { height: 58px; min-height: 58px; }
+  .pos-order-drawer,
+  .pos-drawer-overlay { bottom: calc(58px + env(safe-area-inset-bottom, 0px)); }
   .posdan-sidebar-header, .posdan-nav-item, .posdan-footer-btn { min-height: 48px; height: 48px; }
   .pos-view-header { min-height: 50px; padding-block: 6px; }
   .pos-product-image-wrap, .posdan-item-image-wrap { height: 84px; }
