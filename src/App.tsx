@@ -124,6 +124,8 @@ const defaultPaymentMethods: PaymentMethodOption[] = [
   { code: 'card', label: 'Tarjeta', enabled: true },
   { code: 'bank_transfer', label: 'Transferencia bancaria', enabled: true },
 ]
+const traditionalFiscalReceiptTypes = new Set(['B01', 'B02', 'B14', 'B15', 'B16'])
+const electronicFiscalReceiptTypes = new Set(['E31', 'E32', 'E34', 'E44', 'E45', 'E46', 'E47'])
 const notificationSoundUrls: Record<Exclude<NotificationSettings['sound'], 'none'>, string> = {
   bell: '/sounds/bell.mp3',
   'service-bell': '/sounds/service-bell.mp3',
@@ -2818,8 +2820,8 @@ function TablePaymentPanel({
   // verified e-CF acceptance), so the UI must never advertise an unready mode.
   const isElectronicActive = Boolean(cachedCaps?.electronic?.ready)
   const isTraditionalActive = Boolean(cachedCaps?.traditional?.ready)
-  const defaultConsumerType = isElectronicActive ? 'E32' : 'B02'
-  const defaultCreditType = isElectronicActive ? 'E31' : 'B01'
+  const defaultConsumerType = isElectronicActive ? 'E32' : isTraditionalActive ? 'B02' : 'receipt'
+  const defaultCreditType = isElectronicActive ? 'E31' : isTraditionalActive ? 'B01' : 'receipt'
 
   const cust = payload?.customer || (payload?.data as any)?.customer
   const initialRnc = (customerRnc || cust?.rnc_cedula || cust?.rncCedula || payload?.rnc_cedula || table?.customerRnc || '').trim()
@@ -2928,8 +2930,17 @@ function TablePaymentPanel({
     if (!table.currentOrderId || summary.due <= 0) { setError('Esta mesa no tiene saldo pendiente de pago.'); return }
     if (!Number.isFinite(numericAmount) || numericAmount <= 0 || numericAmount > summary.due + 0.01) { setError(`El monto debe estar entre ${formatMoney(0.01)} y ${formatMoney(summary.due)}.`); return }
     if (!enabledMethods.some(value => value.code === selectedMethod)) { setError('Este metodo de pago no esta habilitado para esta sucursal.'); return }
+    if (electronicFiscalReceiptTypes.has(receiptType)) {
+      setError('La emisión electrónica todavía no está habilitada en el backend para esta sucursal. No se registrará el cobro.')
+      return
+    }
     if ((receiptType === 'E31' || receiptType === 'B01') && !rncCedula.trim()) {
       setError('Para comprobante con Crédito Fiscal (E31 / B01) debe ingresar el RNC o Cédula.')
+      return
+    }
+    const wantsTraditionalFiscal = isTraditionalActive && traditionalFiscalReceiptTypes.has(receiptType)
+    if (wantsTraditionalFiscal && !navigator.onLine) {
+      setError('Para emitir un comprobante fiscal tradicional se necesita conexión con RestaPP. No se registrará el cobro sin conexión.')
       return
     }
     setBusy(true); setError(''); setStatus('')
@@ -2950,6 +2961,30 @@ function TablePaymentPanel({
       let printSucceeded = true
 
       if (withPrint && orderIdToPrint) {
+        let printDocument: 'receipt' | 'fiscal' = 'receipt'
+        if (wantsTraditionalFiscal) {
+          if (result.queued) {
+            printSucceeded = false
+            setError('El cobro quedó pendiente y todavía no se emitió el comprobante fiscal. Se requiere confirmación online para imprimirlo.')
+          } else {
+            await api.issueFiscalDocument(
+              'pin',
+              orderIdToPrint,
+              'traditional',
+              receiptType,
+              newIdempotencyKey(),
+              undefined,
+              { rncCedula: rncCedula.trim() || undefined, fiscalName: fiscalName.trim() || undefined },
+            )
+            printDocument = 'fiscal'
+          }
+        }
+
+        if (!printSucceeded) {
+          setBusy(false)
+          return
+        }
+
         const cached = readCache()
         const thermalData: ThermalReceiptData = {
           restaurantName: cached.restaurantName || 'Restaurante',
@@ -2981,7 +3016,7 @@ function TablePaymentPanel({
         const printResult = await routePrintReceipt(thermalData, {
           sendToBackend: async () => {
             if (orderIdToPrint) {
-              await api.printOrder('pin', orderIdToPrint, 'receipt', newIdempotencyKey())
+              await api.printOrder('pin', orderIdToPrint, printDocument, newIdempotencyKey())
             }
           }
         })
@@ -3095,7 +3130,7 @@ function TablePaymentPanel({
                   <option value="B15">B15 - Gubernamental</option>
                 </optgroup>
               </>
-            ) : <option value="B02">Recibo de venta (fiscalidad no disponible en esta sucursal)</option>}
+            ) : <option value="receipt">Recibo normal (fiscalidad no disponible en esta sucursal)</option>}
           </select>
         </label>
 

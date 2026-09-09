@@ -271,7 +271,7 @@ export class ApiClient {
   }
   async orders(kind: TokenKind) { return asArray<any>(await this.request('/pos/orders', { tokenKind: kind })) }
   async getOrder(kind: TokenKind, orderId: number) { return unwrap<any>(await this.request(`/pos/orders/${orderId}`, { tokenKind: kind })) }
-  async printOrder(kind: TokenKind, orderId: number, document: 'prebill' | 'receipt', idempotencyKey: string) {
+  async printOrder(kind: TokenKind, orderId: number, document: 'prebill' | 'receipt' | 'fiscal', idempotencyKey: string) {
     return this.request(`/pos/orders/${orderId}/print`, {
       method: 'POST',
       tokenKind: kind,
@@ -290,7 +290,15 @@ export class ApiClient {
       requiresGateway: Boolean(value.requires_gateway ?? value.requiresGateway),
     })).filter((value: PaymentMethodOption) => value.code && value.enabled)
   }
-  async issueFiscalDocument(kind: TokenKind, orderId: number, documentType: 'traditional' | 'electronic', receiptType?: string, idempotencyKey?: string, ecfType?: string) {
+  async issueFiscalDocument(
+    kind: TokenKind,
+    orderId: number,
+    documentType: 'traditional' | 'electronic',
+    receiptType?: string,
+    idempotencyKey?: string,
+    ecfType?: string,
+    customer?: { rncCedula?: string; fiscalName?: string },
+  ) {
     return this.request(`/pos/orders/${orderId}/fiscal`, {
       method: 'POST',
       tokenKind: kind,
@@ -299,6 +307,8 @@ export class ApiClient {
         document_type: documentType,
         receipt_type: documentType === 'traditional' ? receiptType : undefined,
         ecf_type: documentType === 'electronic' ? (ecfType || receiptType || 'E32') : undefined,
+        customer_rnc_cedula: customer?.rncCedula || undefined,
+        customer_fiscal_name: customer?.fiscalName || undefined,
       }),
     })
   }
