@@ -638,6 +638,8 @@ export default function App() {
       items: itemPayload,
       customer: customerPayload,
       customer_id: draft.customerId || undefined,
+      room_number: draft.mode === 'room_service' ? draft.roomNumber : undefined,
+      bill_to: draft.mode === 'room_service' ? 'POST_TO_ROOM' : undefined,
       delivery_address: draft.deliveryAddress || (draft.roomNumber ? `Habitación: ${draft.roomNumber}` : undefined),
       delivery_time: draft.deliveryTime ? new Date(draft.deliveryTime).toISOString() : undefined,
       delivery_fee: draft.deliveryFee !== undefined ? draft.deliveryFee : undefined,
