@@ -1553,6 +1553,20 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
     }
   }
 
+  async function markPickupCollected(orderId: number, status: 'delivered') {
+    if (offline) {
+      onNotice('La entrega del retiro requiere conexión para confirmarse en RestaPP.')
+      return
+    }
+    try {
+      await api.updateOrderStatus('pin', orderId, status, newIdempotencyKey())
+      await loadPosDanData()
+      onNotice(`Pedido n.º ${orderId} marcado como recogido.`)
+    } catch (cause) {
+      onNotice(normalizeError(cause, 'No se pudo confirmar la recogida. Actualice e intente nuevamente.'))
+    }
+  }
+
   const pickupPaymentTable = pickupPaymentTarget ? (() => {
     const source = pickupPaymentTarget.detail || pickupPaymentTarget.summary || {}
     const customer = source.customer || pickupPaymentTarget.summary.customer || {}
@@ -2325,6 +2339,7 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
                 orders={allOrders}
                 onRefresh={loadPosDanData}
                 onOpenPayment={openPickupPayment}
+                onUpdateStatus={markPickupCollected}
                 canCharge={canCharge}
                 currencySymbol={activeCurrency.symbol}
               />

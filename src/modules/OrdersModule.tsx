@@ -21,6 +21,7 @@ type OrdersModuleProps = {
   orders: any[]
   onRefresh?: () => Promise<void>
   onOpenPayment?: (order: any) => void
+  onUpdateStatus?: (orderId: number, status: 'delivered') => Promise<void>
   canCharge?: boolean
   currencySymbol?: string
 }
@@ -176,12 +177,13 @@ function serviceIcon(service: OrderServiceKind) {
   return <ClipboardList size={16} />
 }
 
-export const OrdersModule: React.FC<OrdersModuleProps> = ({ orders, onRefresh, onOpenPayment, canCharge = false, currencySymbol = 'RD$' }) => {
+export const OrdersModule: React.FC<OrdersModuleProps> = ({ orders, onRefresh, onOpenPayment, onUpdateStatus, canCharge = false, currencySymbol = 'RD$' }) => {
   const [search, setSearch] = useState('')
   const [serviceFilter, setServiceFilter] = useState<OrderServiceKind | 'ALL'>('ALL')
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'active' | 'paid' | 'cancelled'>('ALL')
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [updatingOrderId, setUpdatingOrderId] = useState<number | null>(null)
 
   const filteredOrders = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -217,6 +219,16 @@ export const OrdersModule: React.FC<OrdersModuleProps> = ({ orders, onRefresh, o
       await onRefresh()
     } finally {
       setRefreshing(false)
+    }
+  }
+
+  const handleMarkPickupCollected = async (orderId: number) => {
+    if (!onUpdateStatus || updatingOrderId !== null) return
+    setUpdatingOrderId(orderId)
+    try {
+      await onUpdateStatus(orderId, 'delivered')
+    } finally {
+      setUpdatingOrderId(null)
     }
   }
 
@@ -320,6 +332,7 @@ export const OrdersModule: React.FC<OrdersModuleProps> = ({ orders, onRefresh, o
                 const expanded = expandedOrderId === orderId
                 const items = orderItems(order)
                 const canPayPickup = service === 'pickup' && payment !== 'paid' && status !== 'cancelled' && canCharge && Boolean(onOpenPayment) && orderId > 0
+                const canMarkPickupCollected = service === 'pickup' && payment === 'paid' && status === 'ready' && Boolean(onUpdateStatus) && orderId > 0
                 return (
                   <React.Fragment key={orderId || `${order.order_number}-${order.created_at}`}>
                     <tr className={expanded ? 'orders-row-expanded' : undefined}>
@@ -365,6 +378,17 @@ export const OrdersModule: React.FC<OrdersModuleProps> = ({ orders, onRefresh, o
                             <CreditCard size={14} /> Cobrar retiro
                           </button>
                         )}
+                        {canMarkPickupCollected && (
+                          <button
+                            type="button"
+                            className="orders-collect-btn"
+                            onClick={() => void handleMarkPickupCollected(orderId)}
+                            disabled={updatingOrderId === orderId}
+                            title="Cerrar la recogida cuando el cliente recibe el pedido"
+                          >
+                            <CheckCircle2 size={14} /> {updatingOrderId === orderId ? 'Guardando…' : 'Marcar recogido'}
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="orders-detail-btn"
@@ -399,10 +423,15 @@ export const OrdersModule: React.FC<OrdersModuleProps> = ({ orders, onRefresh, o
                             {service === 'pickup' && (
                               <div className={`orders-pickup-next-step ${payment === 'paid' ? 'is-paid' : ''}`}>
                                 <ShoppingBag size={15} />
-                                <span>{payment === 'paid' ? 'Pago confirmado. Entregue el pedido cuando el cliente lo recoja.' : 'El cobro de este retiro se realiza aquí, antes de entregar el pedido.'}</span>
+                                <span>{payment === 'paid' ? (status === 'ready' ? 'Pago confirmado. Entregue el pedido y marque la recogida al finalizar.' : 'Pago confirmado. El pedido continúa su flujo operativo.') : 'El cobro de este retiro se realiza aquí, antes de entregar el pedido.'}</span>
                                 {canPayPickup && (
                                   <button type="button" className="orders-charge-btn" onClick={() => onOpenPayment?.(order)}>
                                     <CreditCard size={14} /> Cobrar retiro
+                                  </button>
+                                )}
+                                {canMarkPickupCollected && (
+                                  <button type="button" className="orders-collect-btn" onClick={() => void handleMarkPickupCollected(orderId)} disabled={updatingOrderId === orderId}>
+                                    <CheckCircle2 size={14} /> {updatingOrderId === orderId ? 'Guardando…' : 'Marcar recogido'}
                                   </button>
                                 )}
                               </div>
