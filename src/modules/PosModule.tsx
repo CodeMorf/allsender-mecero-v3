@@ -9,8 +9,7 @@ import {
   Utensils,
   ShoppingBag,
   Truck,
-  FileText,
-  DollarSign,
+  Send,
   X,
   Sliders,
   Sparkles,
@@ -29,6 +28,7 @@ export interface PosModuleProps {
   onSelectCustomer: (cust: PosCustomer | null) => void
   onOpenCustomerModal: () => void
   onCheckout: (orderData: any) => Promise<void>
+  onOpenOrders?: () => void
   onCustomizeItem?: (item: MenuItem) => void
   roleKey: StaffRole
   currencySymbol?: string
@@ -62,6 +62,7 @@ export const PosModule: React.FC<PosModuleProps> = ({
   onSelectCustomer,
   onOpenCustomerModal,
   onCheckout,
+  onOpenOrders,
   onCustomizeItem,
   currencySymbol = 'RD$',
   orderTypes = [],
@@ -261,6 +262,7 @@ export const PosModule: React.FC<PosModuleProps> = ({
         total,
         notes: orderNotes
       })
+      if (orderSelection.mode === 'pickup') onOpenOrders?.()
       clearCart()
     } finally {
       setIsProcessing(false)
@@ -551,6 +553,13 @@ export const PosModule: React.FC<PosModuleProps> = ({
               La entrega propia necesita una dirección antes de enviar o cobrar.
             </div>
           )}
+
+          {orderSelection.mode === 'pickup' && (
+            <div className="pos-pickup-flow-hint" role="status">
+              <strong>Flujo de recogida</strong>
+              <span>1. Enviar a cocina · 2. Cobrar en Órdenes · 3. Entregar al cliente</span>
+            </div>
+          )}
         </div>
 
         <div className="posdan-cart-list">
@@ -672,25 +681,27 @@ export const PosModule: React.FC<PosModuleProps> = ({
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, paddingTop: 4 }}>
-            <button
-              onClick={handlePay}
-              disabled={cart.length === 0 || isProcessing || directDeliveryMissingAddress}
-              className="posdan-btn-action-green"
-              title={directDeliveryMissingAddress ? 'Complete la dirección de entrega antes de continuar' : 'Cobrar la orden'}
-            >
-              <DollarSign size={16} />
-              <span>Cobrar</span>
-            </button>
+          <div className={`pos-direct-actions ${orderSelection.mode === 'pickup' && onOpenOrders ? 'has-orders-action' : ''}`}>
             <button
               onClick={handlePay}
               disabled={cart.length === 0 || isProcessing || directDeliveryMissingAddress}
               className="posdan-btn-action-orange"
-              title={directDeliveryMissingAddress ? 'Complete la dirección de entrega antes de continuar' : 'Enviar la comanda'}
+              title={directDeliveryMissingAddress ? 'Complete la dirección de entrega antes de continuar' : 'Crear la orden y enviarla a cocina'}
             >
-              <FileText size={16} />
-              <span>Comanda</span>
+              <Send size={16} />
+              <span>{isProcessing ? 'Enviando…' : 'Enviar a cocina'}</span>
             </button>
+            {orderSelection.mode === 'pickup' && onOpenOrders && (
+              <button
+                type="button"
+                onClick={onOpenOrders}
+                className="posdan-btn-action-green pos-open-orders-action"
+                title="Ver las órdenes creadas y cobrar cuando corresponda"
+              >
+                <ShoppingBag size={16} />
+                <span>Ver órdenes para cobrar</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

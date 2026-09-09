@@ -4550,12 +4550,69 @@ textarea,
   font-family: 'JetBrains Mono', monospace, sans-serif;
 }
 
+.orders-pickup-guide {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(192, 132, 252, 0.35);
+  border-radius: 12px;
+  background: linear-gradient(110deg, rgba(192, 132, 252, 0.12), rgba(13, 17, 23, 0.68));
+}
+
+.orders-pickup-guide-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(192, 132, 252, 0.16);
+  color: #d8b4fe;
+}
+
+.orders-pickup-guide > div:nth-child(2) {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.orders-pickup-guide strong {
+  color: #f3e8ff;
+  font-size: 12px;
+}
+
+.orders-pickup-guide span {
+  color: #c4b5fd;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.orders-pickup-guide-count {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.orders-pickup-guide-count b {
+  color: #f0f6fc;
+  font-size: 18px;
+}
+
+.orders-pickup-guide-count small {
+  color: #c4b5fd;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
 .orders-table-wrap {
   min-height: 0;
 }
 
 .orders-table {
-  min-width: 980px;
+  min-width: 1120px;
 }
 
 .orders-order-number {
@@ -4648,6 +4705,7 @@ textarea,
 .orders-badge-preparing,
 .orders-badge-ready,
 .orders-payment-paid,
+.orders-payment-partial,
 .orders-payment-pending {
   display: inline-flex;
   align-items: center;
@@ -4666,6 +4724,35 @@ textarea,
 .orders-detail-action {
   text-align: right;
   white-space: nowrap;
+}
+
+.orders-charge-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 6px 9px;
+  border: 1px solid rgba(94, 219, 172, 0.5);
+  border-radius: 8px;
+  background: rgba(94, 219, 172, 0.14);
+  color: #8ff0c7;
+  cursor: pointer;
+  font-size: 10.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.orders-detail-action .orders-charge-btn {
+  margin-left: 6px;
+}
+
+.orders-charge-btn:hover,
+.orders-charge-btn:focus-visible {
+  border-color: #5edbac;
+  background: rgba(94, 219, 172, 0.24);
+  color: #ffffff;
+  outline: none;
 }
 
 .orders-detail-btn {
@@ -4722,7 +4809,68 @@ textarea,
 .orders-detail-heading strong { color: #f0f6fc; font-size: 12px; }
 .orders-detail-heading small { color: #8b949e; font-size: 11px; }
 .orders-payment-paid { background: rgba(52, 211, 153, 0.12); color: #6ee7b7; }
+.orders-payment-partial { background: rgba(96, 165, 250, 0.12); color: #93c5fd; }
 .orders-payment-pending { background: rgba(251, 191, 36, 0.12); color: #fbbf24; }
+
+.orders-payment-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.orders-financial-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(100px, 1fr));
+  gap: 8px;
+}
+
+.orders-financial-summary > div {
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+  border: 1px solid #21262d;
+  border-radius: 9px;
+  background: #161b22;
+}
+
+.orders-financial-summary span {
+  color: #8b949e;
+  font-size: 10.5px;
+}
+
+.orders-financial-summary b {
+  color: #f0f6fc;
+  font-family: 'JetBrains Mono', monospace, sans-serif;
+  font-size: 12px;
+}
+
+.orders-pickup-next-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid rgba(251, 191, 36, 0.28);
+  border-radius: 9px;
+  background: rgba(251, 191, 36, 0.08);
+  color: #fbbf24;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.orders-pickup-next-step span {
+  flex: 1;
+}
+
+.orders-pickup-next-step.is-paid {
+  border-color: rgba(52, 211, 153, 0.28);
+  background: rgba(52, 211, 153, 0.08);
+  color: #6ee7b7;
+}
 
 .orders-item-list {
   display: grid;
@@ -4769,6 +4917,58 @@ textarea,
 .orders-empty-state strong { color: #f0f6fc; font-size: 14px; }
 .orders-empty-state span { font-size: 12px; }
 .orders-refresh-spin { animation: ordersSpin 0.9s linear infinite; }
+
+.pos-pickup-flow-hint {
+  display: grid;
+  gap: 3px;
+  margin: 8px 0 2px;
+  padding: 9px 10px;
+  border: 1px solid rgba(192, 132, 252, 0.3);
+  border-radius: 9px;
+  background: rgba(192, 132, 252, 0.08);
+  color: #d8b4fe;
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
+.pos-pickup-flow-hint strong {
+  color: #f3e8ff;
+  font-size: 11px;
+}
+
+.pos-direct-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.pos-direct-actions.has-orders-action {
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+}
+
+.pos-direct-actions > button {
+  min-height: 46px;
+}
+
+.pickup-payment-loading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 18px 20px;
+  border: 1px solid #30363d;
+  border-radius: 14px;
+  background: #1e2328;
+  color: #f0f6fc;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pickup-payment-loading svg {
+  color: #f97316;
+  animation: ordersSpin 0.9s linear infinite;
+}
 
 @keyframes ordersSpin {
   to { transform: rotate(360deg); }
@@ -6297,6 +6497,32 @@ body { overflow-x: hidden; }
 
   .orders-detail-heading {
     flex-direction: column;
+  }
+
+  .orders-pickup-guide {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .orders-pickup-guide-count {
+    grid-column: 2;
+    justify-items: start;
+  }
+
+  .orders-financial-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .orders-pickup-next-step {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .orders-pickup-next-step .orders-charge-btn {
+    width: 100%;
+  }
+
+  .pos-direct-actions {
+    grid-template-columns: 1fr;
   }
 
   .orders-table {

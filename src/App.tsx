@@ -1526,6 +1526,8 @@ function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error,
 
 function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, tables, items, kitchenPlaces, paymentMethods, fiscalCapabilities, offline, queueCount, isSyncing, notice, onNotice, error, theme, onTheme, onLogout, onRefresh, onSubmitOrder, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onCancelOrder, onOpenCashSession, onCloseCashSession, onApproveCashSession, onRejectCashSession, onReopenCashSession, onCashMovement, onClockIn, onClockOut, onUpdateKotStatus, onSelectTable, activeTable }: { brand: string; branch: string; roleKey: StaffRole; userId?: number; deviceId: string; permissions: Record<string, boolean>; tables: RestaurantTable[]; items: MenuItem[]; kitchenPlaces: KitchenPlace[]; paymentMethods: PaymentMethodOption[]; fiscalCapabilities?: FiscalCapabilities | null; offline: boolean; queueCount: number; isSyncing?: boolean; notice: string; onNotice: (message: string) => void; error: string; theme: 'light' | 'dark'; onTheme: () => void; onLogout: () => void; onRefresh: () => void; onSubmitOrder: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onCancelOrder?: (table: RestaurantTable, reason?: string) => Promise<{ queued: boolean; message: string }>; onOpenCashSession: (registerId: number, openingFloat: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCloseCashSession: (sessionId: number, countedCash: number, expectedCash: number | undefined, note: string, sendForApproval: boolean, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onApproveCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onRejectCashSession: (sessionId: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onReopenCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCashMovement: (movement: 'cash-in' | 'cash-out' | 'safe-drop', sessionId: number, amount: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onClockIn: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onClockOut: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onUpdateKotStatus: (kotId: number, status: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onSelectTable: (table: RestaurantTable | null) => void; activeTable: RestaurantTable | null }) {
   const [showMenu, setShowMenu] = useState(false); const [showQuick, setShowQuick] = useState(false); const [showOps, setShowOps] = useState(false); const [showKitchen, setShowKitchen] = useState(false); const [showCashier, setShowCashier] = useState(false); const [showAttendance, setShowAttendance] = useState(false); const [opsLoading, setOpsLoading] = useState(false); const [notifications, setNotifications] = useState<LiveNotification[]>([]); const [deliverySettings, setDeliverySettings] = useState<DeliverySettings | null>(null); const [deliveryExecutives, setDeliveryExecutives] = useState<DeliveryExecutive[]>([]); const [deliveryPlatforms, setDeliveryPlatforms] = useState<DeliveryPlatform[]>([]); const [orderTypes, setOrderTypes] = useState<OrderTypeConfig[]>([])
+  const [pickupPaymentTarget, setPickupPaymentTarget] = useState<{ summary: any; detail: any } | null>(null)
+  const [pickupPaymentLoading, setPickupPaymentLoading] = useState(false)
 
   const canCreate = permissions['orders.create'] === true
   const canDelivery = roleKey === 'cajero' && canCreate
@@ -1533,6 +1535,48 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
   const canCharge = permissions['payments.charge'] === true && paymentMethods.length > 0
   const canCashier = ['cash.view', 'cash.open', 'cash.close', 'cash.movement', 'cash.approve', 'payments.charge'].some(permission => permissions[permission] === true)
   const canKitchen = permissions['kitchen.manage'] === true
+
+  async function openPickupPayment(order: any) {
+    const orderId = Number(order?.id)
+    if (!orderId || !canCharge) return
+    setPickupPaymentLoading(true)
+    try {
+      // Reuse the authoritative detail endpoint before opening the payment
+      // panel. Offline mode may use the branch-scoped cached order, but the
+      // existing pay workflow still enforces the local cash-session policy.
+      const detail = offline ? order : await api.getOrder('pin', orderId)
+      setPickupPaymentTarget({ summary: order, detail: responseData(detail) })
+    } catch {
+      onNotice('No se pudo cargar el detalle del retiro. Actualice las órdenes e intente nuevamente.')
+    } finally {
+      setPickupPaymentLoading(false)
+    }
+  }
+
+  const pickupPaymentTable = pickupPaymentTarget ? (() => {
+    const source = pickupPaymentTarget.detail || pickupPaymentTarget.summary || {}
+    const customer = source.customer || pickupPaymentTarget.summary.customer || {}
+    const orderId = Number(pickupPaymentTarget.summary.id || source.id)
+    const total = Number(source.grand_total ?? source.total ?? source.order_total ?? source.cart?.summary?.grand_total ?? pickupPaymentTarget.summary.grand_total ?? pickupPaymentTarget.summary.total ?? 0)
+    const paid = Number(source.amount_paid ?? source.paid_amount ?? pickupPaymentTarget.summary.amount_paid ?? pickupPaymentTarget.summary.paid_amount ?? 0)
+    const due = Number(source.amount_due ?? source.payment_summary?.amount_due ?? pickupPaymentTarget.summary.amount_due ?? Math.max(0, total - paid))
+    return {
+      id: 0,
+      name: 'Para llevar / Recoger',
+      number: 'Retiro',
+      capacity: 0,
+      status: 'occupied' as const,
+      currentOrderId: orderId,
+      currentOrderNumber: String(pickupPaymentTarget.summary.order_number || pickupPaymentTarget.summary.formatted_order_number || source.order_number || orderId),
+      currentOrderTotal: total,
+      currentOrderDue: due,
+      customerId: Number(customer.id || source.customer_id || pickupPaymentTarget.summary.customer_id || 0) || undefined,
+      customerName: customer.name || source.customer_name || pickupPaymentTarget.summary.customer_name,
+      customerPhone: customer.phone || source.customer_phone || pickupPaymentTarget.summary.customer_phone,
+      customerRnc: customer.rnc_cedula || source.rnc_cedula || pickupPaymentTarget.summary.rnc_cedula,
+      customerFiscalName: customer.fiscal_name || source.fiscal_name || pickupPaymentTarget.summary.fiscal_name,
+    } satisfies RestaurantTable
+  })() : null
   const table = activeTable
   const [tableFilter, setTableFilter] = useState<'all' | 'available' | 'occupied' | 'prebill'>('all')
   const [waiterRequests, setWaiterRequests] = useState<WaiterRequest[]>(() => readCache().waiterRequests || [])
@@ -1768,9 +1812,10 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
         } else {
           setActiveCashSummary(null)
         }
-        saveCache({ cashRegisters: regs, cashSession: actSess, cashSummary })
+        saveCache({ cashRegisters: regs, cashSession: actSess, cashSummary, orders: ords })
       } else {
         const cached = readCache()
+        setAllOrders(cached.orders || [])
         setCashRegisters(cached.cashRegisters || [])
         setActiveCashSession(cached.cashSession || null)
         setActiveCashSummary(cached.cashSummary || null)
@@ -2226,6 +2271,7 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
                 deliveryPlatforms={deliveryPlatforms}
                 deliveryExecutives={deliveryExecutives}
                 deliverySettings={deliverySettings}
+                onOpenOrders={() => setActiveNavTab('orders')}
                 onCheckout={async (orderData) => {
                   try {
                     const lines = orderData.items.map((i: any) => ({
@@ -2278,6 +2324,8 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
               <OrdersModule
                 orders={allOrders}
                 onRefresh={loadPosDanData}
+                onOpenPayment={openPickupPayment}
+                canCharge={canCharge}
                 currencySymbol={activeCurrency.symbol}
               />
             </div>
@@ -2583,6 +2631,45 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
             onCancelOrder={onCancelOrder}
           />
         )}
+
+        {pickupPaymentLoading && (
+          <div className="modal-backdrop" role="status" aria-live="polite">
+            <section className="pickup-payment-loading">
+              <Clock size={20} />
+              <span>Cargando el detalle del retiro…</span>
+            </section>
+          </div>
+        )}
+
+        {pickupPaymentTarget && pickupPaymentTable && !pickupPaymentLoading && (
+          <div className="modal-backdrop" onClick={() => setPickupPaymentTarget(null)}>
+            <div onClick={event => event.stopPropagation()} style={{ width: 'min(560px, 100%)' }}>
+              <TablePaymentPanel
+                table={pickupPaymentTable}
+                payload={pickupPaymentTarget.detail}
+                items={extractOrderItems(pickupPaymentTarget.detail)}
+                paymentMethods={paymentMethods}
+                fiscalCapabilities={fiscalCapabilities}
+                cashSessionOpen={cashSessionOpen}
+                cashSessionReady={cashSessionReady}
+                offline={offline}
+                customerRnc={pickupPaymentTable.customerRnc}
+                customerFiscalName={pickupPaymentTable.customerFiscalName}
+                customerName={pickupPaymentTable.customerName}
+                customerId={pickupPaymentTable.customerId}
+                targetLabel="Para llevar / Recoger"
+                targetDescription="Cobro del pedido antes de entregarlo. No utiliza mesa."
+                onClose={() => setPickupPaymentTarget(null)}
+                onPay={async (orderId, amount, method, idempotencyKey) => {
+                  const result = await onPayOrder(orderId, amount, method, idempotencyKey)
+                  if (!result.queued) await loadPosDanData()
+                  return result
+                }}
+                onSaveCustomer={onSaveCustomer}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {showMenu && <MenuPanel items={items} onClose={() => setShowMenu(false)} />}
@@ -2789,6 +2876,8 @@ function TablePaymentPanel({
   onClose,
   onPay,
   onSaveCustomer,
+  targetLabel,
+  targetDescription,
 }: {
   table: RestaurantTable
   payload: any
@@ -2805,6 +2894,8 @@ function TablePaymentPanel({
   onClose: () => void
   onPay: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>
   onSaveCustomer?: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>
+  targetLabel?: string
+  targetDescription?: string
 }) {
   const summary = normalizePreBill(payload, table, items)
   const enabledMethods = paymentMethods.filter(value => value.enabled)
@@ -3035,12 +3126,12 @@ function TablePaymentPanel({
   }
 
   return (
-    <section className="table-payment-panel" aria-label={`Cobro de la mesa ${table.number}`}>
+    <section className="table-payment-panel" aria-label={`Cobro de ${targetLabel || `la mesa ${table.number}`}`}>
       <div className="table-payment-header">
         <div>
-          <p className="eyebrow">COBRO DE LA MESA</p>
-          <h3>Mesa {table.number}</h3>
-          <small>El turno y la caja chica se administran por separado desde “Turno de caja”.</small>
+          <p className="eyebrow">{targetLabel ? 'COBRO DEL PEDIDO' : 'COBRO DE LA MESA'}</p>
+          <h3>{targetLabel || `Mesa ${table.number}`}</h3>
+          <small>{targetDescription || 'El turno y la caja chica se administran por separado desde “Turno de caja”.'}</small>
         </div>
         <button className="icon-button" onClick={onClose} aria-label="Cerrar cobro"><X size={18} /></button>
       </div>

@@ -6,6 +6,7 @@ import {
   ChevronUp,
   ClipboardList,
   Clock,
+  CreditCard,
   Hotel,
   RefreshCw,
   Search,
@@ -19,10 +20,13 @@ import { orderServiceLabel, resolveOrderService, type OrderServiceKind } from '.
 type OrdersModuleProps = {
   orders: any[]
   onRefresh?: () => Promise<void>
+  onOpenPayment?: (order: any) => void
+  canCharge?: boolean
   currencySymbol?: string
 }
 
-type OrderStatusKey = 'active' | 'preparing' | 'ready' | 'served' | 'paid' | 'cancelled' | 'unknown'
+type OrderStatusKey = 'active' | 'preparing' | 'ready' | 'served' | 'cancelled' | 'unknown'
+type PaymentStatusKey = 'unpaid' | 'partial' | 'paid'
 
 function normalizedText(value: unknown): string {
   return String(value ?? '').trim().toLowerCase().replace(/[_-]+/g, ' ')
@@ -54,19 +58,15 @@ function orderServiceDetail(order: any, service: OrderServiceKind): string {
 }
 
 function orderStatusKey(order: any): OrderStatusKey {
-  const values = [order.payment_status, order.order_status, order.status]
+  const values = [order.operational_status, order.order_status, order.kitchen_status, order.status]
     .map(normalizedText)
     .filter(Boolean)
-  if (values.some(value => value.includes('cancel'))) return 'cancelled'
-
-  const total = Number(order.total || order.grand_total || order.order_total || 0)
-  const paid = Number(order.amount_paid || order.paid_amount || 0)
-  if (values.some(value => value === 'paid' || value === 'billed' || value.includes('paid'))) return 'paid'
-  if (total > 0 && paid >= total) return 'paid'
-  if (values.some(value => value.includes('food ready') || value.includes('ready for pickup') || value.includes('listo'))) return 'ready'
-  if (values.some(value => value.includes('prepar') || value.includes('in kitchen') || value.includes('cocina'))) return 'preparing'
-  if (values.some(value => value.includes('served') || value.includes('servido'))) return 'served'
-  if (values.some(value => value.includes('confirm') || value === 'kot' || value.includes('open') || value.includes('draft'))) return 'active'
+  const operationalValues = values.filter(value => !['paid', 'billed', 'payment', 'payment paid'].includes(value) && !value.includes('paid'))
+  if (operationalValues.some(value => value.includes('cancel'))) return 'cancelled'
+  if (operationalValues.some(value => value.includes('food ready') || value.includes('ready for pickup') || value.includes('listo'))) return 'ready'
+  if (operationalValues.some(value => value.includes('prepar') || value.includes('in kitchen') || value.includes('cocina'))) return 'preparing'
+  if (operationalValues.some(value => value.includes('served') || value.includes('servido') || value.includes('delivered') || value.includes('entregado'))) return 'served'
+  if (operationalValues.some(value => value.includes('confirm') || value.includes('placed') || value === 'kot' || value === 'active' || value.includes('pending') || value.includes('open') || value.includes('draft'))) return 'active'
   return 'unknown'
 }
 
@@ -75,13 +75,12 @@ function orderStatusLabel(status: OrderStatusKey): string {
   if (status === 'preparing') return 'En preparación'
   if (status === 'ready') return 'Lista'
   if (status === 'served') return 'Servida'
-  if (status === 'paid') return 'Pagada'
   if (status === 'cancelled') return 'Cancelada'
   return 'Estado no publicado'
 }
 
 function orderStatusClass(status: OrderStatusKey): string {
-  if (status === 'paid' || status === 'served') return 'posdan-badge-success'
+  if (status === 'served') return 'posdan-badge-success'
   if (status === 'cancelled') return 'posdan-badge-danger'
   if (status === 'ready') return 'orders-badge-ready'
   if (status === 'preparing') return 'orders-badge-preparing'
@@ -97,6 +96,66 @@ function orderDate(order: any): string {
 
 function orderItems(order: any): any[] {
   return Array.isArray(order.items) ? order.items : []
+}
+
+function firstNumber(values: unknown[]): number | null {
+  const value = values.find(candidate => candidate !== null && candidate !== undefined && candidate !== '')
+  if (value === undefined) return null
+  const number = Number(value)
+  return Number.isFinite(number) ? number : null
+}
+
+function orderTotal(order: any): number {
+  return firstNumber([
+    order.grand_total,
+    order.total,
+    order.order_total,
+    order.cart?.summary?.grand_total,
+    order.cart?.summary?.total,
+    order.payment_summary?.grand_total,
+    order.payment_summary?.total,
+  ]) ?? 0
+}
+
+function orderPaid(order: any): number {
+  const payments = Array.isArray(order.payments) ? order.payments : []
+  const paymentsTotal = payments.reduce((sum: number, payment: any) => sum + Number(payment.amount || payment.paid_amount || 0), 0)
+  return firstNumber([
+    order.amount_paid,
+    order.paid_amount,
+    order.payment_summary?.amount_paid,
+    order.cart?.summary?.amount_paid,
+    paymentsTotal > 0 ? paymentsTotal : null,
+  ]) ?? 0
+}
+
+function orderDue(order: any): number {
+  const total = orderTotal(order)
+  const paid = orderPaid(order)
+  return Math.max(0, firstNumber([
+    order.amount_due,
+    order.payment_summary?.amount_due,
+    order.cart?.summary?.amount_due,
+  ]) ?? (total - paid))
+}
+
+function paymentStatusKey(order: any): PaymentStatusKey {
+  const due = orderDue(order)
+  const paid = orderPaid(order)
+  const raw = normalizedText(order.payment_status || order.paymentState || order.payment_summary?.status)
+  if (due <= 0.01 && (orderTotal(order) > 0 || raw.includes('paid'))) return 'paid'
+  if (paid > 0 || raw.includes('partial') || raw.includes('parcial')) return 'partial'
+  return 'unpaid'
+}
+
+function paymentStatusLabel(status: PaymentStatusKey, paid: number, due: number, currencySymbol: string): string {
+  if (status === 'paid') return `Pagado · ${currencySymbol} ${paid.toFixed(2)}`
+  if (status === 'partial') return `Pago parcial · ${currencySymbol} ${due.toFixed(2)} pendiente`
+  return `Pago pendiente · ${currencySymbol} ${due.toFixed(2)}`
+}
+
+function paymentStatusClass(status: PaymentStatusKey): string {
+  return status === 'paid' ? 'orders-payment-paid' : status === 'partial' ? 'orders-payment-partial' : 'orders-payment-pending'
 }
 
 function orderItemName(item: any): string {
@@ -117,7 +176,7 @@ function serviceIcon(service: OrderServiceKind) {
   return <ClipboardList size={16} />
 }
 
-export const OrdersModule: React.FC<OrdersModuleProps> = ({ orders, onRefresh, currencySymbol = 'RD$' }) => {
+export const OrdersModule: React.FC<OrdersModuleProps> = ({ orders, onRefresh, onOpenPayment, canCharge = false, currencySymbol = 'RD$' }) => {
   const [search, setSearch] = useState('')
   const [serviceFilter, setServiceFilter] = useState<OrderServiceKind | 'ALL'>('ALL')
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'active' | 'paid' | 'cancelled'>('ALL')
@@ -129,6 +188,7 @@ export const OrdersModule: React.FC<OrdersModuleProps> = ({ orders, onRefresh, c
     return orders.filter(order => {
       const service = resolveOrderService(order)
       const status = orderStatusKey(order)
+      const payment = paymentStatusKey(order)
       const searchable = [
         order.id,
         order.order_number,
@@ -140,9 +200,15 @@ export const OrdersModule: React.FC<OrdersModuleProps> = ({ orders, onRefresh, c
       ].join(' ').toLowerCase()
       return (!query || searchable.includes(query))
         && (serviceFilter === 'ALL' || service === serviceFilter)
-        && (statusFilter === 'ALL' || status === statusFilter)
+        && (statusFilter === 'ALL'
+          || (statusFilter === 'paid' && payment === 'paid')
+          || (statusFilter === 'cancelled' && status === 'cancelled')
+          || (statusFilter === 'active' && status !== 'cancelled' && status !== 'served' && status !== 'unknown'))
     })
   }, [orders, search, serviceFilter, statusFilter])
+
+  const pickupOrders = orders.filter(order => resolveOrderService(order) === 'pickup')
+  const pendingPickupOrders = pickupOrders.filter(order => paymentStatusKey(order) !== 'paid' && orderStatusKey(order) !== 'cancelled')
 
   const handleRefresh = async () => {
     if (!onRefresh || refreshing) return
@@ -217,6 +283,17 @@ export const OrdersModule: React.FC<OrdersModuleProps> = ({ orders, onRefresh, c
         {search || serviceFilter !== 'ALL' || statusFilter !== 'ALL' ? <span>Filtros activos</span> : <span>Sin filtros</span>}
       </div>
 
+      {(serviceFilter === 'ALL' || serviceFilter === 'pickup') && pickupOrders.length > 0 && (
+        <section className="orders-pickup-guide" aria-label="Flujo de pedidos para llevar">
+          <div className="orders-pickup-guide-icon"><ShoppingBag size={19} /></div>
+          <div>
+            <strong>Pedidos para llevar / recoger</strong>
+            <span>Se crean desde Punto de venta y se envían a cocina. Cuando estén listos, se cobran aquí y se entregan al cliente; no utilizan mesa.</span>
+          </div>
+          <div className="orders-pickup-guide-count"><b>{pendingPickupOrders.length}</b><small>por cobrar</small></div>
+        </section>
+      )}
+
       <div className="posdan-table-wrap orders-table-wrap">
         <div className="posdan-table-scroll">
           <table className="posdan-table orders-table">
@@ -225,19 +302,24 @@ export const OrdersModule: React.FC<OrdersModuleProps> = ({ orders, onRefresh, c
                 <th>Orden</th>
                 <th>Servicio / destino</th>
                 <th>Cliente</th>
-                <th>Estado</th>
+                <th>Estado del pedido</th>
+                <th>Pago</th>
                 <th>Total</th>
                 <th>Fecha y hora</th>
-                <th aria-label="Detalle" />
+                <th aria-label="Acciones" />
               </tr>
             </thead>
             <tbody>
               {filteredOrders.map(order => {
                 const service = resolveOrderService(order)
                 const status = orderStatusKey(order)
+                const payment = paymentStatusKey(order)
                 const orderId = Number(order.id)
+                const paid = orderPaid(order)
+                const due = orderDue(order)
                 const expanded = expandedOrderId === orderId
                 const items = orderItems(order)
+                const canPayPickup = service === 'pickup' && payment !== 'paid' && status !== 'cancelled' && canCharge && Boolean(onOpenPayment) && orderId > 0
                 return (
                   <React.Fragment key={orderId || `${order.order_number}-${order.created_at}`}>
                     <tr className={expanded ? 'orders-row-expanded' : undefined}>
@@ -261,11 +343,28 @@ export const OrdersModule: React.FC<OrdersModuleProps> = ({ orders, onRefresh, c
                       <td>
                         <span className={orderStatusClass(status)}>{orderStatusLabel(status)}</span>
                       </td>
+                      <td>
+                        <span className={`orders-payment-pill ${paymentStatusClass(payment)}`}>
+                          {payment === 'paid' ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
+                          {payment === 'paid' ? 'Pagado' : payment === 'partial' ? 'Parcial' : 'Pendiente'}
+                        </span>
+                        {payment !== 'paid' && <small className="orders-secondary-line">Pendiente: {currencySymbol} {due.toFixed(2)}</small>}
+                      </td>
                       <td className="orders-total">
-                        {currencySymbol} {Number(order.total || order.grand_total || order.order_total || 0).toFixed(2)}
+                        {currencySymbol} {orderTotal(order).toFixed(2)}
                       </td>
                       <td className="orders-date"><Clock size={14} /> {orderDate(order)}</td>
                       <td className="orders-detail-action">
+                        {canPayPickup && (
+                          <button
+                            type="button"
+                            className="orders-charge-btn"
+                            onClick={() => onOpenPayment?.(order)}
+                            title="Cobrar este pedido antes de entregarlo"
+                          >
+                            <CreditCard size={14} /> Cobrar retiro
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="orders-detail-btn"
@@ -279,18 +378,35 @@ export const OrdersModule: React.FC<OrdersModuleProps> = ({ orders, onRefresh, c
                     </tr>
                     {expanded && (
                       <tr className="orders-detail-row">
-                        <td colSpan={7}>
+                        <td colSpan={8}>
                           <div className="orders-detail-panel">
                             <div className="orders-detail-heading">
                               <div>
                                 <strong>Detalle de la orden #{order.order_number || order.id}</strong>
+                                <small>{service === 'pickup' ? 'Para llevar / Recoger · el cliente recoge en el local' : orderServiceDetail(order, service)}</small>
                                 <small>{order.notes || order.order_note || 'Sin nota general'}</small>
                               </div>
-                              <span className={Number(order.amount_paid || 0) > 0 ? 'orders-payment-paid' : 'orders-payment-pending'}>
-                                {Number(order.amount_paid || 0) > 0 ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
-                                {Number(order.amount_paid || 0) > 0 ? `Pagado: ${currencySymbol} ${Number(order.amount_paid).toFixed(2)}` : 'Pendiente de pago'}
+                              <span className={paymentStatusClass(payment)}>
+                                {payment === 'paid' ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+                                {paymentStatusLabel(payment, paid, due, currencySymbol)}
                               </span>
                             </div>
+                            <div className="orders-financial-summary">
+                              <div><span>Total</span><b>{currencySymbol} {orderTotal(order).toFixed(2)}</b></div>
+                              <div><span>Pagado</span><b>{currencySymbol} {paid.toFixed(2)}</b></div>
+                              <div><span>Pendiente</span><b>{currencySymbol} {due.toFixed(2)}</b></div>
+                            </div>
+                            {service === 'pickup' && (
+                              <div className={`orders-pickup-next-step ${payment === 'paid' ? 'is-paid' : ''}`}>
+                                <ShoppingBag size={15} />
+                                <span>{payment === 'paid' ? 'Pago confirmado. Entregue el pedido cuando el cliente lo recoja.' : 'El cobro de este retiro se realiza aquí, antes de entregar el pedido.'}</span>
+                                {canPayPickup && (
+                                  <button type="button" className="orders-charge-btn" onClick={() => onOpenPayment?.(order)}>
+                                    <CreditCard size={14} /> Cobrar retiro
+                                  </button>
+                                )}
+                              </div>
+                            )}
                             {items.length ? (
                               <ul className="orders-item-list">
                                 {items.map((item, index) => {
