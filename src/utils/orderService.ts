@@ -67,7 +67,7 @@ export function resolveOrderService(source: unknown): OrderServiceKind {
 
 export function orderServiceLabel(kind: OrderServiceKind): string {
   if (kind === 'dine_in') return 'Comer aquí'
-  if (kind === 'pickup') return 'Recogida en el local'
+  if (kind === 'pickup') return 'Para llevar / Recoger'
   if (kind === 'delivery') return 'Entrega a domicilio'
   if (kind === 'room_service') return 'Servicio a habitación'
   return 'Servicio no identificado'
@@ -75,7 +75,7 @@ export function orderServiceLabel(kind: OrderServiceKind): string {
 
 export function orderServiceShortLabel(kind: OrderServiceKind): string {
   if (kind === 'dine_in') return 'Mesa'
-  if (kind === 'pickup') return 'Recogida'
+  if (kind === 'pickup') return 'Llevar / Recoger'
   if (kind === 'delivery') return 'Entrega'
   if (kind === 'room_service') return 'Habitación'
   return 'Sin mesa'

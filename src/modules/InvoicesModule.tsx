@@ -145,7 +145,7 @@ export const InvoicesModule: React.FC<InvoicesModuleProps> = ({
           >
             <option value="ALL">Todos los servicios</option>
             <option value="dine_in">Comer aquí</option>
-            <option value="pickup">Recogida en el local</option>
+            <option value="pickup">Para llevar / Recoger</option>
             <option value="delivery">Entrega a domicilio</option>
             <option value="room_service">Servicio a habitación</option>
             <option value="unknown">Tipo no publicado</option>

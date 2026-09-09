@@ -40,12 +40,12 @@ export interface OrderTypeModalProps {
 export function translateOrderTypeName(slug?: string, rawName?: string): string {
   const s = String(slug || '').toLowerCase().trim()
   if (s === 'dine_in') return 'Comer aquí'
-  if (s === 'pickup') return 'Recogida en el local'
+  if (s === 'pickup') return 'Para llevar / Recoger'
   if (s === 'room_service') return 'Servicio de habitaciones'
   if (s === 'delivery') return 'Entrega'
   const n = String(rawName || '').toLowerCase().trim()
   if (n === 'dine in' || n === 'dine_in') return 'Comer aquí'
-  if (n === 'pickup' || n === 'pick up' || n === 'takeout' || n === 'take away' || n === 'para llevar' || n === 'recogida') return 'Recogida en el local'
+  if (n === 'pickup' || n === 'pick up' || n === 'takeout' || n === 'take away' || n === 'para llevar' || n === 'recogida') return 'Para llevar / Recoger'
   if (n === 'room service' || n === 'room_service') return 'Servicio de habitaciones'
   if (n === 'delivery') return 'Entrega'
   return rawName || 'Comer aquí'
@@ -389,7 +389,7 @@ export const OrderTypeModal: React.FC<OrderTypeModalProps> = ({
                   </span>
                 </button>
 
-                {/* 2. Recogida */}
+                {/* 2. Para llevar / recoger: conserva el slug pickup del backend */}
                 <button
                   type="button"
                   onClick={handleSelectPickup}

@@ -8,6 +8,7 @@ import { PosDanSidebar, PosDanModule } from './components/PosDanSidebar'
 import { PosModule } from './modules/PosModule'
 import { CashModule } from './modules/CashModule'
 import { InvoicesModule } from './modules/InvoicesModule'
+import { OrdersModule } from './modules/OrdersModule'
 import { CustomersModule } from './modules/CustomersModule'
 import { ProductsModule } from './modules/ProductsModule'
 import { InventoryModule } from './modules/InventoryModule'
@@ -1950,6 +1951,7 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
           kdsPendingCount={0}
           waiterCallsCount={waiterRequests.length}
+          ordersCount={allOrders.length}
         />
 
         {/* Main Content Area: Vistas con transición */}
@@ -2263,6 +2265,17 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
                 roleKey={roleKey}
               />
 
+            </div>
+          )}
+
+          {/* VIEW: ALL ORDERS */}
+          {activeNavTab === 'orders' && (
+            <div className="pos-view-layer view-active">
+              <OrdersModule
+                orders={allOrders}
+                onRefresh={loadPosDanData}
+                currencySymbol={activeCurrency.symbol}
+              />
             </div>
           )}
 

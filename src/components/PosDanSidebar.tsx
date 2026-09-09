@@ -18,11 +18,13 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  ClipboardList,
 } from 'lucide-react'
 import type { StaffRole } from '../types'
 
 export type PosDanModule =
   | 'pos'
+  | 'orders'
   | 'tables'
   | 'menu'
   | 'ops'
@@ -61,10 +63,12 @@ interface PosDanSidebarProps {
   onToggleCollapse?: () => void
   kdsPendingCount?: number
   waiterCallsCount?: number
+  ordersCount?: number
 }
 
 export const POSDAN_MODULES: NavItemDef[] = [
   { id: 'pos', label: 'Punto de venta', icon: Store, permissionKey: ['orders.create', 'orders.view'] },
+  { id: 'orders', label: 'Órdenes', icon: ClipboardList, permissionKey: ['orders.view', 'orders.create'] },
   { id: 'tables', label: 'Mesas', icon: UtensilsCrossed, permissionKey: 'tables.view' },
   { id: 'kds', label: 'Cocina (KDS)', icon: ChefHat, permissionKey: 'kitchen.manage', allowedRoles: ['chef', 'head', 'cajero', 'mesero'] },
   { id: 'cash', label: 'Cajas/Turnos', icon: DollarSign, permissionKey: ['cash.view', 'cash.open', 'cash.close', 'cash.movement', 'payments.charge'], allowedRoles: ['cajero', 'head'] },
@@ -120,6 +124,7 @@ export const PosDanSidebar: React.FC<PosDanSidebarProps> = ({
   onToggleCollapse,
   kdsPendingCount = 0,
   waiterCallsCount = 0,
+  ordersCount = 0,
 }) => {
   const visibleModules = POSDAN_MODULES.filter(item => isModuleAllowed(item, permissions, roleKey))
 
@@ -171,6 +176,7 @@ export const PosDanSidebar: React.FC<PosDanSidebarProps> = ({
           let dynamicBadge: number | undefined
           if (item.id === 'kds' && kdsPendingCount > 0) dynamicBadge = kdsPendingCount
           if (item.id === 'tables' && waiterCallsCount > 0) dynamicBadge = waiterCallsCount
+          if (item.id === 'orders' && ordersCount > 0) dynamicBadge = ordersCount
 
           return (
             <button

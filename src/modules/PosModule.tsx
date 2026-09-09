@@ -342,10 +342,10 @@ export const PosModule: React.FC<PosModuleProps> = ({
               type="button"
               className="posdan-service-context service-pickup"
               onClick={() => setOrderTypeModalOpen(true)}
-              title="Recogida en el local: esta orden no utiliza mesa"
+              title="Para llevar / Recoger: esta orden no utiliza mesa"
             >
               <ShoppingBag size={15} />
-              <span><strong>Recogida en el local</strong> · Sin mesa</span>
+              <span><strong>Para llevar / Recoger</strong> · Sin mesa</span>
             </button>
           )}
 
