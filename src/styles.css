@@ -935,9 +935,9 @@ h2 { margin-bottom: 0; font-size: 22px; letter-spacing: -.02em; }
 .kitchen-screen-view .kitchen-panel-standalone > header h2 { font-size: 22px; }
 .kitchen-screen-view .kitchen-panel-standalone > header small { font-size: 11px; }
 .kitchen-screen-view .kitchen-panel-standalone > .kitchen-board { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 12px clamp(16px, 2.5vw, 32px) 18px; }
-.kitchen-screen-view .kitchen-panel-standalone > .kitchen-place-filter { padding-inline: clamp(16px, 2.5vw, 32px); }
-.kitchen-screen-view .kitchen-panel-standalone > .kitchen-place-tabs { padding-inline: clamp(16px, 2.5vw, 32px); }
-.kitchen-screen-view .kitchen-panel-standalone > .kitchen-place-label { margin-inline: clamp(16px, 2.5vw, 32px); }
+.kitchen-screen-view .kitchen-panel-standalone > .kitchen-place-filter { display: grid; flex: 0 0 auto; grid-template-columns: minmax(220px, min(420px, 50vw)) auto; align-items: end; padding-inline: clamp(16px, 2.5vw, 32px); }
+.kitchen-screen-view .kitchen-panel-standalone > .kitchen-place-tabs { flex: 0 0 auto; min-height: 34px; padding-inline: clamp(16px, 2.5vw, 32px); }
+.kitchen-screen-view .kitchen-panel-standalone > .kitchen-place-label { flex: 0 0 auto; margin-inline: clamp(16px, 2.5vw, 32px); }
 .kitchen-screen-view .kitchen-panel-standalone > .modal-note { flex: 0 0 auto; margin: 0; padding: 8px clamp(16px, 2.5vw, 32px); border-radius: 0; background: var(--pos-bg-surface, #1E2023); border-top: 1px solid var(--pos-bg-surface-elevated, #2A2D31); }
 .kitchen-board { display: grid; grid-template-columns: repeat(3, minmax(280px, 1fr)); gap: 10px; align-items: start; }
 .kitchen-column { display: flex; min-width: 0; min-height: 0; align-self: start; flex-direction: column; overflow: hidden; background: var(--pos-bg-surface, #1E2023); border: 1px solid var(--pos-bg-surface-elevated, #2A2D31); border-radius: 12px; }
@@ -987,6 +987,7 @@ h2 { margin-bottom: 0; font-size: 22px; letter-spacing: -.02em; }
   .kitchen-screen-view .kitchen-panel-standalone > header > div:first-child { min-width: 0; }
   .kitchen-screen-view .kitchen-header-actions { width: 100%; justify-content: stretch; }
   .kitchen-screen-view .kitchen-header-actions .button { flex: 1 1 0; }
+  .kitchen-screen-view .kitchen-panel-standalone > .kitchen-place-filter { grid-template-columns: 1fr; }
   .kitchen-screen-view .kitchen-board { grid-template-columns: 1fr; gap: 10px; padding: 12px; }
   .kitchen-screen-view .kitchen-column { min-height: 0; }
   .kitchen-screen-view .kitchen-column-list { overflow: visible; }
