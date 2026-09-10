@@ -2622,7 +2622,7 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
 
         {pickupPaymentTarget && pickupPaymentTable && !pickupPaymentLoading && (
           <div className="modal-backdrop" onClick={() => setPickupPaymentTarget(null)}>
-            <div onClick={event => event.stopPropagation()} style={{ width: 'min(560px, 100%)' }}>
+            <div className="payment-dialog-shell" onClick={event => event.stopPropagation()}>
               <TablePaymentPanel
                 table={pickupPaymentTable}
                 payload={pickupPaymentTarget.detail}
@@ -2638,6 +2638,7 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
                 customerId={pickupPaymentTable.customerId}
                 targetLabel="Para llevar / Recoger"
                 targetDescription="Cobro del pedido antes de entregarlo. No utiliza mesa."
+                loadingPreview={false}
                 onClose={() => setPickupPaymentTarget(null)}
                 onPay={async (orderId, amount, method, idempotencyKey) => {
                   const result = await onPayOrder(orderId, amount, method, idempotencyKey)
@@ -2839,6 +2840,59 @@ function PreBillPanel({ table, payload, items, onClose, onAddMore, onPrint, prin
   return <section className="prebill-panel" aria-label={`Precuenta de la mesa ${table.number}`}><header><div><p className="eyebrow">VISTA PRELIMINAR · SIN COBRO</p><h3>Precuenta · Mesa {table.number}</h3><small>{summary.customer ? `Cliente: ${summary.customer}` : 'Cliente no identificado'}</small></div><button className="icon-button no-print" onClick={onClose} aria-label="Cerrar precuenta"><X size={18} /></button></header><div className="prebill-print-config"><strong>{receiptTitle}</strong><small>{printer ? `Impresora: ${printer.name}${printer.printFormat ? ` · ${printer.printFormat}` : ''}` : 'La impresión usa la configuración de la sucursal.'}</small></div>{items.length ? <div className="prebill-lines">{items.map(item => <div className="prebill-line" key={item.id}><span><strong>{item.quantity}× {item.name}</strong></span>{item.amount ? <b>{formatMoney(item.amount)}</b> : null}</div>)}</div> : <div className="prebill-empty">No hay detalle de articulos disponible para esta orden.</div>}<div className="prebill-totals"><div><span>Subtotal</span><b>{preBillMoney(summary.subtotal)}</b></div><div><span>Impuestos</span><b>{preBillMoney(summary.tax)}</b></div>{summary.tip !== null && summary.tip > 0 && <div><span>Propina legal</span><b>{formatMoney(summary.tip)}</b></div>}{summary.discount !== null && summary.discount > 0 && <div><span>Descuento</span><b>-{formatMoney(summary.discount)}</b></div>}<div className="prebill-total"><span>Total</span><strong>{formatMoney(summary.total)}</strong></div><div className="prebill-due"><span>{summary.due > 0 ? 'Pendiente de pago' : 'Estado de pago'}</span><strong>{summary.due > 0 ? formatMoney(summary.due) : 'Pagada'}</strong></div></div>{summary.breakdownMissing && <p className="prebill-warning">El desglose detallado de impuestos no esta disponible completo; se muestra el total confirmado de la comanda.</p>}{printStatus && <p className="prebill-print-status" role="status">{printStatus}</p>}<p className="prebill-note">Esta precuenta es informativa: no cobra, no cierra la mesa y permite agregar más artículos. Al imprimir, se envia directamente a la impresora asignada a la sucursal.</p>{receiptFooter && <small className="prebill-footer-note">{receiptFooter}</small>}<footer className="prebill-actions no-print"><button className="button outline" onClick={onClose}>Volver a la orden</button><button className="button outline" onClick={() => void onPrint()} disabled={printing}><Printer size={16} /> {printing ? 'Enviando…' : 'Imprimir precuenta'}</button><button className="button primary" onClick={onAddMore}>Agregar artículos</button></footer></section>
 }
 
+type PaymentPreviewItem = {
+  id: number
+  name: string
+  quantity: number
+  amount: number
+  variation?: string
+  modifiers: string[]
+  note?: string
+}
+
+function paymentPreviewItems(items: Array<any>): PaymentPreviewItem[] {
+  return items.map((item, index) => {
+    const quantity = Math.max(1, Number(item?.quantity || 1))
+    const rawAmount = [item?.amount, item?.line_total, item?.total, item?.subtotal].find(value => value !== null && value !== undefined && value !== '')
+    const fallbackAmount = Number(item?.price ?? item?.unit_price ?? item?.unitPrice ?? 0) * quantity
+    const amount = Number(rawAmount ?? fallbackAmount)
+    const rawModifiers = item?.modifiers || item?.modifier_options || item?.modifierOptions || item?.options || item?.addons || []
+    const modifiers = Array.isArray(rawModifiers)
+      ? rawModifiers.map((modifier: any) => {
+        const name = String(modifier?.name || modifier?.option_name || modifier?.modifier_option_name || modifier?.label || '').trim()
+        const price = Number(modifier?.price ?? modifier?.price_delta ?? modifier?.priceDelta ?? 0)
+        return name ? `${name}${price > 0 ? ` (+${formatMoney(price)})` : ''}` : ''
+      }).filter(Boolean)
+      : []
+    const variation = String(item?.variation_name || item?.variationName || item?.variant_name || item?.variantName || item?.variation?.name || item?.variant?.name || '').trim()
+    const note = String(item?.note || item?.notes || item?.special_instructions || item?.specialInstructions || '').trim()
+    return {
+      id: Number(item?.id || item?.order_item_id || index + 1),
+      name: String(item?.name || item?.menu_item_name || item?.product_name || item?.menuItem?.name || 'Producto'),
+      quantity,
+      amount: Number.isFinite(amount) ? amount : 0,
+      variation: variation || undefined,
+      modifiers,
+      note: note || undefined,
+    }
+  })
+}
+
+function receiptPreviewLabel(value: string): string {
+  const labels: Record<string, string> = {
+    B01: 'B01 · Factura de Crédito Fiscal',
+    B02: 'B02 · Factura de Consumo',
+    B14: 'B14 · Régimen Especial',
+    B15: 'B15 · Gubernamental',
+    E31: 'E31 · Crédito Fiscal Electrónica',
+    E32: 'E32 · Consumo Electrónica',
+    E44: 'E44 · Régimen Especial Electrónico',
+    E45: 'E45 · Gubernamental Electrónico',
+    receipt: 'Recibo normal',
+  }
+  return labels[value] || value || 'Documento de cobro'
+}
+
 function TablePaymentPanel({
   table,
   payload,
@@ -2857,10 +2911,11 @@ function TablePaymentPanel({
   onSaveCustomer,
   targetLabel,
   targetDescription,
+  loadingPreview = false,
 }: {
   table: RestaurantTable
   payload: any
-  items: Array<{ amount?: number }>
+  items: Array<any>
   paymentMethods: PaymentMethodOption[]
   fiscalCapabilities?: FiscalCapabilities | null
   cashSessionOpen: boolean
@@ -2870,6 +2925,7 @@ function TablePaymentPanel({
   customerFiscalName?: string
   customerName?: string
   customerId?: number
+  loadingPreview?: boolean
   onClose: () => void
   onPay: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>
   onSaveCustomer?: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>
@@ -2877,6 +2933,33 @@ function TablePaymentPanel({
   targetDescription?: string
 }) {
   const summary = normalizePreBill(payload, table, items)
+  const previewSource = payload?.data ?? payload ?? {}
+  const previewCandidates = [previewSource, previewSource?.order, previewSource?.data, previewSource?.data?.order].filter(value => value && typeof value === 'object')
+  const readPreviewValue = (...keys: string[]) => {
+    for (const candidate of previewCandidates) {
+      for (const key of keys) {
+        if (candidate[key] !== undefined && candidate[key] !== null && candidate[key] !== '') return candidate[key]
+      }
+    }
+    return undefined
+  }
+  const previewLines = paymentPreviewItems(items)
+  const previewService = resolveOrderService({ ...previewSource, order_type: readPreviewValue('order_type', 'orderType') ?? (targetLabel ? 'pickup' : undefined), table_id: readPreviewValue('table_id', 'tableId') ?? (table.id || undefined) })
+  const previewOrderNumber = String(readPreviewValue('order_number', 'formatted_order_number', 'number') || table.currentOrderNumber || table.currentOrderId || '—')
+  const previewDateValue = readPreviewValue('created_at', 'createdAt', 'date_time', 'placed_at') || orderStartedAt(previewSource)
+  const previewDate = previewDateValue
+    ? (Number.isNaN(new Date(String(previewDateValue)).getTime()) ? String(previewDateValue) : new Date(String(previewDateValue)).toLocaleString('es-DO', { dateStyle: 'short', timeStyle: 'short' }))
+    : 'Hora no informada'
+  const previewStatus = orderProgressLabel(readPreviewValue('operational_status', 'order_status', 'kitchen_status', 'status') || table.kitchenStatus || table.currentOrderStatus)
+  const previewAddress = String(readPreviewValue('delivery_address', 'deliveryAddress', 'address') || '').trim()
+  const previewRoom = String(readPreviewValue('room_number', 'roomNumber') || '').trim()
+  const previewPlatform = String(readPreviewValue('delivery_platform_name', 'delivery_app_name', 'custom_order_type_name', 'customOrderTypeName') || '').trim()
+  const previewWaiter = String(readPreviewValue('waiter_name', 'server_name', 'employee_name', 'attended_by') || previewSource?.waiter?.name || previewSource?.server?.name || '').trim()
+  const previewNotes = String(readPreviewValue('notes', 'order_note', 'note') || '').trim()
+  const previewDeliveryFee = Number(readPreviewValue('delivery_fee', 'deliveryFee') || 0)
+  const previewCharges = Number(readPreviewValue('service_charge', 'serviceCharge', 'charges_total', 'charges') || 0)
+  const cached = readCache()
+  const printer = (cached.printers || []).find(value => value.isActive !== false && (value.isDefault || (value.orders || []).length > 0)) || (cached.printers || []).find(value => value.isActive !== false)
   const enabledMethods = paymentMethods.filter(value => value.enabled)
   const [method, setMethod] = useState(enabledMethods[0]?.code || 'cash')
   const [amount, setAmount] = useState(summary.due > 0 ? summary.due.toFixed(2) : '')
@@ -2909,6 +2992,16 @@ function TablePaymentPanel({
   const [rncStatusMsg, setRncStatusMsg] = useState('')
   const [showFiscalDetails, setShowFiscalDetails] = useState(Boolean(initialRnc || initialFiscalName))
   const [printReceiptOnPay, setPrintReceiptOnPay] = useState(() => getStationPrinterConfig().autoPrintOnPayment)
+  const previewDestination = previewService === 'dine_in'
+    ? `Mesa ${table.number}`
+    : previewService === 'room_service'
+      ? (previewRoom ? `Habitación ${previewRoom}` : 'Habitación no indicada')
+      : previewService === 'delivery'
+        ? (previewAddress || 'Dirección no indicada')
+        : 'Retiro en el local'
+  const previewCustomer = effectiveCustName || String(readPreviewValue('customer_name', 'customerName') || previewSource?.customer?.name || previewSource?.customer?.full_name || 'Consumidor Final')
+  const previewCustomerPhone = String(readPreviewValue('customer_phone', 'customerPhone', 'phone') || previewSource?.customer?.phone || previewSource?.customer?.telephone || 'Teléfono no indicado')
+  const previewPaymentStatus = summary.due <= 0.01 ? 'Pagado' : summary.paid > 0 ? 'Pago parcial' : 'Pendiente'
 
   // Initialize fiscal data from payload / customer
   useEffect(() => {
@@ -3119,6 +3212,70 @@ function TablePaymentPanel({
       {cashSessionReady && !cashSessionOpen && <Alert>Debe abrir el turno de caja antes de cobrar. Vaya a “Cajas/Turnos” y abra el turno del cajero.</Alert>}
       {error && <Alert>{error}</Alert>}
       {status && <p className="table-payment-status" role="status">{status}</p>}
+      <section className="payment-review-card" aria-labelledby="payment-review-title">
+        <div className="payment-review-heading">
+          <div>
+            <p className="eyebrow">REVISIÓN ANTES DEL COBRO</p>
+            <strong id="payment-review-title">Confirme toda la orden</strong>
+          </div>
+          <span className="payment-review-badge">Sin registrar</span>
+        </div>
+        {loadingPreview ? (
+          <div className="payment-review-loading" role="status" aria-live="polite">
+            <Clock size={18} />
+            <span>Cargando el detalle completo de la orden…</span>
+          </div>
+        ) : (
+          <>
+            <div className="payment-review-facts">
+              <div><span>Orden</span><strong>#{previewOrderNumber}</strong><small>{previewDate}</small></div>
+              <div><span>Servicio</span><strong>{orderServiceLabel(previewService)}</strong><small>{previewDestination}</small>{previewPlatform && previewService === 'delivery' && <small>Plataforma: {previewPlatform}</small>}</div>
+              <div><span>Estado operativo</span><strong>{previewStatus}</strong><small>Pago actual: {previewPaymentStatus}</small></div>
+            </div>
+
+            <div className="payment-review-party-grid">
+                <div className="payment-review-party">
+                <UserCircle2 size={17} />
+                <div><span>Cliente</span><strong>{previewCustomer}</strong><small>{previewCustomerPhone}</small>{(rncCedula || initialRnc) && <small>RNC/Cédula: {rncCedula || initialRnc}</small>}{(fiscalName || initialFiscalName) && <small>Razón social: {fiscalName || initialFiscalName}</small>}</div>
+              </div>
+              <div className="payment-review-party">
+                <UserCheck size={17} />
+                <div><span>Atendido por</span><strong>{previewWaiter || 'No informado'}</strong><small>{previewNotes ? `Nota general: ${previewNotes}` : 'Sin nota general'}</small></div>
+              </div>
+            </div>
+
+            <div className="payment-review-lines">
+              <div className="payment-review-section-title"><strong>Productos y detalles</strong><span>{previewLines.reduce((total, line) => total + line.quantity, 0)} artículo(s)</span></div>
+              {previewLines.length ? previewLines.map((line, index) => (
+                <div className="payment-review-line" key={`${line.id}-${index}`}>
+                  <div><strong>{line.quantity}× {line.name}</strong>{line.variation && <small>Variante: {line.variation}</small>}{line.modifiers.length > 0 && <small>Suplementos: {line.modifiers.join(' · ')}</small>}{line.note && <small>Nota: {line.note}</small>}</div>
+                  <b>{formatMoney(line.amount)}</b>
+                </div>
+              )) : <div className="payment-review-empty">El detalle de productos no está disponible todavía. El total seguirá siendo el confirmado por el servidor.</div>}
+            </div>
+
+            <div className="payment-review-totals">
+              <div><span>Subtotal</span><b>{preBillMoney(summary.subtotal)}</b></div>
+              {previewDeliveryFee > 0 && <div><span>Entrega</span><b>{formatMoney(previewDeliveryFee)}</b></div>}
+              <div><span>Impuestos</span><b>{preBillMoney(summary.tax)}</b></div>
+              {summary.tip !== null && summary.tip > 0 && <div><span>Propina legal</span><b>{formatMoney(summary.tip)}</b></div>}
+              {previewCharges > 0 && <div><span>Cargos</span><b>{formatMoney(previewCharges)}</b></div>}
+              {summary.discount !== null && summary.discount > 0 && <div><span>Descuento</span><b>-{formatMoney(summary.discount)}</b></div>}
+              <div className="payment-review-grand-total"><span>Total confirmado</span><strong>{formatMoney(summary.total)}</strong></div>
+              <div className="payment-review-paid"><span>Pagado {summary.paid > 0 ? 'hasta ahora' : ''}</span><b>{formatMoney(summary.paid)}</b><span>Pendiente</span><strong>{formatMoney(summary.due)}</strong></div>
+            </div>
+
+            <div className="payment-review-document">
+              <FileText size={17} />
+              <div><span>Comprobante seleccionado</span><strong>{receiptPreviewLabel(receiptType)}</strong><small>{(rncCedula || initialRnc) ? `Titular fiscal: ${fiscalName || initialFiscalName || 'Pendiente de confirmar'}` : 'Cliente final / datos fiscales no indicados'}</small></div>
+            </div>
+            <div className="payment-review-print">
+              <Printer size={16} />
+              <span>{printReceiptOnPay ? `Se imprimirá al confirmar${printer ? ` · ${printer.name}` : ''}` : 'No se imprimirá automáticamente'}</span>
+            </div>
+          </>
+        )}
+      </section>
       <div className="table-payment-due">
         <span>Saldo pendiente</span>
         <strong>{formatMoney(summary.due)}</strong>
@@ -3274,10 +3431,10 @@ function TablePaymentPanel({
 
       <footer>
         <button className="button outline" onClick={onClose}>Cancelar</button>
-        <button className="button outline" disabled={busy || !cashSessionReady || !cashSessionOpen || !enabledMethods.length || summary.due <= 0} onClick={() => void charge(false)}>
+        <button className="button outline" disabled={busy || loadingPreview || !cashSessionReady || !cashSessionOpen || !enabledMethods.length || summary.due <= 0} onClick={() => void charge(false)}>
           <CreditCard size={16} />{busy ? 'Registrando…' : 'Solo cobrar'}
         </button>
-        <button className="button primary" disabled={busy || !cashSessionReady || !cashSessionOpen || !enabledMethods.length || summary.due <= 0} onClick={() => void charge(true)} style={{ background: '#f97316', borderColor: '#f97316', color: '#fff' }}>
+        <button className="button primary" disabled={busy || loadingPreview || !cashSessionReady || !cashSessionOpen || !enabledMethods.length || summary.due <= 0} onClick={() => void charge(true)} style={{ background: '#f97316', borderColor: '#f97316', color: '#fff' }}>
           <Printer size={16} />{busy ? 'Procesando…' : 'Cobrar e Imprimir'}
         </button>
       </footer>
@@ -3390,6 +3547,7 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
   const tableReady = mode !== 'dine_in' || table !== null
   const activeElapsed = useElapsedSince(orderStartedAt(orderDetail))
   const activeOrderStatus = orderProgressLabel(latestKotStatus || orderDetail?.order_status || orderDetail?.status || orderDetail?.order?.status || table?.kitchenStatus || table?.currentOrderStatus)
+  const paymentItems = extractOrderItems(orderDetail)
   // Keep the field aligned with the server when the floor refreshes the active order.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
@@ -4163,11 +4321,11 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
         )}
         {paymentOpen && table?.currentOrderId && canCharge && (
           <div className="modal-backdrop" onClick={() => setPaymentOpen(false)}>
-            <div onClick={e => e.stopPropagation()} style={{ width: 'min(520px, 100%)' }}>
+            <div className="payment-dialog-shell" onClick={e => e.stopPropagation()}>
               <TablePaymentPanel
                 table={table}
                 payload={orderDetail}
-                items={existingItems}
+                items={paymentItems.length ? paymentItems : existingItems}
                 paymentMethods={paymentMethods}
                 fiscalCapabilities={fiscalCapabilities}
                 cashSessionOpen={cashSessionOpen}
@@ -4177,6 +4335,7 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
                 customerFiscalName={fiscalName || table.customerFiscalName}
                 customerName={customerName || table.customerName}
                 customerId={customerId || table.customerId}
+                loadingPreview={loadingExistingOrder && !orderDetail}
                 onClose={() => setPaymentOpen(false)}
                 onPay={onPayOrder}
                 onSaveCustomer={onSaveCustomer}
