@@ -6449,6 +6449,684 @@ body { overflow-x: hidden; }
   text-align: center;
 }
 
+/* ==========================================================================
+   RESPONSIVE POS V2
+   One navigation model for desktop, tablet and phone. These rules are kept
+   at the end of the stylesheet so the older POS and POSDAN layouts receive
+   the same safe-area, drawer and touch-size behavior without changing their
+   business flow.
+   ========================================================================== */
+
+:root {
+  --pos-mobile-nav-height: 72px;
+}
+
+.pos-app-layout,
+.pos-main-content,
+.pos-view-layer,
+.posdan-pos-layout,
+.posdan-pos-main,
+.posdan-products-grid,
+.posdan-cart-sidebar,
+.kitchen-screen-view,
+.kitchen-screen-view > .kitchen-standalone-panel,
+.kitchen-screen-view .kitchen-panel-standalone {
+  min-width: 0;
+  min-height: 0;
+}
+
+.posdan-pos-layout,
+.kitchen-screen-view .kitchen-panel-standalone {
+  box-sizing: border-box;
+}
+
+.posdan-products-grid,
+.pos-products-grid {
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.posdan-item-card,
+.pos-product-card,
+.kitchen-ticket {
+  min-width: 0;
+}
+
+.posdan-item-card h4 + span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kitchen-screen-view .kitchen-board {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+
+.kitchen-screen-view .kitchen-column {
+  height: 100%;
+  min-height: 0;
+}
+
+.kitchen-screen-view .kitchen-column-list {
+  min-height: 0;
+  overscroll-behavior: contain;
+}
+
+@media (max-width: 1024px) {
+  /* Tablet and smaller use the same bottom navigation rail. The main view
+     gets the full width; the old order drawer becomes an overlay instead of
+     a third flex column that compresses the POS. */
+  .pos-app-layout {
+    flex-direction: column;
+  }
+
+  .pos-main-content {
+    order: 1;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .posdan-sidebar {
+    order: 2;
+    width: 100%;
+    height: calc(var(--pos-mobile-nav-height) + env(safe-area-inset-bottom, 0px));
+    min-height: var(--pos-mobile-nav-height);
+    flex: 0 0 auto;
+    flex-direction: row;
+    border-right: 0;
+    border-top: 1px solid #21262d;
+  }
+
+  .posdan-sidebar-header {
+    width: 54px;
+    height: var(--pos-mobile-nav-height);
+    padding: 8px;
+    flex: 0 0 54px;
+    border-bottom: 0;
+    justify-content: center;
+  }
+
+  .posdan-brand-info,
+  .posdan-user-pill,
+  .posdan-collapse-toggle {
+    display: none;
+  }
+
+  .posdan-brand-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    font-size: 16px;
+  }
+
+  .posdan-nav-list {
+    min-width: 0;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: row;
+    align-items: stretch;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 5px 4px;
+    gap: 3px;
+    scrollbar-width: none;
+  }
+
+  .posdan-nav-list::-webkit-scrollbar {
+    display: none;
+  }
+
+  .posdan-nav-item {
+    width: auto;
+    min-width: 68px;
+    min-height: 56px;
+    flex: 0 0 auto;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    padding: 6px 8px;
+    text-align: center;
+    font-size: 10px;
+  }
+
+  .posdan-nav-label {
+    flex: 0 0 auto;
+    max-width: 78px;
+    font-size: 10px;
+    text-align: center;
+  }
+
+  .posdan-nav-badge {
+    position: absolute;
+    top: 3px;
+    right: 4px;
+  }
+
+  .posdan-sidebar-footer {
+    flex: 0 0 auto;
+    flex-direction: row;
+    gap: 3px;
+    padding: 5px 5px calc(5px + env(safe-area-inset-bottom, 0px));
+    border-top: 0;
+    border-left: 1px solid #21262d;
+  }
+
+  .posdan-footer-btn {
+    width: 40px;
+    min-height: 56px;
+    padding: 7px 5px;
+    justify-content: center;
+  }
+
+  .posdan-footer-btn span {
+    display: none;
+  }
+
+  .posdan-pos-layout {
+    flex-direction: column;
+  }
+
+  .posdan-pos-main {
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .posdan-pos-topbar {
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .posdan-mode-selector,
+  .posdan-table-picker,
+  .posdan-pos-topbar .posdan-search-box {
+    width: auto !important;
+    flex: 1 1 180px;
+    min-width: 0;
+  }
+
+  .posdan-cart-sidebar {
+    width: 100%;
+    max-height: 44%;
+    min-height: 210px;
+    border-top: 1px solid #21262d;
+    border-left: 0;
+  }
+
+  .posdan-cart-list {
+    min-height: 0;
+  }
+
+  .pos-order-drawer {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: calc(var(--pos-mobile-nav-height) + env(safe-area-inset-bottom, 0px));
+    width: min(420px, calc(100vw - 24px));
+    max-width: none;
+    height: auto !important;
+    transform: translateX(100%);
+    box-shadow: -15px 0 40px rgba(0, 0, 0, 0.6);
+  }
+
+  .pos-order-drawer.is-open {
+    transform: translateX(0);
+  }
+
+  .pos-drawer-overlay {
+    bottom: calc(var(--pos-mobile-nav-height) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .kitchen-screen-view .kitchen-panel-standalone > header {
+    padding: 10px 16px;
+  }
+
+  .kitchen-screen-view .kitchen-panel-standalone > header h2 {
+    font-size: 20px;
+  }
+
+  .kitchen-screen-view .kitchen-panel-standalone > .kitchen-board {
+    padding: 10px 12px 14px;
+  }
+
+  .kitchen-screen-view .kitchen-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .kitchen-screen-view .kitchen-column-header {
+    padding: 8px 10px;
+  }
+
+  .kitchen-screen-view .kitchen-column-list {
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .kitchen-screen-view .kitchen-ticket {
+    gap: 5px;
+    padding: 7px;
+  }
+}
+
+@media (max-width: 768px) {
+  :root {
+    --pos-mobile-nav-height: 68px;
+  }
+
+  .system-status-bar {
+    min-height: 36px;
+    height: auto;
+    padding: 6px 10px;
+    gap: 6px;
+    font-size: 10px;
+  }
+
+  .pos-view-header {
+    align-items: flex-start;
+    gap: 8px;
+    padding: 9px 10px;
+  }
+
+  .pos-view-title h1 {
+    font-size: 1.05rem;
+  }
+
+  .pos-view-title p {
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    font-size: 10px;
+  }
+
+  .pos-view-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .pos-view-actions > * {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .pos-category-bar {
+    gap: 6px;
+    padding: 7px 8px;
+  }
+
+  .pos-category-chip {
+    max-width: 72vw;
+    overflow: hidden;
+    padding: 0.45rem 0.85rem;
+    text-overflow: ellipsis;
+  }
+
+  .pos-products-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding: 8px 8px calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .pos-product-image-wrap {
+    height: clamp(84px, 25vw, 108px);
+  }
+
+  .pos-product-body {
+    gap: 3px;
+    padding: 8px;
+  }
+
+  .pos-product-name {
+    font-size: 0.8rem;
+  }
+
+  .pos-product-price {
+    font-size: 0.9rem;
+  }
+
+  .pos-order-items-list {
+    min-height: 0;
+    padding: 8px;
+    gap: 6px;
+  }
+
+  .pos-order-item-card {
+    padding: 0.65rem;
+    border-radius: 11px;
+  }
+
+  .pos-order-item-top {
+    align-items: flex-start;
+  }
+
+  .pos-drawer-header {
+    gap: 0.5rem;
+    padding: 10px;
+  }
+
+  .pos-drawer-info-strip {
+    gap: 5px;
+    padding: 0.45rem 0.55rem;
+  }
+
+  .pos-drawer-footer {
+    padding: 10px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .pos-summary-lines {
+    gap: 4px;
+    margin-bottom: 8px;
+  }
+
+  .pos-summary-total-box {
+    margin-bottom: 8px;
+    padding: 0.65rem 0.75rem;
+  }
+
+  .pos-summary-total-value {
+    font-size: 1.25rem;
+  }
+
+  .pos-btn-primary {
+    min-height: 44px;
+    padding: 0.8rem 0.9rem;
+    border-radius: 12px;
+    font-size: 0.9rem;
+  }
+
+  .posdan-pos-topbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: stretch;
+  }
+
+  .posdan-mode-selector {
+    min-width: 0;
+  }
+
+  .posdan-mode-selector .posdan-mode-btn {
+    min-width: 0;
+    max-width: 100%;
+    min-height: 42px;
+    padding-inline: 10px;
+  }
+
+  .posdan-mode-selector .posdan-mode-btn span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .posdan-table-picker,
+  .posdan-service-context,
+  .posdan-pos-topbar .posdan-search-box {
+    grid-column: 1 / -1;
+    width: 100% !important;
+    min-width: 0;
+  }
+
+  .posdan-table-picker {
+    justify-content: space-between;
+  }
+
+  .posdan-table-picker .posdan-select {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .posdan-cat-bar {
+    gap: 6px;
+    padding: 6px 8px;
+    scrollbar-width: none;
+  }
+
+  .posdan-cat-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .posdan-cat-btn {
+    min-height: 40px;
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  .posdan-products-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .posdan-item-card {
+    padding: 8px;
+    border-radius: 11px;
+  }
+
+  .posdan-item-image-wrap {
+    height: clamp(84px, 24vw, 108px);
+    aspect-ratio: auto;
+    margin-bottom: 7px;
+  }
+
+  .posdan-cart-sidebar {
+    max-height: 46%;
+    min-height: 220px;
+  }
+
+  .posdan-cart-header,
+  .posdan-cart-footer {
+    padding: 10px;
+  }
+
+  .posdan-cart-list {
+    gap: 6px;
+    padding: 8px;
+  }
+
+  .posdan-cart-item {
+    padding: 8px 9px;
+  }
+
+  .kitchen-screen-view .kitchen-panel-standalone > header {
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+
+  .kitchen-screen-view .kitchen-panel-standalone > header h2 {
+    font-size: 18px;
+  }
+
+  .kitchen-screen-view .kitchen-panel-standalone > header small {
+    font-size: 10px;
+    line-height: 1.25;
+  }
+
+  .kitchen-screen-view .kitchen-header-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .kitchen-screen-view .kitchen-header-actions .button {
+    min-height: 38px;
+    flex: 1 1 0;
+    padding: 7px 8px;
+    font-size: 10px;
+  }
+
+  .kitchen-screen-view .kitchen-panel-standalone > .kitchen-place-filter {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding-inline: 12px;
+  }
+
+  .kitchen-screen-view .kitchen-place-filter label {
+    min-width: 0;
+  }
+
+  .kitchen-screen-view .kitchen-panel-standalone > .kitchen-place-tabs {
+    gap: 5px;
+    padding-inline: 12px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .kitchen-screen-view .kitchen-panel-standalone > .kitchen-place-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .kitchen-screen-view .kitchen-place-tabs button {
+    flex: 0 0 auto;
+    min-height: 36px;
+    padding: 6px 9px;
+    font-size: 10px;
+  }
+
+  .kitchen-screen-view .kitchen-panel-standalone > .kitchen-board {
+    padding: 8px;
+  }
+
+  .kitchen-screen-view .kitchen-board {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+    height: auto;
+    gap: 8px;
+  }
+
+  .kitchen-screen-view .kitchen-column {
+    height: auto;
+  }
+
+  .kitchen-screen-view .kitchen-column-list {
+    overflow: visible;
+  }
+
+  .kitchen-screen-view .kitchen-ticket footer .button {
+    min-height: 40px;
+    padding-inline: 10px;
+  }
+
+  .kitchen-screen-view .kitchen-panel-standalone > .modal-note {
+    padding: 7px 12px;
+    font-size: 9px;
+    line-height: 1.3;
+  }
+}
+
+@media (max-width: 480px) {
+  .posdan-nav-item {
+    min-width: 62px;
+    padding-inline: 5px;
+  }
+
+  .posdan-nav-label {
+    max-width: 64px;
+    font-size: 9px;
+  }
+
+  .posdan-sidebar-header {
+    width: 48px;
+    flex-basis: 48px;
+  }
+
+  .pos-products-grid,
+  .posdan-products-grid {
+    gap: 6px;
+    padding-inline: 6px;
+  }
+
+  .pos-product-image-wrap,
+  .posdan-item-image-wrap {
+    height: clamp(76px, 22vw, 96px);
+  }
+
+  .pos-product-body {
+    padding: 7px;
+  }
+
+  .pos-product-name {
+    font-size: 0.76rem;
+  }
+
+  .pos-product-category {
+    font-size: 0.66rem;
+  }
+
+  .pos-product-price {
+    font-size: 0.86rem;
+  }
+
+  .posdan-item-card h4 {
+    font-size: 12px !important;
+  }
+
+  .posdan-item-card h4 + span {
+    font-size: 10px !important;
+  }
+
+  .posdan-item-card > div:last-child > div:last-child {
+    margin-top: 7px !important;
+  }
+
+  .posdan-item-card > div:last-child > div:last-child > span:first-child {
+    font-size: 12px !important;
+  }
+
+  .posdan-cart-sidebar {
+    max-height: 48%;
+    min-height: 210px;
+  }
+
+  .pos-order-drawer {
+    width: 100%;
+  }
+}
+
+@media (max-height: 560px) and (orientation: landscape) {
+  :root {
+    --pos-mobile-nav-height: 58px;
+  }
+
+  .posdan-sidebar {
+    height: calc(var(--pos-mobile-nav-height) + env(safe-area-inset-bottom, 0px));
+    min-height: var(--pos-mobile-nav-height);
+  }
+
+  .posdan-sidebar-header,
+  .posdan-nav-item,
+  .posdan-footer-btn {
+    min-height: 48px;
+    height: 48px;
+  }
+
+  .pos-order-drawer,
+  .pos-drawer-overlay {
+    bottom: calc(var(--pos-mobile-nav-height) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .pos-view-header {
+    min-height: 50px;
+    padding-block: 6px;
+  }
+
+  .pos-product-image-wrap,
+  .posdan-item-image-wrap {
+    height: 78px;
+  }
+
+  .kitchen-screen-view .kitchen-panel-standalone > header {
+    padding-block: 6px;
+  }
+
+  .kitchen-screen-view .kitchen-panel-standalone > .kitchen-board {
+    padding-block: 6px 10px;
+  }
+}
+
 .order-type-choice-copy strong {
   color: #f0f6fc;
   font-size: 14px;
@@ -6731,5 +7409,18 @@ body { overflow-x: hidden; }
 
   .posdan-service-summary-action {
     grid-column: 2;
+  }
+}
+
+/* Final responsive precedence for the legacy module rules declared above. */
+@media (max-width: 768px) {
+  .posdan-cart-sidebar {
+    min-height: 0;
+    max-height: min(46%, 380px);
+  }
+
+  .posdan-cart-footer {
+    max-height: min(48%, 270px);
+    padding: 10px 10px calc(10px + env(safe-area-inset-bottom, 0px));
   }
 }

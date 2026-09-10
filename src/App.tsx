@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { api, ApiError, applyCategoryMetadata, normalizeAttendance } from './api/client'
-import type { AttendanceRecord, Branch, DeliveryExecutive, DeliveryPlatform, DeliverySettings, DeviceBinding, FiscalCapabilities, KitchenPlace, KitchenTicket, KitchenView, MenuItem, ModifierGroup, ModifierOption, NotificationSettings, OfflineOperation, OfflineStep, OfflineWorkflow, OrderDraft, OrderLine, OrderMode, OrderTypeConfig, PaymentMethodOption, PosCustomer, ProductVariation, RestaurantTable, Session, StaffRole, WaiterRequest } from './types'
+import type { AttendanceRecord, Branch, DeliveryExecutive, DeliveryPlatform, DeliverySettings, DeviceBinding, FiscalCapabilities, KitchenPlace, KitchenTicket, KitchenView, MenuCategory, MenuItem, ModifierGroup, ModifierOption, NotificationSettings, OfflineOperation, OfflineStep, OfflineWorkflow, OrderDraft, OrderLine, OrderMode, OrderTypeConfig, PaymentMethodOption, PosCustomer, ProductVariation, RestaurantTable, Session, StaffRole, WaiterRequest } from './types'
 import { clearSession, enqueue, getDeviceId, getStorageScope, listOutbox, newIdempotencyKey, readCache, readSession, removeOutbox, saveCache, saveSession, setStorageScope, updateOutbox } from './storage/offline'
 import { CustomerModal } from './CustomerModal'
 import { PosDanSidebar, PosDanModule } from './components/PosDanSidebar'
@@ -399,10 +399,11 @@ export default function App() {
       // can create an order. Keep `null` on transport/auth failures so a
       // transient outage never erases a usable offline catalog.
       const canLoadCatalog = session.permissions['menu.view'] || session.permissions['orders.create']
+      const cached = readCache()
       const [remoteTables, remoteItems, remoteCategories, config, remoteOrders, remoteKitchenPlaces, remoteNotifications, remoteReceiptSettings, remotePrinters, remotePaymentMethods, remoteFiscalCapabilities] = await Promise.all([
         session.permissions['tables.view'] ? api.tables('pin').catch(() => []) : Promise.resolve([]),
         canLoadCatalog ? api.menuItems('pin').catch(() => null) : Promise.resolve(null),
-        canLoadCatalog ? api.categories('pin').catch(() => []) : Promise.resolve([]),
+        canLoadCatalog ? api.categories('pin').catch(() => null) : Promise.resolve(null),
         api.config('pin').catch(() => null),
         session.permissions['payments.charge'] ? api.orders('pin').catch(() => null) : Promise.resolve(null),
         session.permissions['kitchen.manage'] ? api.kotPlaces('pin').catch(() => null) : Promise.resolve(null),
@@ -412,8 +413,11 @@ export default function App() {
         session.permissions['payments.charge'] ? api.paymentMethods('pin').catch(() => null) : Promise.resolve(null),
         api.fiscalCapabilities('pin').catch(() => null),
       ])
+      const categorySource: MenuCategory[] = remoteCategories === null
+        ? (cached.menuCategories || [])
+        : remoteCategories
       const initialItems = Array.isArray(remoteItems)
-        ? applyCategoryMetadata(remoteItems, Array.isArray(remoteCategories) ? remoteCategories : [])
+        ? applyCategoryMetadata(remoteItems, categorySource)
         : null
       // Pintar el catálogo base inmediatamente. Las categorías no deben esperar
       // a las consultas complementarias de suplementos de cada producto.
@@ -434,6 +438,7 @@ export default function App() {
         setCurrencyVersion(value => value + 1)
       }
       const cachePatch: any = { tables: remoteTables, branchId: session.branchId, currency: activeCurrency, scopeKey: session.scopeKey || tenantScope(session) }
+      if (Array.isArray(remoteCategories)) cachePatch.menuCategories = remoteCategories
       if (enrichedItems) cachePatch.menuItems = enrichedItems
       if (remoteOrders) cachePatch.orders = remoteOrders
       if (remoteKitchenPlaces) { cachePatch.kotPlaces = remoteKitchenPlaces; setKitchenPlaces(remoteKitchenPlaces) }

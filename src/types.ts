@@ -404,6 +404,7 @@ export type AppCache = {
   branches?: Branch[]
   tables?: RestaurantTable[]
   menuItems?: MenuItem[]
+  menuCategories?: MenuCategory[]
   orders?: unknown[]
   paymentMethods?: PaymentMethodOption[]
   kots?: KitchenTicket[]
