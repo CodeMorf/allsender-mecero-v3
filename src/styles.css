@@ -953,6 +953,17 @@ h2 { margin-bottom: 0; font-size: 22px; letter-spacing: -.02em; }
 .kitchen-column-list { display: grid; align-content: start; gap: 10px; min-height: 190px; padding: 10px; overflow-y: auto; }
 .kitchen-column-list .kitchen-ticket { background: var(--pos-bg-surface-elevated, #2A2D31); }
 .kitchen-column-empty { display: grid; min-height: 120px; place-items: center; padding: 20px; color: var(--muted); text-align: center; border: 1px dashed var(--pos-bg-surface-elevated, #2A2D31); border-radius: 12px; font-size: 12px; }
+.kitchen-screen-view .kitchen-ticket { gap: 8px; padding: 10px 11px; border-left-width: 4px; border-radius: 10px; }
+.kitchen-screen-view .kitchen-ticket-header { gap: 7px; }
+.kitchen-screen-view .kitchen-ticket-header small, .kitchen-screen-view .kitchen-ticket footer small { font-size: 10px; }
+.kitchen-screen-view .kitchen-table-label { font-size: 12px !important; }
+.kitchen-screen-view .kitchen-ticket ul { gap: 5px; padding-left: 16px; font-size: 12px; }
+.kitchen-screen-view .kitchen-ticket li { line-height: 1.25; }
+.kitchen-screen-view .kitchen-ticket li em, .kitchen-screen-view .kitchen-ticket li .kitchen-item-meta { font-size: 10px; }
+.kitchen-screen-view .kitchen-note { padding: 6px 8px; font-size: 10px; }
+.kitchen-screen-view .kitchen-ticket footer .button { min-height: 34px; padding: 7px 9px; font-size: 11px; }
+.product-category-label { color: var(--primary) !important; font-size: 11px !important; font-weight: 700; }
+.pos-product-category { overflow: hidden; color: var(--pos-text-secondary, #A1A5AB); font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 900px) {
   .kitchen-screen-view .kitchen-panel-standalone > header { padding: 14px 16px; }
   .kitchen-screen-view .kitchen-panel-standalone > header h2 { font-size: 20px; }
@@ -971,7 +982,7 @@ h2 { margin-bottom: 0; font-size: 22px; letter-spacing: -.02em; }
   .kitchen-screen-view .kitchen-column { min-height: 0; }
   .kitchen-screen-view .kitchen-column-list { overflow: visible; }
   .kitchen-screen-view .kitchen-column-empty { min-height: 72px; }
-  .kitchen-screen-view .kitchen-ticket { padding: 13px; }
+  .kitchen-screen-view .kitchen-ticket { padding: 10px; }
   .kitchen-screen-view .kitchen-ticket footer { align-items: center; }
   .kitchen-screen-view .kitchen-ticket footer .button { min-height: 40px; padding-inline: 11px; }
   .kitchen-screen-view .kitchen-panel-standalone > .modal-note { font-size: 10px; line-height: 1.35; }

@@ -410,8 +410,15 @@ export default function App() {
         session.permissions['payments.charge'] ? api.paymentMethods('pin').catch(() => null) : Promise.resolve(null),
         api.fiscalCapabilities('pin').catch(() => null),
       ])
-      const enrichedItems = Array.isArray(remoteItems)
-        ? await Promise.all(remoteItems.map(async item => {
+      const initialItems = Array.isArray(remoteItems) ? remoteItems : null
+      // Pintar el catálogo base inmediatamente. Las categorías no deben esperar
+      // a las consultas complementarias de suplementos de cada producto.
+      if (initialItems) {
+        setItems(initialItems)
+        saveCache({ menuItems: initialItems, branchId: session.branchId, scopeKey: session.scopeKey || tenantScope(session) })
+      }
+      const enrichedItems = initialItems
+        ? await Promise.all(initialItems.map(async item => {
           if (item.modifiers !== undefined) return item
           try { return { ...item, modifiers: await api.modifierGroups('pin', item.id) } }
           catch { return item }
@@ -2220,7 +2227,7 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
                   className={`pos-category-chip ${selectedCategory === cat ? 'active' : ''}`}
                   onClick={() => setSelectedCategory(cat)}
                 >
-                  {cat}
+                  {cat === 'Todos' ? 'Todos los productos' : cat}
                 </button>
               ))}
             </div>
@@ -2282,6 +2289,7 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
                     </div>
                     <div className="pos-product-body">
                       <div className="pos-product-name">{item.name}</div>
+                      <div className="pos-product-category">{item.categoryName}</div>
                       <div className="pos-product-price">{formatMoney(item.price)}</div>
                     </div>
                   </div>
@@ -4840,7 +4848,7 @@ function ProductPicker({ items, onSelect, onQuickAdd }: { items: MenuItem[]; onS
               className={`category-chip ${isActive ? 'active' : ''}`}
               onClick={() => setCategory(cat)}
             >
-              <span>{cat}</span>
+              <span>{cat === 'Todos' ? 'Todos los productos' : cat}</span>
               <span className="category-count">{count}</span>
             </button>
           )
@@ -4863,6 +4871,7 @@ function ProductPicker({ items, onSelect, onQuickAdd }: { items: MenuItem[]; onS
               >
                 <ProductPhoto item={item} />
                 <strong className="product-name">{item.name}</strong>
+                <small className="product-category-label">{item.categoryName}</small>
                 <small>{item.code || `n.º ${item.id}`}</small>
                 <b>{formatMoney(item.price)}</b>
                 {!item.available && (
