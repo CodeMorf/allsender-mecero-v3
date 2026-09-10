@@ -80,6 +80,60 @@ function orderProgressLabel(value: unknown) {
   return String(value)
 }
 
+type OrderFlowStep = { title: string; description: string }
+
+function orderFlowSteps(mode: OrderMode): OrderFlowStep[] {
+  const firstStep = mode === 'delivery'
+    ? { title: 'Confirmar cliente y dirección', description: 'Verifica el teléfono y la dirección antes de enviar.' }
+    : mode === 'room_service'
+      ? { title: 'Confirmar habitación', description: 'Revisa el número de habitación y el huésped.' }
+      : mode === 'pickup'
+        ? { title: 'Tomar pedido', description: 'Confirma qué va a llevar el cliente y sus datos.' }
+        : { title: 'Tomar pedido', description: 'Confirma la mesa, los platos y las notas.' }
+  const readyStep = mode === 'pickup'
+    ? { title: 'Listo para recoger', description: 'Avisa al cliente cuando la orden esté lista.' }
+    : mode === 'delivery'
+      ? { title: 'Listo para entregar', description: 'Confirma el repartidor o prepara la entrega.' }
+      : { title: 'Platos listos', description: 'Recoge la orden y entrégala al cliente.' }
+  const finalStep = mode === 'dine_in'
+    ? { title: 'Cobrar y cerrar mesa', description: 'Cobra el saldo y la mesa quedará libre.' }
+    : mode === 'room_service'
+      ? { title: 'Entregar y cerrar', description: 'Lleva la orden a la habitación y cobra o carga según corresponda.' }
+      : mode === 'delivery'
+        ? { title: 'Entregar y cerrar', description: 'Marca la entrega cuando el cliente reciba la orden.' }
+        : { title: 'Cobrar y entregar', description: 'Cobra ahora o al recoger, según lo acordado.' }
+  return [
+    firstStep,
+    { title: 'Enviar a cocina', description: 'Pulsa “Enviar a cocina” para que el equipo la prepare.' },
+    readyStep,
+    finalStep,
+  ]
+}
+
+function orderFlowStage(status: unknown, hasOrder: boolean, stepCount: number): number {
+  if (!hasOrder) return 0
+  const normalized = String(status || '').trim().toLowerCase().replace(/[_-]+/g, ' ')
+  if (normalized.includes('cancel')) return -1
+  if (normalized.includes('served') || normalized.includes('servido') || normalized.includes('delivered') || normalized.includes('entregado') || normalized.includes('recogido') || normalized.includes('completed') || normalized.includes('complet')) return stepCount - 1
+  if (normalized.includes('food ready') || normalized.includes('ready for pickup') || normalized.includes('listo')) return Math.min(2, stepCount - 1)
+  if (normalized.includes('prepar') || normalized.includes('in kitchen') || normalized.includes('cocina') || normalized.includes('enviado') || normalized.includes('placed') || normalized.includes('pending') || normalized.includes('kot')) return Math.min(1, stepCount - 1)
+  return 0
+}
+
+function orderFlowNextAction(mode: OrderMode, stage: number, hasOrder: boolean, amountDue: number): string {
+  if (!hasOrder) return 'Agrega los platos, revisa el pedido y envíalo a cocina.'
+  if (stage < 0) return 'Esta orden está cancelada. No continúes con ella.'
+  if (stage === 0) return mode === 'delivery' ? 'Confirma la dirección y luego pulsa “Enviar a cocina”.' : 'Revisa el pedido y luego pulsa “Enviar a cocina”.'
+  if (stage === 1) return 'Espera el aviso de cocina. Cuando esté listo, entrégalo o prepara el despacho.'
+  if (stage === 2) {
+    if (mode === 'dine_in') return amountDue > 0.01 ? 'Entrega los platos y cobra el saldo desde “Cobrar”.' : 'Entrega los platos y confirma que la mesa quede servida.'
+    if (mode === 'pickup') return amountDue > 0.01 ? 'Cobra al cliente cuando recoja desde “Cobrar retiro”.' : 'Entrega la orden al cliente y confirma la recogida.'
+    if (mode === 'room_service') return amountDue > 0.01 ? 'Lleva la orden y cobra o carga la habitación según corresponda.' : 'Lleva la orden a la habitación y confirma la entrega.'
+    return amountDue > 0.01 ? 'Asigna o confirma el repartidor y cobra según el acuerdo.' : 'Confirma la entrega al cliente.'
+  }
+  return 'La orden ya llegó al último paso. Revisa que el cliente la haya recibido.'
+}
+
 function orderStartedAt(payload: any) {
   return payload?.created_at || payload?.createdAt || payload?.order?.created_at || payload?.order?.createdAt || payload?.placed_at || payload?.order?.placed_at || null
 }
@@ -2824,6 +2878,42 @@ function TableStatusGuide() {
   return <section className="table-status-guide" aria-labelledby="table-status-guide-title"><div className="table-status-guide-copy"><p className="eyebrow">ESTADO DE LA SALA</p><h2 id="table-status-guide-title">Cómo leer y liberar una mesa</h2><p>El color indica el ciclo de la orden, no cuántas sillas están ocupadas. La capacidad de personas se define en la configuracion del salon.</p><p><strong>La mesa se libera automáticamente al completar el cobro total.</strong> Imprimir la precuenta, terminar la preparación o solicitar la cuenta no la libera. Mientras quede saldo pendiente, debe seguir ocupada.</p></div><div className="table-status-guide-grid"><span><i className="dot green" /> <strong>Libre</strong><small>Puede recibir una nueva orden.</small></span><span><i className="dot red" /> <strong>Ocupada</strong><small>Hay una orden abierta.</small></span><span><i className="dot yellow" /> <strong>En cocina</strong><small>La comanda está en preparación.</small></span><span><i className="dot teal" /> <strong>Lista</strong><small>Hay platos listos para entregar.</small></span><span><i className="dot blue" /> <strong>Cuenta pendiente</strong><small>Esperando el cobro total.</small></span></div></section>
 }
 
+function OrderFlowPanel({ mode, status, hasOrder, amountDue, orderNumber, destination, onClose }: { mode: OrderMode; status: string; hasOrder: boolean; amountDue: number; orderNumber?: string | number; destination: string; onClose: () => void }) {
+  const steps = orderFlowSteps(mode)
+  const stage = orderFlowStage(status, hasOrder, steps.length)
+  const nextAction = orderFlowNextAction(mode, stage, hasOrder, amountDue)
+  const currentLabel = stage < 0 ? 'Orden cancelada' : stage >= steps.length - 1 ? 'Último paso' : `Paso ${stage + 1} de ${steps.length}`
+  return <div className="modal-backdrop" onClick={onClose}>
+    <section className="modal wide order-flow-panel" onClick={event => event.stopPropagation()} aria-labelledby="order-flow-title">
+      <header>
+        <div>
+          <p className="eyebrow">GUÍA DE LA ORDEN</p>
+          <h2 id="order-flow-title">¿Qué sigue ahora?</h2>
+          <small>{orderNumber ? `Pedido n.º ${orderNumber} · ` : ''}{orderServiceLabel(mode)} · {destination}</small>
+        </div>
+        <button className="icon-button" onClick={onClose} aria-label="Cerrar guía de la orden"><X size={18} /></button>
+      </header>
+      <section className={`order-flow-current ${stage < 0 ? 'is-cancelled' : ''}`}>
+        <div className="order-flow-current-icon">{stage < 0 ? <XCircle size={22} /> : stage >= steps.length - 1 ? <Check size={22} /> : <Clock size={22} />}</div>
+        <div><span>{currentLabel}</span><strong>{stage < 0 ? 'No continúes con esta orden' : orderProgressLabel(status)}</strong><small>{nextAction}</small></div>
+      </section>
+      <ol className="order-flow-steps">
+        {steps.map((step, index) => {
+          const stepState = stage < 0 ? 'cancelled' : index < stage ? 'done' : index === stage ? 'current' : 'next'
+          return <li className={`order-flow-step ${stepState}`} key={step.title}>
+            <span className="order-flow-step-marker">{stepState === 'done' ? <Check size={15} /> : index + 1}</span>
+            <div><strong>{step.title}</strong><small>{step.description}</small></div>
+          </li>
+        })}
+      </ol>
+      <footer className="order-flow-footer">
+        <span><strong>Regla sencilla:</strong> el pago y la cocina son pasos distintos. Una orden puede estar pagada y seguir en preparación.</span>
+        <button className="button primary" onClick={onClose}>Entendido</button>
+      </footer>
+    </section>
+  </div>
+}
+
 function ActiveOrdersPanel({ tables, onSelectTable }: { tables: RestaurantTable[]; onSelectTable: (table: RestaurantTable | null) => void }) {
   const active = tables.filter(table => table.currentOrderId).sort((a, b) => Number(b.currentOrderDue ?? b.currentOrderTotal ?? 0) - Number(a.currentOrderDue ?? a.currentOrderTotal ?? 0))
   return <><WaiterCallBanner /><TableStatusGuide /><section className="active-orders-panel" aria-labelledby="active-orders-title"><div className="active-orders-header"><div><p className="eyebrow">SEGUIMIENTO EN SALA</p><h2 id="active-orders-title">Pedidos activos</h2><small>{active.length ? `${active.length} mesa${active.length === 1 ? '' : 's'} con pedido en curso` : 'No hay pedidos en curso'}</small></div><span className="active-orders-count">{active.length}</span></div>{active.length ? <div className="active-orders-list">{active.map(table => <button key={table.id} className="active-order-card" onClick={() => onSelectTable(table)}><span className={`active-order-status ${statusColors[table.status]}`} aria-hidden="true" /><span className="active-order-main"><strong>Mesa {table.number}</strong><small>{table.currentOrderNumber ? `Pedido n.º ${table.currentOrderNumber}` : `Pedido n.º ${table.currentOrderId}`}{table.customerName ? ` · ${table.customerName}` : ' · Cliente no identificado'}</small></span><span className="active-order-meta"><b>{formatMoney(table.currentOrderDue ?? table.currentOrderTotal ?? 0)}</b><small>{table.currentOrderDue && table.currentOrderDue > 0 ? 'Pendiente' : 'Total'}</small></span><ChevronRight size={18} /></button>)}</div> : <div className="active-orders-empty"><ClipboardList size={22} /><span>Los pedidos aparecerán aquí al abrir una mesa y enviar la comanda.</span></div>}</section></>
@@ -3507,6 +3597,7 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
   const [showMenu, setShowMenu] = useState(true)
   const [preBillOpen, setPreBillOpen] = useState(false)
   const [paymentOpen, setPaymentOpen] = useState(false)
+  const [flowOpen, setFlowOpen] = useState(false)
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
@@ -3548,6 +3639,13 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
   const activeElapsed = useElapsedSince(orderStartedAt(orderDetail))
   const activeOrderStatus = orderProgressLabel(latestKotStatus || orderDetail?.order_status || orderDetail?.status || orderDetail?.order?.status || table?.kitchenStatus || table?.currentOrderStatus)
   const paymentItems = extractOrderItems(orderDetail)
+  const flowDestination = mode === 'dine_in'
+    ? `Mesa ${table?.number || 'sin asignar'}`
+    : mode === 'room_service'
+      ? (roomNumber ? `Habitación ${roomNumber}` : 'Habitación no indicada')
+      : mode === 'delivery'
+        ? (deliveryAddress || 'Dirección no indicada')
+        : 'Retiro en el local'
   // Keep the field aligned with the server when the floor refreshes the active order.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
@@ -3560,6 +3658,7 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
   useEffect(() => {
     let cancelled = false
     setPreBillOpen(false)
+    setFlowOpen(false)
     setLastSentSummary('')
     setPrintStatus('')
     setPrintIdempotencyKey('')
@@ -3972,6 +4071,14 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
             </div>
           )}
 
+          {table?.currentOrderId && (
+            <button type="button" className="pos-flow-control" onClick={() => setFlowOpen(true)} title="Ver el paso a paso de esta orden">
+              <span className="pos-flow-control-icon"><ClipboardList size={15} /></span>
+              <span className="pos-flow-control-copy"><strong>Ver paso a paso</strong><small>{activeOrderStatus}</small></span>
+              <ChevronRight size={16} aria-hidden="true" />
+            </button>
+          )}
+
           {/* Botón destacado "+ Agregar platos" (visible si no estamos ya en el catálogo) */}
           {onOpenMenu && !isMenuOpen && (
             <button
@@ -4342,6 +4449,17 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
               />
             </div>
           </div>
+        )}
+        {flowOpen && table?.currentOrderId && (
+          <OrderFlowPanel
+            mode={mode}
+            status={activeOrderStatus}
+            hasOrder={Boolean(table.currentOrderId)}
+            amountDue={Number(table.currentOrderDue ?? table.currentOrderTotal ?? 0)}
+            orderNumber={table.currentOrderNumber || table.currentOrderId}
+            destination={flowDestination}
+            onClose={() => setFlowOpen(false)}
+          />
         )}
         {selected && (
           <ModifierModal
