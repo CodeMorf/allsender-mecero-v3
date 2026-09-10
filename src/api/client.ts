@@ -36,6 +36,7 @@ function asArray<T>(payload: unknown): T[] {
 
 export class ApiClient {
   private tokens: Partial<Record<TokenKind, string>> = {}
+  private kotsInFlight = new Map<string, Promise<KitchenTicket[]>>()
 
   setToken(kind: TokenKind, token: string | undefined) {
     if (token) this.tokens[kind] = token
@@ -347,7 +348,13 @@ export class ApiClient {
     if (params.date) query.set('date', params.date)
     if (params.kitchenPlaceId) query.set('kitchen_place_id', String(params.kitchenPlaceId))
     const suffix = query.toString() ? `?${query.toString()}` : ''
-    return asArray<any>(await this.request(`/pos/kots${suffix}`, { tokenKind: kind })).map(normalizeKitchenTicket)
+    const requestKey = `${kind}:${this.tokens[kind] || 'no-token'}:${suffix}`
+    const inFlight = this.kotsInFlight.get(requestKey)
+    if (inFlight) return inFlight
+    const request = this.request(`/pos/kots${suffix}`, { tokenKind: kind }).then(payload => asArray<any>(payload).map(normalizeKitchenTicket))
+    this.kotsInFlight.set(requestKey, request)
+    try { return await request }
+    finally { if (this.kotsInFlight.get(requestKey) === request) this.kotsInFlight.delete(requestKey) }
   }
   async kotPlaces(kind: TokenKind): Promise<KitchenPlace[]> {
     return asArray<any>(await this.request('/pos/kot-places', { tokenKind: kind })).map(normalizeKitchenPlace)

@@ -398,12 +398,11 @@ export default function App() {
       // can create an order. Keep `null` on transport/auth failures so a
       // transient outage never erases a usable offline catalog.
       const canLoadCatalog = session.permissions['menu.view'] || session.permissions['orders.create']
-      const [remoteTables, remoteItems, config, remoteOrders, remoteKots, remoteKitchenPlaces, remoteNotifications, remoteReceiptSettings, remotePrinters, remotePaymentMethods, remoteFiscalCapabilities] = await Promise.all([
+      const [remoteTables, remoteItems, config, remoteOrders, remoteKitchenPlaces, remoteNotifications, remoteReceiptSettings, remotePrinters, remotePaymentMethods, remoteFiscalCapabilities] = await Promise.all([
         session.permissions['tables.view'] ? api.tables('pin').catch(() => []) : Promise.resolve([]),
         canLoadCatalog ? api.menuItems('pin').catch(() => null) : Promise.resolve(null),
         api.config('pin').catch(() => null),
         session.permissions['payments.charge'] ? api.orders('pin').catch(() => null) : Promise.resolve(null),
-        session.permissions['kitchen.manage'] ? api.kots('pin').catch(() => null) : Promise.resolve(null),
         session.permissions['kitchen.manage'] ? api.kotPlaces('pin').catch(() => null) : Promise.resolve(null),
         api.notifications('pin').catch(() => null),
         api.receiptSettings('pin').catch(() => null),
@@ -426,7 +425,6 @@ export default function App() {
       const cachePatch: any = { tables: remoteTables, branchId: session.branchId, currency: activeCurrency, scopeKey: session.scopeKey || tenantScope(session) }
       if (enrichedItems) cachePatch.menuItems = enrichedItems
       if (remoteOrders) cachePatch.orders = remoteOrders
-      if (remoteKots) cachePatch.kots = remoteKots
       if (remoteKitchenPlaces) { cachePatch.kotPlaces = remoteKitchenPlaces; setKitchenPlaces(remoteKitchenPlaces) }
       if (remoteNotifications) cachePatch.notifications = remoteNotifications
       if (remoteReceiptSettings) cachePatch.receiptSettings = remoteReceiptSettings
@@ -5162,18 +5160,22 @@ function KotElapsedTimer({ createdAt }: { createdAt?: string }) {
 }
 
 function KitchenPanel({ offline, places, standalone = false, allowAll = true, viewScope = 'supervisor', onClose, onUpdateStatus }: { offline: boolean; places: KitchenPlace[]; standalone?: boolean; allowAll?: boolean; viewScope?: KitchenView['scope']; onClose: () => void; onUpdateStatus: (kotId: number, status: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }> }) {
-  const [tickets, setTickets] = useState<KitchenTicket[]>([])
-  const [loading, setLoading] = useState(!offline)
-  const [error, setError] = useState('')
-  const [busyId, setBusyId] = useState<number | null>(null)
+  const activeStatuses = ['pending_confirmation', 'in_kitchen', 'food_ready']
+  const cachedKots = readCache().kots || []
   const cachedView = readCache().kitchenView
   const cachedViewIsUsable = cachedView?.scope === viewScope && cachedView.locked && (allowAll || cachedView.placeId !== 'all')
-  const [selectedPlaceId, setSelectedPlaceId] = useState<number | 'all'>(() => cachedViewIsUsable ? cachedView.placeId : allowAll ? 'all' : places.find(place => place.isDefault)?.id || places[0]?.id || 'all')
+  const initialSelectedPlaceId: number | 'all' = cachedViewIsUsable ? cachedView.placeId : allowAll ? 'all' : places.find(place => place.isDefault)?.id || places[0]?.id || 'all'
+  const initialTickets = cachedKots.filter(ticket => activeStatuses.includes(ticket.status) && (initialSelectedPlaceId === 'all' || ticket.kitchenPlaceId === initialSelectedPlaceId))
+  const [tickets, setTickets] = useState<KitchenTicket[]>(initialTickets)
+  const [loading, setLoading] = useState(!offline && initialTickets.length === 0)
+  const [error, setError] = useState('')
+  const [busyId, setBusyId] = useState<number | null>(null)
+  const [selectedPlaceId, setSelectedPlaceId] = useState<number | 'all'>(initialSelectedPlaceId)
   const [areaLocked, setAreaLocked] = useState(() => Boolean(cachedViewIsUsable))
   const seenTicketIds = useRef<Set<number> | null>(null)
   const seenFilter = useRef<string | null>(null)
   const loadRequestId = useRef(0)
-  const activeStatuses = ['pending_confirmation', 'in_kitchen', 'food_ready']
+  const inFlightFilter = useRef<string | null>(null)
   const placeOptions = useMemo(() => {
     const known = new globalThis.Map<number, KitchenPlace>()
     places.filter(place => place.id > 0).forEach(place => known.set(place.id, place))
@@ -5198,14 +5200,18 @@ function KitchenPanel({ offline, places, standalone = false, allowAll = true, vi
     saveCache({ kitchenView: { scope: viewScope, placeId: activePlaceId, locked } })
   }
   async function load(placeId: number | 'all' = activePlaceId) {
-    const requestId = ++loadRequestId.current
     const filterKey = placeId === 'all' ? 'all' : String(placeId)
+    if (inFlightFilter.current === filterKey) return
+    inFlightFilter.current = filterKey
+    const requestId = ++loadRequestId.current
     if (offline) {
       const cached = readCache().kots || []
       if (requestId === loadRequestId.current) {
-        setTickets(cached.filter(ticket => activeStatuses.includes(ticket.status) && (placeId === 'all' || ticket.kitchenPlaceId === placeId)))
+        const nextTickets = cached.filter(ticket => activeStatuses.includes(ticket.status) && (placeId === 'all' || ticket.kitchenPlaceId === placeId))
+        setTickets(nextTickets)
         setLoading(false)
       }
+      inFlightFilter.current = null
       return
     }
     setLoading(true); setError('')
@@ -5226,12 +5232,14 @@ function KitchenPanel({ offline, places, standalone = false, allowAll = true, vi
         ? values
         : [...cachedKots.filter(ticket => ticket.kitchenPlaceId !== placeId && !currentIds.has(ticket.id)), ...values]
       saveCache({ kots: cacheValues })
-      setTickets(values.filter(ticket => activeStatuses.includes(ticket.status)))
+      const nextTickets = values.filter(ticket => activeStatuses.includes(ticket.status))
+      setTickets(nextTickets)
     } catch (cause) {
       if (requestId === loadRequestId.current) setError(normalizeError(cause, 'No se pudieron cargar las órdenes de cocina.'))
     }
     finally {
       if (requestId === loadRequestId.current) setLoading(false)
+      if (inFlightFilter.current === filterKey) inFlightFilter.current = null
     }
   }
   // KDS refresh is an external API synchronization triggered by the panel.
@@ -5261,7 +5269,7 @@ function KitchenPanel({ offline, places, standalone = false, allowAll = true, vi
     { status: 'food_ready', title: 'Listos', subtitle: 'Esperando entrega', className: 'kitchen-column-ready' },
   ] as const
   const board = <div className="kitchen-board" aria-label="Tablero de pedidos de cocina">{kitchenColumns.map(column => { const columnTickets = tickets.filter(ticket => ticket.status === column.status); return <section className={`kitchen-column ${column.className}`} key={column.status}><header className="kitchen-column-header"><div><strong>{column.title}</strong><small>{column.subtitle}</small></div><b>{columnTickets.length}</b></header><div className="kitchen-column-list">{columnTickets.length ? columnTickets.map(renderTicket) : <div className="kitchen-column-empty">Sin comandas en esta etapa</div>}</div></section> })}</div>
-  return <div className={standalone ? 'kitchen-standalone-panel' : 'modal-backdrop'}><section className={`modal wide kitchen-panel${standalone ? ' kitchen-panel-standalone' : ''}`}><header><div><p className="eyebrow">AUTORIZACIÓN DE COCINA</p><h2>Cocina · pedidos activos</h2><small>Las nuevas comandas aparecen aquí sin repetir las anteriores.</small></div><div className="kitchen-header-actions"><button className="button outline" onClick={() => void load(activePlaceId)} disabled={loading || offline}>Actualizar</button>{standalone ? <button className="button outline" onClick={onClose}>Volver a mesas</button> : <button className="icon-button" onClick={onClose}><X /></button>}</div></header>{placeOptions.length > 0 && <><div className="kitchen-place-filter"><label htmlFor="kitchen-area-filter">Mostrar área<select id="kitchen-area-filter" value={activePlaceId} disabled={areaLocked} onChange={event => choosePlace(event.target.value === 'all' ? 'all' : Number(event.target.value))}>{allowAll && <option value="all">Todas las áreas</option>}{placeOptions.map(place => <option key={place.id} value={place.id}>{place.name}</option>)}</select></label><button className={`button ${areaLocked ? 'primary' : 'outline'}`} onClick={toggleAreaLock} title={areaLocked ? 'Desbloquear selección de área' : 'Bloquear esta área'}>{areaLocked ? <><Unlock size={15} /> Desbloquear área</> : <><Lock size={15} /> Bloquear área</>}</button></div><p className="kitchen-place-label">{areaLocked ? `Área bloqueada: ${activePlaceId === 'all' ? 'Todas' : placeOptions.find(place => place.id === activePlaceId)?.name || 'seleccionada'}` : 'Área de trabajo'}</p>{!areaLocked && <nav className="kitchen-place-tabs" aria-label="Áreas de preparación">{allowAll && <button className={activePlaceId === 'all' ? 'active' : ''} onClick={() => choosePlace('all')}>Todas</button>}{placeOptions.map(place => <button className={activePlaceId === place.id ? 'active' : ''} key={place.id} onClick={() => choosePlace(place.id)}>{place.name}</button>)}</nav>}</>}{!placeOptions.length && <div className="kitchen-place-empty">La sucursal todavía no publica sectores de preparación. Solicite al administrador configurar Cocina, Bar o Reparto en RestaPP.</div>}{offline && <Alert>Sin conexión: los cambios quedan guardados localmente y se sincronizarán al restablecerse la conexión.</Alert>}{error && <Alert>{error}</Alert>}{loading ? <div className="empty compact"><p>Cargando pedidos activos…</p></div> : standalone ? board : tickets.length ? <div className="kitchen-list">{tickets.map(renderTicket)}</div> : <div className="empty compact"><ChefHat size={34} /><p>No hay pedidos pendientes en esta área.</p></div>}<footer className="modal-note">Cada estación ve únicamente sus comandas: cocina, bar, reparto u otra zona activa de la sucursal. El sonido y la vibración de una comanda nueva usa la misma configuración de avisos que las llamadas de mesa. El área bloqueada se conserva en este dispositivo por sucursal.</footer></section></div>
+  return <div className={standalone ? 'kitchen-standalone-panel' : 'modal-backdrop'}><section className={`modal wide kitchen-panel${standalone ? ' kitchen-panel-standalone' : ''}`}><header><div><p className="eyebrow">AUTORIZACIÓN DE COCINA</p><h2>Cocina · pedidos activos</h2><small>Las nuevas comandas aparecen aquí sin repetir las anteriores.</small></div><div className="kitchen-header-actions"><button className="button outline" onClick={() => void load(activePlaceId)} disabled={loading || offline}>{loading && tickets.length ? 'Actualizando…' : 'Actualizar'}</button>{standalone ? <button className="button outline" onClick={onClose}>Volver a mesas</button> : <button className="icon-button" onClick={onClose}><X /></button>}</div></header>{placeOptions.length > 0 && <><div className="kitchen-place-filter"><label htmlFor="kitchen-area-filter">Mostrar área<select id="kitchen-area-filter" value={activePlaceId} disabled={areaLocked} onChange={event => choosePlace(event.target.value === 'all' ? 'all' : Number(event.target.value))}>{allowAll && <option value="all">Todas las áreas</option>}{placeOptions.map(place => <option key={place.id} value={place.id}>{place.name}</option>)}</select></label><button className={`button ${areaLocked ? 'primary' : 'outline'}`} onClick={toggleAreaLock} title={areaLocked ? 'Desbloquear selección de área' : 'Bloquear esta área'}>{areaLocked ? <><Unlock size={15} /> Desbloquear área</> : <><Lock size={15} /> Bloquear área</>}</button></div><p className="kitchen-place-label">{areaLocked ? `Área bloqueada: ${activePlaceId === 'all' ? 'Todas' : placeOptions.find(place => place.id === activePlaceId)?.name || 'seleccionada'}` : 'Área de trabajo'}</p>{!areaLocked && <nav className="kitchen-place-tabs" aria-label="Áreas de preparación">{allowAll && <button className={activePlaceId === 'all' ? 'active' : ''} onClick={() => choosePlace('all')}>Todas</button>}{placeOptions.map(place => <button className={activePlaceId === place.id ? 'active' : ''} key={place.id} onClick={() => choosePlace(place.id)}>{place.name}</button>)}</nav>}</>}{!placeOptions.length && <div className="kitchen-place-empty">La sucursal todavía no publica sectores de preparación. Solicite al administrador configurar Cocina, Bar o Reparto en RestaPP.</div>}{offline && <Alert>Sin conexión: los cambios quedan guardados localmente y se sincronizarán al restablecerse la conexión.</Alert>}{error && <Alert>{error}</Alert>}{loading && !tickets.length ? <div className="empty compact"><p>Consultando pedidos activos…</p></div> : standalone ? board : tickets.length ? <div className="kitchen-list">{tickets.map(renderTicket)}</div> : <div className="empty compact"><ChefHat size={34} /><p>No hay pedidos pendientes en esta área.</p></div>}<footer className="modal-note">Cada estación ve únicamente sus comandas: cocina, bar, reparto u otra zona activa de la sucursal. El sonido y la vibración de una comanda nueva usa la misma configuración de avisos que las llamadas de mesa. El área bloqueada se conserva en este dispositivo por sucursal.</footer></section></div>
 }
 
 type CashRegisterView = { id: number; name: string; status?: string }
