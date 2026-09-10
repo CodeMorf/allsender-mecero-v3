@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { ApiError, normalizeAttendance, normalizeItem, normalizeKitchenPlace, normalizeKitchenTicket, normalizeStaffSchedule, normalizeTable, normalizeWaiterRequest } from './api/client'
+import { ApiError, applyCategoryMetadata, normalizeAttendance, normalizeCategory, normalizeItem, normalizeKitchenPlace, normalizeKitchenTicket, normalizeStaffSchedule, normalizeTable, normalizeWaiterRequest } from './api/client'
 import { cartItemUnitPrice } from './modules/PosModule'
 import { newIdempotencyKey, readCache, saveCache, setStorageScope } from './storage/offline'
 import { orderServiceLabel, resolveOrderService } from './utils/orderService'
+import { menuCategoryNames } from './utils/menuCategories'
 
 describe('contrato base del mesero', () => {
   it('normaliza estados de mesa de la API al mapa visual', () => {
@@ -32,6 +33,21 @@ describe('contrato base del mesero', () => {
     expect(item.allergens).toEqual(['dairy'])
     expect(item.dietaryTags).toEqual(['gluten-free'])
     expect(item.modifiers).toHaveLength(1)
+  })
+
+  it('resuelve categorías dinámicas por el ID real de la sucursal', () => {
+    const item = normalizeItem({ id: 24, item_name: 'Mangu', item_category_id: 15, price: 295 })
+    const categories = [
+      normalizeCategory({ id: 36, category_name: 'Bebidas', sort_order: 10 }),
+      normalizeCategory({ id: 15, category_name: 'Desayuno', sort_order: 1 }),
+    ]
+    const resolved = applyCategoryMetadata([item], categories)
+    expect(resolved[0]).toMatchObject({ categoryId: 15, categoryName: 'Desayuno', categorySortOrder: 1 })
+    expect(menuCategoryNames([
+      { categoryName: 'Bebidas', categorySortOrder: 10 },
+      { categoryName: 'Desayuno', categorySortOrder: 1 },
+      { categoryName: 'Platos del día', categorySortOrder: 2 },
+    ])).toEqual(['Desayuno', 'Platos del día', 'Bebidas'])
   })
 
   it('conserva las variaciones del catálogo para abrir el personalizador', () => {

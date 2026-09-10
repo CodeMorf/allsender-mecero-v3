@@ -1,4 +1,4 @@
-import type { ApiErrorShape, AttendanceRecord, Branch, DeliveryExecutive, DeliveryPlatform, DeliverySettings, DeviceBinding, FiscalCapabilities, KitchenPlace, KitchenTicket, MenuItem, OrderTypeConfig, PaymentMethodOption, PosCustomer, Printer, ProductVariation, ReceiptSettings, RestaurantTable, Session, StaffRole, StaffSchedule, TokenKind, WaiterRequest } from '../types'
+import type { ApiErrorShape, AttendanceRecord, Branch, DeliveryExecutive, DeliveryPlatform, DeliverySettings, DeviceBinding, FiscalCapabilities, KitchenPlace, KitchenTicket, MenuCategory, MenuItem, OrderTypeConfig, PaymentMethodOption, PosCustomer, Printer, ProductVariation, ReceiptSettings, RestaurantTable, Session, StaffRole, StaffSchedule, TokenKind, WaiterRequest } from '../types'
 
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'https://restapp.allsender.tech/api/application-integration').replace(/\/$/, '')
 
@@ -147,6 +147,7 @@ export class ApiClient {
 
   async tables(kind: TokenKind): Promise<RestaurantTable[]> { return asArray<any>(await this.request('/pos/tables', { tokenKind: kind })).map(normalizeTable) }
   async menuItems(kind: TokenKind): Promise<MenuItem[]> { return asArray<any>(await this.request('/pos/items', { tokenKind: kind })).map(normalizeItem) }
+  async categories(kind: TokenKind): Promise<MenuCategory[]> { return asArray<any>(await this.request('/pos/categories', { tokenKind: kind })).map(normalizeCategory).filter(category => category.id > 0 && category.name !== '') }
   async printers(kind: TokenKind): Promise<Printer[]> {
     return asArray<any>(await this.request('/platform/printers', { tokenKind: kind })).map((value: any) => ({
       id: Number(value.id),
@@ -506,6 +507,29 @@ export function normalizeItem(raw: any): MenuItem {
   const categoryValue = raw.category_name || raw.category?.name || raw.category?.title || raw.category?.label || (typeof raw.category === 'string' ? raw.category : undefined) || raw.item_category?.name || raw.item_category?.title || (typeof raw.item_category === 'string' ? raw.item_category : undefined)
   const categoryName = typeof categoryValue === 'string' && categoryValue.trim() ? categoryValue.trim() : `Categoría ${raw.category_id || raw.item_category_id || ''}`.trim()
   return { id: Number(raw.id), name: raw.name || raw.item_name || raw.menu_item_name || `Producto ${raw.id}`, imageUrl: normalizeMediaUrl(imageSource), code: raw.code || raw.item_code || raw.sku || String(raw.id), price: Number(dineInPrice ?? raw.price ?? raw.selling_price ?? raw.final_price ?? 0), categoryId: raw.category_id || raw.item_category_id, categoryName, available: raw.available !== false && raw.is_available !== false && raw.in_stock !== 0 && raw.status !== 'sold_out', availabilityReason: raw.availability_reason || raw.reason || (raw.in_stock === 0 ? 'Sin existencia' : undefined), allergens: (Array.isArray(allergens) ? allergens : String(allergens).split(',').filter(Boolean)).map((x: any) => typeof x === 'string' ? x : x.name || x.code || x.key), dietaryTags: (Array.isArray(dietaryTags) ? dietaryTags : String(dietaryTags).split(',').filter(Boolean)).map((x: any) => typeof x === 'string' ? x : x.name || x.code), modifiers: raw.modifiers || raw.modifier_groups, variations }
+}
+
+export function normalizeCategory(raw: any): MenuCategory {
+  const rawName = raw.category_name ?? raw.name ?? raw.title ?? raw.label
+  const name = typeof rawName === 'object' && rawName !== null
+    ? rawName['es-do'] || rawName.es || rawName.en || Object.values(rawName).find(value => typeof value === 'string')
+    : rawName
+  return {
+    id: Number(raw.id ?? raw.category_id),
+    name: typeof name === 'string' ? name.trim() : '',
+    count: raw.count == null ? undefined : Number(raw.count),
+    sortOrder: raw.sort_order == null ? (raw.sortOrder == null ? undefined : Number(raw.sortOrder)) : Number(raw.sort_order),
+  }
+}
+
+export function applyCategoryMetadata(items: MenuItem[], categories: MenuCategory[]): MenuItem[] {
+  const categoryById = new Map(categories.map(category => [category.id, category]))
+  return items.map(item => {
+    const category = item.categoryId == null ? undefined : categoryById.get(Number(item.categoryId))
+    return category
+      ? { ...item, categoryName: category.name, categorySortOrder: category.sortOrder }
+      : item
+  })
 }
 
 export function normalizeKitchenTicket(raw: any): KitchenTicket {

@@ -13,6 +13,7 @@ import {
   Sliders
 } from 'lucide-react'
 import type { MenuItem, StaffRole } from '../types'
+import { menuCategoryNames } from '../utils/menuCategories'
 
 export interface ProductsModuleProps {
   menuItems: MenuItem[]
@@ -36,7 +37,7 @@ export const ProductsModule: React.FC<ProductsModuleProps> = ({
 
   const canManageMenu = roleKey === 'head' || !!permissions['menu.manage']
 
-  const categories = ['ALL', ...Array.from(new Set(menuItems.map(i => i.categoryName).filter(Boolean)))]
+  const categories = ['ALL', ...menuCategoryNames(menuItems)]
 
   const filtered = menuItems.filter(item => {
     const matchCat = categoryFilter === 'ALL' || item.categoryName === categoryFilter

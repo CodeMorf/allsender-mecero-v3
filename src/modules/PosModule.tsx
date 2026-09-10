@@ -19,6 +19,7 @@ import {
 import type { DeliveryExecutive, DeliveryPlatform, DeliverySettings, MenuItem, PosCustomer, RestaurantTable, StaffRole, OrderTypeConfig } from '../types'
 import { OrderTypeModal, type OrderTypeSelection } from '../components/OrderTypeModal'
 import { orderServiceLabel } from '../utils/orderService'
+import { menuCategoryNames } from '../utils/menuCategories'
 
 export interface PosModuleProps {
   menuItems: MenuItem[]
@@ -85,11 +86,7 @@ export const PosModule: React.FC<PosModuleProps> = ({
   const [orderNotes, setOrderNotes] = useState('')
 
   const categories = useMemo(() => {
-    const set = new Set<string>()
-    menuItems.forEach(item => {
-      if (item.categoryName) set.add(item.categoryName)
-    })
-    return ['ALL', ...Array.from(set)]
+    return ['ALL', ...menuCategoryNames(menuItems)]
   }, [menuItems])
 
   const filteredItems = useMemo(() => {

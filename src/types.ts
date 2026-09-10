@@ -139,6 +139,13 @@ export type ProductVariation = {
   price: number
 }
 
+export type MenuCategory = {
+  id: number
+  name: string
+  count?: number
+  sortOrder?: number
+}
+
 export type MenuItem = {
   id: number
   name: string
@@ -147,6 +154,7 @@ export type MenuItem = {
   price: number
   categoryId?: number
   categoryName: string
+  categorySortOrder?: number
   available: boolean
   availabilityReason?: string
   allergens: string[]

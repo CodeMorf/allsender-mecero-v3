@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { api, ApiError, normalizeAttendance } from './api/client'
+import { api, ApiError, applyCategoryMetadata, normalizeAttendance } from './api/client'
 import type { AttendanceRecord, Branch, DeliveryExecutive, DeliveryPlatform, DeliverySettings, DeviceBinding, FiscalCapabilities, KitchenPlace, KitchenTicket, KitchenView, MenuItem, ModifierGroup, ModifierOption, NotificationSettings, OfflineOperation, OfflineStep, OfflineWorkflow, OrderDraft, OrderLine, OrderMode, OrderTypeConfig, PaymentMethodOption, PosCustomer, ProductVariation, RestaurantTable, Session, StaffRole, WaiterRequest } from './types'
 import { clearSession, enqueue, getDeviceId, getStorageScope, listOutbox, newIdempotencyKey, readCache, readSession, removeOutbox, saveCache, saveSession, setStorageScope, updateOutbox } from './storage/offline'
 import { CustomerModal } from './CustomerModal'
@@ -29,6 +29,7 @@ import { buildReceiptDocumentViewModel } from './receipt/renderer'
 import { printThermalZReport, printThermalCustomerReceipt } from './utils/thermalPrinter'
 import { getStationPrinterConfig, routePrintReceipt, routePrintTest, type ThermalReceiptData } from './utils/printRouter'
 import { orderServiceLabel, resolveOrderService } from './utils/orderService'
+import { menuCategoryNames } from './utils/menuCategories'
 
 type Screen = 'setup' | 'branches' | 'pin' | 'floor'
 type LiveNotification = { id: string; type: string; title: string; message: string; createdAt?: string; unread: boolean }
@@ -398,9 +399,10 @@ export default function App() {
       // can create an order. Keep `null` on transport/auth failures so a
       // transient outage never erases a usable offline catalog.
       const canLoadCatalog = session.permissions['menu.view'] || session.permissions['orders.create']
-      const [remoteTables, remoteItems, config, remoteOrders, remoteKitchenPlaces, remoteNotifications, remoteReceiptSettings, remotePrinters, remotePaymentMethods, remoteFiscalCapabilities] = await Promise.all([
+      const [remoteTables, remoteItems, remoteCategories, config, remoteOrders, remoteKitchenPlaces, remoteNotifications, remoteReceiptSettings, remotePrinters, remotePaymentMethods, remoteFiscalCapabilities] = await Promise.all([
         session.permissions['tables.view'] ? api.tables('pin').catch(() => []) : Promise.resolve([]),
         canLoadCatalog ? api.menuItems('pin').catch(() => null) : Promise.resolve(null),
+        canLoadCatalog ? api.categories('pin').catch(() => []) : Promise.resolve([]),
         api.config('pin').catch(() => null),
         session.permissions['payments.charge'] ? api.orders('pin').catch(() => null) : Promise.resolve(null),
         session.permissions['kitchen.manage'] ? api.kotPlaces('pin').catch(() => null) : Promise.resolve(null),
@@ -410,7 +412,9 @@ export default function App() {
         session.permissions['payments.charge'] ? api.paymentMethods('pin').catch(() => null) : Promise.resolve(null),
         api.fiscalCapabilities('pin').catch(() => null),
       ])
-      const initialItems = Array.isArray(remoteItems) ? remoteItems : null
+      const initialItems = Array.isArray(remoteItems)
+        ? applyCategoryMetadata(remoteItems, Array.isArray(remoteCategories) ? remoteCategories : [])
+        : null
       // Pintar el catálogo base inmediatamente. Las categorías no deben esperar
       // a las consultas complementarias de suplementos de cada producto.
       if (initialItems) {
@@ -1792,7 +1796,7 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
   }, [])
 
   const menuCategories = useMemo(() => {
-    const list = Array.from(new Set(items.map(item => item.categoryName).filter(Boolean))).sort()
+    const list = menuCategoryNames(items)
     return ['Todos', ...list]
   }, [items])
 
@@ -4778,7 +4782,7 @@ function ProductPicker({ items, onSelect, onQuickAdd }: { items: MenuItem[]; onS
   const [allergen, setAllergen] = useState('')
 
   const categories = useMemo(() => {
-    const list = Array.from(new Set(items.map(item => item.categoryName).filter(Boolean))).sort()
+    const list = menuCategoryNames(items)
     return ['Todos', ...list]
   }, [items])
 
