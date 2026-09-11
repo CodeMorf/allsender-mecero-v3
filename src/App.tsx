@@ -28,6 +28,7 @@ import { normalizeReceiptSettings } from './receipt/profile'
 import { buildReceiptDocumentViewModel } from './receipt/renderer'
 import { printThermalZReport, printThermalCustomerReceipt } from './utils/thermalPrinter'
 import { getStationPrinterConfig, routePrintReceipt, routePrintTest, type ThermalReceiptData } from './utils/printRouter'
+import { realtimeService } from './services/realtime'
 import { orderServiceLabel, resolveOrderService } from './utils/orderService'
 import { menuCategoryNames } from './utils/menuCategories'
 
@@ -1113,7 +1114,7 @@ export default function App() {
   if (screen === 'setup') return <SetupScreen loading={loading} error={error} defaultDeviceId={deviceId} onSubmit={handleAdminLogin} onDirectPin={handleDirectPin} />
   if (screen === 'branches') return <BranchScreen branches={branches} loading={loading} error={error} offline={offline} onSelect={chooseBranch} onBack={() => { clearSession('admin'); setScreen('setup') }} />
   if (screen === 'pin') return <PinScreen brand={restaurantName} branch={activeBranch?.name || ''} role={staffRole} onRoleChange={setStaffRole} offline={offline} loading={loading} error={error} notice={notice} onSubmit={handlePin} canChangeBranch={Boolean(adminSession)} onBack={() => setScreen('branches')} />
-  return <FloorScreen brand={restaurantName} branch={activeBranch?.name || ''} roleKey={pinSession?.roleKey || staffRole} userName={pinSession?.userName} userId={pinSession?.userId} deviceId={deviceId} permissions={pinSession?.permissions || {}} tables={tables} items={items} kitchenPlaces={kitchenPlaces} paymentMethods={paymentMethods} fiscalCapabilities={fiscalCapabilities} offline={offline} queueCount={queueCount} isSyncing={isSyncing} notice={notice} onNotice={setNotice} error={error} onLogout={logout} onRefresh={() => pinSession && hydrate(pinSession)} onSubmitOrder={submitOrder} onSaveCustomer={saveTableCustomer} onRemoveOrderItem={removeOrderItem} onPrintPreBill={printPreBill} onPayOrder={payOrder} onTransferTable={transferTableOrder} onCancelOrder={cancelTableOrder} onOpenCashSession={openCashSession} onCloseCashSession={closeCashSession} onApproveCashSession={approveCashSession} onRejectCashSession={rejectCashSession} onReopenCashSession={reopenCashSession} onCashMovement={cashMovement} onClockIn={clockInAttendance} onClockOut={clockOutAttendance} onUpdateKotStatus={updateKotStatus} onSelectTable={setActiveTable} activeTable={activeTable} />
+  return <FloorScreen brand={restaurantName} branch={activeBranch?.name || ''} branchId={activeBranch?.id || pinSession?.branchId} restaurantId={pinSession?.restaurantId || adminSession?.restaurantId} roleKey={pinSession?.roleKey || staffRole} userName={pinSession?.userName} userId={pinSession?.userId} deviceId={deviceId} permissions={pinSession?.permissions || {}} tables={tables} items={items} kitchenPlaces={kitchenPlaces} paymentMethods={paymentMethods} fiscalCapabilities={fiscalCapabilities} offline={offline} queueCount={queueCount} isSyncing={isSyncing} notice={notice} onNotice={setNotice} error={error} onLogout={logout} onRefresh={() => pinSession && hydrate(pinSession)} onSubmitOrder={submitOrder} onSaveCustomer={saveTableCustomer} onRemoveOrderItem={removeOrderItem} onPrintPreBill={printPreBill} onPayOrder={payOrder} onTransferTable={transferTableOrder} onCancelOrder={cancelTableOrder} onOpenCashSession={openCashSession} onCloseCashSession={closeCashSession} onApproveCashSession={approveCashSession} onRejectCashSession={rejectCashSession} onReopenCashSession={reopenCashSession} onCashMovement={cashMovement} onClockIn={clockInAttendance} onClockOut={clockOutAttendance} onUpdateKotStatus={updateKotStatus} onSelectTable={setActiveTable} activeTable={activeTable} />
 }
 
 function nextAdminRestaurantId(session: Session) { return session.restaurantId }
@@ -1558,7 +1559,7 @@ function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error,
   )
 }
 
-function FloorScreen({ brand, branch, roleKey, userName, userId, deviceId, permissions, tables, items, kitchenPlaces, paymentMethods, fiscalCapabilities, offline, queueCount, isSyncing, notice, onNotice, error, onLogout, onRefresh, onSubmitOrder, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onCancelOrder, onOpenCashSession, onCloseCashSession, onApproveCashSession, onRejectCashSession, onReopenCashSession, onCashMovement, onClockIn, onClockOut, onUpdateKotStatus, onSelectTable, activeTable }: { brand: string; branch: string; roleKey: StaffRole; userName?: string; userId?: number; deviceId: string; permissions: Record<string, boolean>; tables: RestaurantTable[]; items: MenuItem[]; kitchenPlaces: KitchenPlace[]; paymentMethods: PaymentMethodOption[]; fiscalCapabilities?: FiscalCapabilities | null; offline: boolean; queueCount: number; isSyncing?: boolean; notice: string; onNotice: (message: string) => void; error: string; onLogout: () => void; onRefresh: () => void; onSubmitOrder: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onCancelOrder?: (table: RestaurantTable, reason?: string) => Promise<{ queued: boolean; message: string }>; onOpenCashSession: (registerId: number, openingFloat: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCloseCashSession: (sessionId: number, countedCash: number, expectedCash: number | undefined, note: string, sendForApproval: boolean, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onApproveCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onRejectCashSession: (sessionId: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onReopenCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCashMovement: (movement: 'cash-in' | 'cash-out' | 'safe-drop', sessionId: number, amount: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onClockIn: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onClockOut: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onUpdateKotStatus: (kotId: number, status: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onSelectTable: (table: RestaurantTable | null) => void; activeTable: RestaurantTable | null }) {
+function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName, userId, deviceId, permissions, tables, items, kitchenPlaces, paymentMethods, fiscalCapabilities, offline, queueCount, isSyncing, notice, onNotice, error, onLogout, onRefresh, onSubmitOrder, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onCancelOrder, onOpenCashSession, onCloseCashSession, onApproveCashSession, onRejectCashSession, onReopenCashSession, onCashMovement, onClockIn, onClockOut, onUpdateKotStatus, onSelectTable, activeTable }: { brand: string; branch: string; branchId?: number; restaurantId?: number; roleKey: StaffRole; userName?: string; userId?: number; deviceId: string; permissions: Record<string, boolean>; tables: RestaurantTable[]; items: MenuItem[]; kitchenPlaces: KitchenPlace[]; paymentMethods: PaymentMethodOption[]; fiscalCapabilities?: FiscalCapabilities | null; offline: boolean; queueCount: number; isSyncing?: boolean; notice: string; onNotice: (message: string) => void; error: string; onLogout: () => void; onRefresh: () => void; onSubmitOrder: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onCancelOrder?: (table: RestaurantTable, reason?: string) => Promise<{ queued: boolean; message: string }>; onOpenCashSession: (registerId: number, openingFloat: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCloseCashSession: (sessionId: number, countedCash: number, expectedCash: number | undefined, note: string, sendForApproval: boolean, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onApproveCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onRejectCashSession: (sessionId: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onReopenCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCashMovement: (movement: 'cash-in' | 'cash-out' | 'safe-drop', sessionId: number, amount: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onClockIn: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onClockOut: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onUpdateKotStatus: (kotId: number, status: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onSelectTable: (table: RestaurantTable | null) => void; activeTable: RestaurantTable | null }) {
   const [showMenu, setShowMenu] = useState(false); const [showQuick, setShowQuick] = useState(false); const [showOps, setShowOps] = useState(false); const [showCashier, setShowCashier] = useState(false); const [showAttendance, setShowAttendance] = useState(false); const [opsLoading, setOpsLoading] = useState(false); const [notifications, setNotifications] = useState<LiveNotification[]>([]); const [deliverySettings, setDeliverySettings] = useState<DeliverySettings | null>(null); const [deliveryExecutives, setDeliveryExecutives] = useState<DeliveryExecutive[]>([]); const [deliveryPlatforms, setDeliveryPlatforms] = useState<DeliveryPlatform[]>([]); const [orderTypes, setOrderTypes] = useState<OrderTypeConfig[]>([])
   const [pickupPaymentTarget, setPickupPaymentTarget] = useState<{ summary: any; detail: any } | null>(null)
   const [pickupPaymentLoading, setPickupPaymentLoading] = useState(false)
@@ -1933,6 +1934,65 @@ function FloorScreen({ brand, branch, roleKey, userName, userId, deviceId, permi
     setActiveNavTab('cash')
   }, [activeNavTab, cashierNeedsCashSession])
 
+  // Real-time WebSocket connection & live listeners
+  const [realtimeState, setRealtimeState] = useState<'connected' | 'connecting' | 'disconnected' | 'unavailable' | 'failed'>('disconnected')
+
+  useEffect(() => {
+    if (offline) {
+      realtimeService.disconnect()
+      setRealtimeState('disconnected')
+      return
+    }
+
+    realtimeService.init(branchId, restaurantId, {
+      onConnectionChange: (state) => {
+        setRealtimeState(state)
+      },
+      onOrderCreated: (data) => {
+        onRefresh()
+        void loadPosDanData()
+      },
+      onOrderUpdated: (data) => {
+        onRefresh()
+        void loadPosDanData()
+      },
+      onKotUpdated: (data) => {
+        window.dispatchEvent(new CustomEvent('restapp:kot-updated', { detail: data }))
+        // If waiter or supervisor, notify
+        if (data?.kot_status === 'food_ready') {
+          void playWaiterAlert(readCache().notificationSettings || defaultNotificationSettings, '¡Plato Listo!', `Mesa ${data.table_code || ''} orden ${data.order_number || ''}`)
+        }
+      },
+      onWaiterRequest: (data) => {
+        // Instant reload of waiter requests
+        if (!offline) {
+          api.waiterRequests('pin', 'pending').then((rows) => {
+            setWaiterRequests(rows)
+            saveCache({ waiterRequests: rows })
+            playWaiterAlert(readCache().notificationSettings || defaultNotificationSettings, '¡Llamada de Mesa!', `${rows.length === 1 ? rows[0].tableName : `${rows.length} mesas`} solicitan atención.`)
+          }).catch(() => {})
+        }
+      },
+      onTodayOrdersUpdated: () => {
+        void loadPosDanData()
+      },
+      onPrintJobCreated: async (data) => {
+        // If device has local printer config and autoPrintOnPayment is active, route print job
+        try {
+          const config = getStationPrinterConfig()
+          if (config.mode === 'windows_local' && data?.payload) {
+            routePrintReceipt(data.payload)
+          }
+        } catch {}
+      }
+    })
+
+    return () => {
+      // Keep connection alive across tab switches, clean up on unmount
+    }
+  }, [offline, branchId, restaurantId, onRefresh])
+
+
   return (
     <div className="pos-app-shell">
       {/* 1. System Status Bar (Enterprise POS Top Bar) */}
@@ -1941,6 +2001,33 @@ function FloorScreen({ brand, branch, roleKey, userName, userId, deviceId, permi
           <span className={offline ? 'sync-offline' : 'sync-ok'}>
             <CloudLightning size={13} /> {offline ? 'Modo Offline' : isSyncing ? 'Sincronizando…' : 'Sync OK'}
           </span>
+          {!offline && (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '2px 8px',
+                borderRadius: '999px',
+                fontSize: '11px',
+                fontWeight: 700,
+                background: realtimeState === 'connected' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                color: realtimeState === 'connected' ? '#34d399' : '#fbbf24',
+                border: realtimeState === 'connected' ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(245, 158, 11, 0.35)',
+              }}
+              title={realtimeState === 'connected' ? 'WebSockets activo y conectado' : 'Conectando a WebSockets...'}
+            >
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  background: realtimeState === 'connected' ? '#34d399' : '#fbbf24',
+                }}
+              />
+              {realtimeState === 'connected' ? 'En vivo' : 'WS...'}
+            </span>
+          )}
           <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#A1A5AB' }}>
             <ChefHat size={13} /> {brand} · {branch}
           </span>
@@ -5154,6 +5241,7 @@ function KitchenPanel({ offline, places, standalone = false, allowAll = true, vi
   const [selectedPlaceId, setSelectedPlaceId] = useState<number | 'all'>(initialSelectedPlaceId)
   const [mobileStageTab, setMobileStageTab] = useState<'all' | 'pending_confirmation' | 'in_kitchen' | 'food_ready'>('all')
   const [areaLocked, setAreaLocked] = useState(() => Boolean(cachedViewIsUsable))
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
   const seenTicketIds = useRef<Set<number> | null>(null)
   const seenFilter = useRef<string | null>(null)
   const loadRequestId = useRef(0)
@@ -5234,9 +5322,19 @@ function KitchenPanel({ offline, places, standalone = false, allowAll = true, vi
       if (inFlightFilter.current === filterKey) inFlightFilter.current = null
     }
   }
-  // KDS refresh is an external API synchronization triggered by the panel.
+  // KDS refresh is triggered immediately on place change, realtime event, or heartbeat
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
-  useEffect(() => { void load(activePlaceId, false); if (offline) return; const timer = window.setInterval(() => void load(activePlaceId, true), 8_000); return () => window.clearInterval(timer) }, [offline, selectedFilterKey])
+  useEffect(() => { void load(activePlaceId, false); if (offline) return; const timer = window.setInterval(() => void load(activePlaceId, true), 10_000); return () => window.clearInterval(timer) }, [offline, selectedFilterKey])
+
+  // Realtime instant refresh for KDS
+  useEffect(() => {
+    const handleKotEvent = () => {
+      void load(activePlaceId, true)
+    }
+    window.addEventListener('restapp:kot-updated', handleKotEvent)
+    return () => window.removeEventListener('restapp:kot-updated', handleKotEvent)
+  }, [activePlaceId])
+
   async function advance(ticket: KitchenTicket) {
     if (busyId !== null) return
     const next = ticket.status === 'pending_confirmation' ? 'in_kitchen' : ticket.status === 'in_kitchen' ? 'food_ready' : ticket.status === 'food_ready' ? 'served' : null
@@ -5264,6 +5362,10 @@ function KitchenPanel({ offline, places, standalone = false, allowAll = true, vi
   const visibleColumns = mobileStageTab === 'all'
     ? kitchenColumns
     : kitchenColumns.filter(c => c.status === mobileStageTab)
+
+  const activeAreaName = activePlaceId === 'all'
+    ? 'Todas las áreas'
+    : placeOptions.find(p => p.id === activePlaceId)?.name || 'Área seleccionada'
 
   const board = (
     <div className="kitchen-board" aria-busy={loading || isRefreshing} aria-label="Tablero de pedidos de cocina">
@@ -5297,24 +5399,52 @@ function KitchenPanel({ offline, places, standalone = false, allowAll = true, vi
     <div className={standalone ? 'kitchen-standalone-panel' : 'modal-backdrop'}>
       <section className={`modal wide kitchen-panel${standalone ? ' kitchen-panel-standalone' : ''}`}>
         <header>
-          <div>
-            <p className="eyebrow">AUTORIZACIÓN DE COCINA</p>
-            <h2>Cocina · pedidos activos</h2>
-            <small>Las nuevas comandas aparecen aquí sin repetir las anteriores.</small>
-          </div>
-          <div className="kitchen-header-actions">
-            <button className="button outline" onClick={() => void load(activePlaceId, false)} disabled={loading || offline}>
-              {isRefreshing && tickets.length ? 'Actualizando…' : 'Actualizar'}
-            </button>
-            {standalone ? (
-              <button className="button outline" onClick={onClose}>Volver a mesas</button>
-            ) : (
-              <button className="icon-button" onClick={onClose} aria-label="Cerrar"><X /></button>
-            )}
+          {/* Mobile-optimized Header Row */}
+          <div className="kitchen-mobile-header-compact">
+            <div className="kitchen-mobile-header-title">
+              <h2>Cocina</h2>
+              <span className={`kitchen-realtime-badge ${offline ? 'offline' : 'live'}`}>
+                <span className="kitchen-pulse-dot" />
+                {offline ? 'Offline' : 'En vivo'}
+              </span>
+              <span style={{ fontSize: '11px', color: '#8b949e', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                · {activeAreaName}
+              </span>
+            </div>
+            <div className="kitchen-mobile-header-actions">
+              {placeOptions.length > 0 && (
+                <button
+                  type="button"
+                  className={`kitchen-mobile-icon-btn ${showMobileFilters ? 'active' : ''}`}
+                  onClick={() => setShowMobileFilters(!showMobileFilters)}
+                  title="Filtrar área de trabajo"
+                  aria-label="Filtrar área"
+                >
+                  <SlidersHorizontal size={16} />
+                </button>
+              )}
+              <button
+                type="button"
+                className="kitchen-mobile-icon-btn"
+                onClick={() => void load(activePlaceId, false)}
+                disabled={loading || offline}
+                title="Actualizar comandas"
+                aria-label="Actualizar"
+              >
+                <History size={16} />
+              </button>
+              {standalone ? (
+                <button className="button outline" style={{ minHeight: '34px', padding: '0 10px', fontSize: '12px' }} onClick={onClose}>
+                  Mesas
+                </button>
+              ) : (
+                <button className="icon-button" onClick={onClose} aria-label="Cerrar"><X /></button>
+              )}
+            </div>
           </div>
         </header>
 
-        {/* Mobile Segmented Stage Selector */}
+        {/* Mobile Horizontal Stage Bar */}
         <div className="kitchen-mobile-stage-bar">
           <button
             type="button"
@@ -5338,9 +5468,10 @@ function KitchenPanel({ offline, places, standalone = false, allowAll = true, vi
           })}
         </div>
 
+        {/* Collapsible Area Filter (Visible on desktop or when toggled on mobile) */}
         {placeOptions.length > 0 && (
-          <>
-            <div className="kitchen-place-filter">
+          <div className={showMobileFilters ? 'kitchen-mobile-filter-drawer' : 'mobile-collapsed'}>
+            <div className={`kitchen-place-filter ${!showMobileFilters ? 'mobile-collapsed' : ''}`}>
               <label htmlFor="kitchen-area-filter">
                 Mostrar área
                 <select
@@ -5361,18 +5492,18 @@ function KitchenPanel({ offline, places, standalone = false, allowAll = true, vi
                 {areaLocked ? <><Unlock size={15} /> Desbloquear área</> : <><Lock size={15} /> Bloquear área</>}
               </button>
             </div>
-            <p className="kitchen-place-label">
+            <p className={`kitchen-place-label ${!showMobileFilters ? 'mobile-collapsed' : ''}`}>
               {areaLocked
                 ? `Área bloqueada: ${activePlaceId === 'all' ? 'Todas' : placeOptions.find(place => place.id === activePlaceId)?.name || 'seleccionada'}`
                 : 'Área de trabajo'}
             </p>
             {!areaLocked && (
-              <nav className="kitchen-place-tabs" aria-label="Áreas de preparación">
+              <nav className={`kitchen-place-tabs ${!showMobileFilters ? 'mobile-collapsed' : ''}`} aria-label="Áreas de preparación">
                 {allowAll && <button className={activePlaceId === 'all' ? 'active' : ''} onClick={() => choosePlace('all')}>Todas</button>}
                 {placeOptions.map(place => <button className={activePlaceId === place.id ? 'active' : ''} key={place.id} onClick={() => choosePlace(place.id)}>{place.name}</button>)}
               </nav>
             )}
-          </>
+          </div>
         )}
 
         {!placeOptions.length && (
