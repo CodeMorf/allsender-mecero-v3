@@ -1,6 +1,6 @@
 /* global self, caches, URL, fetch */
 
-const CACHE_VERSION = 'mesero-shell-v9'
+const CACHE_VERSION = 'mesero-shell-v10'
 const SHELL = [
   '/',
   '/index.html',

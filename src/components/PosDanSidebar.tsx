@@ -83,6 +83,23 @@ export const POSDAN_MODULES: NavItemDef[] = [
 
 export const MOBILE_PRIMARY_MODULES: PosDanModule[] = ['pos', 'orders', 'tables', 'kds']
 
+export const MOBILE_LABELS: Record<string, string> = {
+  pos: 'POS',
+  orders: 'Órdenes',
+  tables: 'Mesas',
+  kds: 'Cocina',
+  cash: 'Cajas',
+  customers: 'Clientes',
+  products: 'Productos',
+  inventory: 'Inventario',
+  invoices: 'Facturas',
+  analytics: 'Reportes',
+  discounts: 'Descuentos',
+  returns: 'Devolución',
+  users: 'Usuarios',
+  settings: 'Ajustes',
+}
+
 export function roleLabel(role: StaffRole): string {
   switch (role) {
     case 'head': return 'Administrador'
@@ -222,6 +239,7 @@ export const PosDanSidebar: React.FC<PosDanSidebarProps> = ({
             const Icon = item.icon
             const isActive = activeModule === item.id
             const dynamicBadge = getModuleBadge(item.id)
+            const mobileText = MOBILE_LABELS[item.id] || item.label
 
             return (
               <button
@@ -234,7 +252,7 @@ export const PosDanSidebar: React.FC<PosDanSidebarProps> = ({
                 <span className="posdan-nav-icon">
                   <Icon size={20} />
                 </span>
-                <span className="posdan-nav-label">{item.label}</span>
+                <span className="posdan-nav-label">{mobileText}</span>
                 {dynamicBadge !== undefined && (
                   <span className={`posdan-nav-badge ${item.id === 'tables' ? 'badge-alert' : ''}`}>
                     {dynamicBadge}

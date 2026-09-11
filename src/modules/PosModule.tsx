@@ -325,7 +325,7 @@ export const PosModule: React.FC<PosModuleProps> = ({
 
           {orderSelection.mode === 'dine_in' && (
             <div className="posdan-table-picker">
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#8b949e' }}>Mesa:</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#8b949e', whiteSpace: 'nowrap', flexShrink: 0 }}>Mesa:</span>
               <select
                 value={selectedTableId || ''}
                 onChange={e => setSelectedTableId(Number(e.target.value) || null)}
@@ -484,41 +484,41 @@ export const PosModule: React.FC<PosModuleProps> = ({
           })}
         </div>
 
-        {/* Mobile Floating Cart Action Bar */}
-        <div className="posdan-mobile-cart-bar">
-          <button
-            type="button"
-            className={`posdan-mobile-cart-btn ${totalQuantity > 0 ? 'has-items' : ''}`}
-            onClick={() => setMobileCartOpen(true)}
-            aria-label="Ver orden actual"
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div className="posdan-mobile-cart-icon-wrap">
-                <ShoppingCart size={18} />
-                {totalQuantity > 0 && (
+        {/* Mobile Floating Cart Action Bar (only visible when cart has items) */}
+        {totalQuantity > 0 && (
+          <div className="posdan-mobile-cart-bar">
+            <button
+              type="button"
+              className="posdan-mobile-cart-btn has-items"
+              onClick={() => setMobileCartOpen(true)}
+              aria-label="Ver orden actual"
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div className="posdan-mobile-cart-icon-wrap">
+                  <ShoppingCart size={18} />
                   <span className="posdan-mobile-cart-count">{totalQuantity}</span>
-                )}
-              </div>
-              <div style={{ textAlign: 'left' }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: '#ffffff', lineHeight: 1.2 }}>
-                  {totalQuantity > 0 ? `${totalQuantity} ${totalQuantity === 1 ? 'producto' : 'productos'}` : 'Orden vacía'}
                 </div>
-                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>
-                  {orderSelection.orderTypeName} {selectedTable ? `· Mesa ${selectedTable.name}` : ''}
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#ffffff', lineHeight: 1.2 }}>
+                    {totalQuantity} {totalQuantity === 1 ? 'producto' : 'productos'}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>
+                    {orderSelection.orderTypeName} {selectedTable ? `· Mesa ${selectedTable.name}` : ''}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 15, fontWeight: 900, fontFamily: 'monospace', color: '#34d399' }}>
-                {currencySymbol} {total.toFixed(2)}
-              </span>
-              <span className="posdan-mobile-cart-action-chip">
-                Ver orden →
-              </span>
-            </div>
-          </button>
-        </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 15, fontWeight: 900, fontFamily: 'monospace', color: '#34d399' }}>
+                  {currencySymbol} {total.toFixed(2)}
+                </span>
+                <span className="posdan-mobile-cart-action-chip">
+                  Ver orden →
+                </span>
+              </div>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Cart Backdrop on Mobile */}

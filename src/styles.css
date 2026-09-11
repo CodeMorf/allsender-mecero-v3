@@ -31,7 +31,8 @@
 :root[data-theme="dark"] .auth-shell, :root[data-theme="dark"] .pin-shell, :root[data-theme="dark"] .app-shell { background: linear-gradient(135deg, rgba(12, 72, 74, .35), rgba(102, 62, 25, .22)), var(--surface-soft); }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-body { margin: 0; min-width: 320px; min-height: 100vh; background: inherit; color: var(--ink); }
+html, body { margin: 0; padding: 0; width: 100%; height: 100%; height: 100dvh; min-width: 320px; background: inherit; color: var(--ink); overflow: hidden; }
+#root { width: 100%; height: 100%; height: 100dvh; overflow: hidden; }
 body::before { content: ""; position: fixed; z-index: -1; inset: 0; pointer-events: none; opacity: .55; background: radial-gradient(circle at 8% 12%, rgba(17, 171, 147, .2), transparent 24%), radial-gradient(circle at 92% 18%, rgba(243, 123, 32, .18), transparent 22%), radial-gradient(circle at 78% 88%, rgba(58, 178, 211, .18), transparent 26%); animation: tropicalShift 18s ease-in-out infinite alternate; }
 @keyframes tropicalShift { from { transform: scale(1) rotate(0deg); filter: hue-rotate(0deg); } to { transform: scale(1.08) rotate(2deg); filter: hue-rotate(18deg); } }
 button, input, select, textarea { font: inherit; }
@@ -934,43 +935,116 @@ h2 { margin-bottom: 0; font-size: 22px; letter-spacing: -.02em; }
 .kitchen-screen-view .kitchen-panel-standalone > header { flex: 0 0 auto; padding: 12px clamp(16px, 2.5vw, 32px); background: var(--pos-bg-surface, #1E2023); border-bottom-color: var(--pos-bg-surface-elevated, #2A2D31); }
 .kitchen-screen-view .kitchen-panel-standalone > header h2 { font-size: 22px; }
 .kitchen-screen-view .kitchen-panel-standalone > header small { font-size: 11px; }
-.kitchen-screen-view .kitchen-panel-standalone > .kitchen-board { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 12px clamp(16px, 2.5vw, 32px) 18px; }
-.kitchen-screen-view .kitchen-panel-standalone > .kitchen-place-filter { display: grid; flex: 0 0 auto; grid-template-columns: minmax(220px, min(420px, 50vw)) auto; align-items: end; padding-inline: clamp(16px, 2.5vw, 32px); }
-.kitchen-screen-view .kitchen-panel-standalone > .kitchen-place-tabs { flex: 0 0 auto; min-height: 34px; padding-inline: clamp(16px, 2.5vw, 32px); }
-.kitchen-screen-view .kitchen-panel-standalone > .kitchen-place-label { flex: 0 0 auto; margin-inline: clamp(16px, 2.5vw, 32px); }
-.kitchen-screen-view .kitchen-panel-standalone > .modal-note { flex: 0 0 auto; margin: 0; padding: 8px clamp(16px, 2.5vw, 32px); border-radius: 0; background: var(--pos-bg-surface, #1E2023); border-top: 1px solid var(--pos-bg-surface-elevated, #2A2D31); }
-.kitchen-board { display: grid; grid-template-columns: repeat(3, minmax(280px, 1fr)); gap: 10px; align-items: start; }
-.kitchen-column { display: flex; min-width: 0; min-height: 0; align-self: start; flex-direction: column; overflow: hidden; background: var(--pos-bg-surface, #1E2023); border: 1px solid var(--pos-bg-surface-elevated, #2A2D31); border-radius: 12px; }
-.kitchen-column-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 12px; background: var(--pos-bg-surface-elevated, #2A2D31); border-bottom: 1px solid var(--pos-bg-surface-elevated, #2A2D31); }
-.kitchen-column-header > div { display: grid; gap: 3px; }
-.kitchen-column-header strong { color: var(--ink); font-size: 14px; }
-.kitchen-column-header small { color: var(--muted); font-size: 10px; }
-.kitchen-column-header b { display: grid; min-width: 26px; height: 26px; place-items: center; color: var(--ink); background: var(--pos-bg-base, #141618); border-radius: 999px; font-size: 12px; }
-.kitchen-column-new { border-top: 4px solid #56c98b; }
-.kitchen-column-preparing { border-top: 4px solid #f2b944; }
-.kitchen-column-ready { border-top: 4px solid #42c2cb; }
-.kitchen-column-new .kitchen-column-header b { color: #9cf0b8; }
-.kitchen-column-preparing .kitchen-column-header b { color: #ffd083; }
-.kitchen-column-ready .kitchen-column-header b { color: #8fe8ef; }
-.kitchen-column-list { display: grid; align-content: start; gap: 8px; min-height: 0; padding: 8px; overflow-y: auto; }
-.kitchen-column-list .kitchen-ticket { background: var(--pos-bg-surface-elevated, #2A2D31); }
-.kitchen-column-empty { display: grid; min-height: 72px; place-items: center; padding: 12px; color: var(--muted); text-align: center; border: 1px dashed var(--pos-bg-surface-elevated, #2A2D31); border-radius: 10px; font-size: 11px; }
-.kitchen-screen-view .kitchen-header-actions .button { min-height: 34px; padding: 7px 10px; font-size: 11px; }
-.kitchen-screen-view .kitchen-place-filter { gap: 8px; padding-top: 8px; }
-.kitchen-screen-view .kitchen-place-filter label { gap: 4px; font-size: 10px; }
-.kitchen-screen-view .kitchen-place-filter select { padding: 7px 10px; font-size: 12px; }
-.kitchen-screen-view .kitchen-place-tabs { gap: 6px; padding-top: 8px; }
-.kitchen-screen-view .kitchen-place-tabs button { padding: 6px 10px; font-size: 11px; }
-.kitchen-screen-view .kitchen-place-label { margin-top: 8px; font-size: 10px; }
-.kitchen-screen-view .kitchen-ticket { gap: 5px; padding: 7px 8px; border-left-width: 3px; border-radius: 9px; }
-.kitchen-screen-view .kitchen-ticket-header { gap: 5px; }
-.kitchen-screen-view .kitchen-ticket-header small, .kitchen-screen-view .kitchen-ticket footer small { font-size: 9px; }
-.kitchen-screen-view .kitchen-table-label { font-size: 11px !important; }
-.kitchen-screen-view .kitchen-ticket ul { gap: 3px; padding-left: 15px; font-size: 11px; }
-.kitchen-screen-view .kitchen-ticket li { line-height: 1.18; }
-.kitchen-screen-view .kitchen-ticket li em, .kitchen-screen-view .kitchen-ticket li .kitchen-item-meta { font-size: 9px; }
-.kitchen-screen-view .kitchen-note { padding: 4px 6px; font-size: 9px; }
-.kitchen-screen-view .kitchen-ticket footer .button { min-height: 32px; padding: 6px 8px; font-size: 10px; }
+.kitchen-screen-view .kitchen-panel-standalone > .kitchen-board {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  padding: 16px 20px;
+}
+.kitchen-screen-view .kitchen-panel-standalone > .kitchen-place-filter { display: grid; flex: 0 0 auto; grid-template-columns: minmax(220px, min(420px, 50vw)) auto; align-items: end; padding-inline: 20px; }
+.kitchen-screen-view .kitchen-panel-standalone > .kitchen-place-tabs { flex: 0 0 auto; min-height: 38px; padding-inline: 20px; }
+.kitchen-screen-view .kitchen-panel-standalone > .kitchen-place-label { flex: 0 0 auto; margin-inline: 20px; }
+.kitchen-screen-view .kitchen-panel-standalone > .modal-note { flex: 0 0 auto; margin: 0; padding: 6px 20px; border-radius: 0; background: #0d1117; border-top: 1px solid #21262d; font-size: 11px; color: #8b949e; text-align: center; }
+
+.kitchen-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(320px, 1fr));
+  gap: 16px;
+  align-items: stretch;
+  height: 100%;
+  min-height: 0;
+}
+.kitchen-column {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+.kitchen-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px;
+  background: #0d1117;
+  border-bottom: 1px solid #30363d;
+  flex-shrink: 0;
+}
+.kitchen-column-header > div { display: grid; gap: 2px; }
+.kitchen-column-header strong { color: #f0f6fc; font-size: 15px; font-weight: 800; }
+.kitchen-column-header small { color: #8b949e; font-size: 11px; }
+.kitchen-column-header b { display: grid; min-width: 28px; height: 28px; place-items: center; color: #ffffff; background: #21262d; border-radius: 999px; font-size: 13px; font-weight: 800; }
+.kitchen-column-new { border-top: 4px solid #10b981; }
+.kitchen-column-preparing { border-top: 4px solid #f59e0b; }
+.kitchen-column-ready { border-top: 4px solid #38bdf8; }
+.kitchen-column-new .kitchen-column-header b { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+.kitchen-column-preparing .kitchen-column-header b { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+.kitchen-column-ready .kitchen-column-header b { background: rgba(56, 189, 248, 0.2); color: #38bdf8; }
+
+.kitchen-column-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  flex: 1 1 auto;
+  padding: 12px;
+  overflow-y: auto;
+}
+.kitchen-column-list::-webkit-scrollbar { width: 6px; }
+.kitchen-column-list::-webkit-scrollbar-thumb { background: #30363d; border-radius: 6px; }
+
+.kitchen-column-list .kitchen-ticket {
+  background: #0d1117;
+  border: 1px solid #30363d;
+  border-left: 4px solid #f97316;
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.kitchen-column-empty {
+  display: grid;
+  min-height: 100px;
+  place-items: center;
+  padding: 20px;
+  color: #8b949e;
+  text-align: center;
+  border: 1px dashed #30363d;
+  border-radius: 12px;
+  font-size: 13px;
+}
+
+.kitchen-screen-view .kitchen-header-actions .button { min-height: 38px; padding: 8px 14px; font-size: 12px; font-weight: 700; border-radius: 10px; }
+.kitchen-screen-view .kitchen-place-filter { gap: 10px; padding-top: 10px; }
+.kitchen-screen-view .kitchen-place-filter label { gap: 6px; font-size: 12px; color: #8b949e; }
+.kitchen-screen-view .kitchen-place-filter select { padding: 8px 12px; font-size: 13px; border-radius: 8px; }
+.kitchen-screen-view .kitchen-place-tabs { gap: 8px; padding-top: 10px; }
+.kitchen-screen-view .kitchen-place-tabs button { padding: 6px 14px; font-size: 12px; font-weight: 600; border-radius: 8px; }
+.kitchen-screen-view .kitchen-place-label { margin-top: 8px; font-size: 11px; }
+
+.kitchen-screen-view .kitchen-ticket { gap: 8px; padding: 12px 14px; border-left-width: 4px; border-radius: 12px; }
+.kitchen-screen-view .kitchen-ticket-header { gap: 8px; display: flex; justify-content: space-between; align-items: flex-start; }
+.kitchen-screen-view .kitchen-ticket-header strong { font-size: 16px; color: #f0f6fc; font-weight: 800; line-height: 1.2; }
+.kitchen-screen-view .kitchen-ticket-header small { font-size: 11px; color: #8b949e; display: block; margin-top: 2px; }
+.kitchen-screen-view .kitchen-table-label { font-size: 13px !important; font-weight: 800; color: #38bdf8 !important; }
+.kitchen-screen-view .kitchen-ticket ul { gap: 6px; padding-left: 18px; font-size: 13px; color: #f0f6fc; margin: 4px 0; }
+.kitchen-screen-view .kitchen-ticket li { line-height: 1.35; }
+.kitchen-screen-view .kitchen-ticket li strong { font-size: 13.5px; color: #ffffff; }
+.kitchen-screen-view .kitchen-ticket li em { font-size: 11.5px; color: #94a3b8; font-style: italic; display: block; margin-top: 2px; }
+.kitchen-screen-view .kitchen-ticket li .kitchen-item-meta { font-size: 11.5px; color: #f97316; font-weight: 600; display: block; margin-top: 2px; }
+.kitchen-screen-view .kitchen-note { padding: 6px 10px; font-size: 11.5px; border-radius: 8px; background: rgba(249, 115, 22, 0.1); border: 1px solid rgba(249, 115, 22, 0.3); color: #fed7aa; line-height: 1.3; }
+.kitchen-screen-view .kitchen-ticket footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 8px; border-top: 1px solid #21262d; margin-top: 4px; }
+.kitchen-screen-view .kitchen-ticket footer small { font-size: 11px; color: #8b949e; }
+.kitchen-screen-view .kitchen-ticket footer .button { min-height: 38px; padding: 8px 14px; font-size: 12px; font-weight: 800; border-radius: 10px; }
 .product-category-label { color: var(--primary) !important; font-size: 11px !important; font-weight: 700; }
 .pos-product-category { overflow: hidden; color: var(--pos-text-secondary, #A1A5AB); font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 900px) {
@@ -4233,8 +4307,8 @@ textarea,
 
 /* User Pill */
 .posdan-user-pill {
-  margin: 12px 14px 4px;
-  padding: 10px 12px;
+  margin: 10px 12px 6px;
+  padding: 8px 12px;
   background: #161b22;
   border: 1px solid #30363d;
   border-radius: 12px;
@@ -4255,7 +4329,9 @@ textarea,
 .posdan-user-details {
   display: flex;
   flex-direction: column;
+  gap: 3px;
   min-width: 0;
+  justify-content: center;
 }
 
 .posdan-user-name {
@@ -4265,13 +4341,16 @@ textarea,
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 1.2;
+  line-height: 1.25;
 }
 
 .posdan-user-role {
   font-size: 11px;
-  color: #8b949e;
-  font-weight: 500;
+  color: #5edbac;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1;
 }
 
 /* Navigation List */
@@ -7669,6 +7748,92 @@ body { overflow-x: hidden; }
   .pos-app-layout,
   .posdan-root-shell {
     padding-bottom: calc(var(--pos-mobile-nav-height) + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Table Comanda Drawer on Mobile: sits smoothly ABOVE bottom navigation */
+  .pos-drawer-overlay {
+    z-index: 110 !important;
+  }
+
+  .pos-order-drawer {
+    position: fixed !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    max-width: 480px !important;
+    height: 100% !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    z-index: 120 !important;
+    background: #0d1117 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    box-shadow: -12px 0 40px rgba(0, 0, 0, 0.75) !important;
+  }
+
+  .pos-order-drawer .pos-drawer-footer {
+    padding: 12px 16px calc(20px + env(safe-area-inset-bottom, 0px)) !important;
+    background: #161b22 !important;
+    border-top: 1px solid #30363d !important;
+  }
+
+  .pos-summary-row span:last-child,
+  .pos-summary-price {
+    font-family: monospace !important;
+    font-size: 13.5px !important;
+    font-weight: 700 !important;
+    color: #f0f6fc !important;
+    text-align: right !important;
+    flex-shrink: 0 !important;
+    min-width: fit-content !important;
+  }
+
+  .pos-summary-total-value {
+    font-size: 20px !important;
+    font-weight: 900 !important;
+    font-family: monospace !important;
+    color: #34d399 !important;
+    text-align: right !important;
+    flex-shrink: 0 !important;
+    min-width: fit-content !important;
+  }
+
+  /* Floating Comanda Review Pill in Catalog View */
+  .pos-menu-floating-comanda-bar {
+    display: block;
+    position: fixed;
+    bottom: calc(var(--pos-mobile-nav-height) + env(safe-area-inset-bottom, 0px) + 8px);
+    left: 10px;
+    right: 10px;
+    z-index: 90;
+    pointer-events: auto;
+  }
+
+  .pos-menu-floating-comanda-btn {
+    width: 100%;
+    min-height: 48px;
+    padding: 8px 16px;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  .pos-menu-floating-comanda-btn:active {
+    transform: scale(0.98);
+  }
+
+  .posdan-table-picker {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
   }
 
   /* POS Layout in Mobile */

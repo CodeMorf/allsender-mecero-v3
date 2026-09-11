@@ -1113,7 +1113,7 @@ export default function App() {
   if (screen === 'setup') return <SetupScreen loading={loading} error={error} defaultDeviceId={deviceId} onSubmit={handleAdminLogin} onDirectPin={handleDirectPin} />
   if (screen === 'branches') return <BranchScreen branches={branches} loading={loading} error={error} offline={offline} onSelect={chooseBranch} onBack={() => { clearSession('admin'); setScreen('setup') }} />
   if (screen === 'pin') return <PinScreen brand={restaurantName} branch={activeBranch?.name || ''} role={staffRole} onRoleChange={setStaffRole} offline={offline} loading={loading} error={error} notice={notice} onSubmit={handlePin} canChangeBranch={Boolean(adminSession)} onBack={() => setScreen('branches')} />
-  return <FloorScreen brand={restaurantName} branch={activeBranch?.name || ''} roleKey={pinSession?.roleKey || staffRole} userId={pinSession?.userId} deviceId={deviceId} permissions={pinSession?.permissions || {}} tables={tables} items={items} kitchenPlaces={kitchenPlaces} paymentMethods={paymentMethods} fiscalCapabilities={fiscalCapabilities} offline={offline} queueCount={queueCount} isSyncing={isSyncing} notice={notice} onNotice={setNotice} error={error} onLogout={logout} onRefresh={() => pinSession && hydrate(pinSession)} onSubmitOrder={submitOrder} onSaveCustomer={saveTableCustomer} onRemoveOrderItem={removeOrderItem} onPrintPreBill={printPreBill} onPayOrder={payOrder} onTransferTable={transferTableOrder} onCancelOrder={cancelTableOrder} onOpenCashSession={openCashSession} onCloseCashSession={closeCashSession} onApproveCashSession={approveCashSession} onRejectCashSession={rejectCashSession} onReopenCashSession={reopenCashSession} onCashMovement={cashMovement} onClockIn={clockInAttendance} onClockOut={clockOutAttendance} onUpdateKotStatus={updateKotStatus} onSelectTable={setActiveTable} activeTable={activeTable} />
+  return <FloorScreen brand={restaurantName} branch={activeBranch?.name || ''} roleKey={pinSession?.roleKey || staffRole} userName={pinSession?.userName} userId={pinSession?.userId} deviceId={deviceId} permissions={pinSession?.permissions || {}} tables={tables} items={items} kitchenPlaces={kitchenPlaces} paymentMethods={paymentMethods} fiscalCapabilities={fiscalCapabilities} offline={offline} queueCount={queueCount} isSyncing={isSyncing} notice={notice} onNotice={setNotice} error={error} onLogout={logout} onRefresh={() => pinSession && hydrate(pinSession)} onSubmitOrder={submitOrder} onSaveCustomer={saveTableCustomer} onRemoveOrderItem={removeOrderItem} onPrintPreBill={printPreBill} onPayOrder={payOrder} onTransferTable={transferTableOrder} onCancelOrder={cancelTableOrder} onOpenCashSession={openCashSession} onCloseCashSession={closeCashSession} onApproveCashSession={approveCashSession} onRejectCashSession={rejectCashSession} onReopenCashSession={reopenCashSession} onCashMovement={cashMovement} onClockIn={clockInAttendance} onClockOut={clockOutAttendance} onUpdateKotStatus={updateKotStatus} onSelectTable={setActiveTable} activeTable={activeTable} />
 }
 
 function nextAdminRestaurantId(session: Session) { return session.restaurantId }
@@ -1558,7 +1558,7 @@ function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error,
   )
 }
 
-function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, tables, items, kitchenPlaces, paymentMethods, fiscalCapabilities, offline, queueCount, isSyncing, notice, onNotice, error, onLogout, onRefresh, onSubmitOrder, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onCancelOrder, onOpenCashSession, onCloseCashSession, onApproveCashSession, onRejectCashSession, onReopenCashSession, onCashMovement, onClockIn, onClockOut, onUpdateKotStatus, onSelectTable, activeTable }: { brand: string; branch: string; roleKey: StaffRole; userId?: number; deviceId: string; permissions: Record<string, boolean>; tables: RestaurantTable[]; items: MenuItem[]; kitchenPlaces: KitchenPlace[]; paymentMethods: PaymentMethodOption[]; fiscalCapabilities?: FiscalCapabilities | null; offline: boolean; queueCount: number; isSyncing?: boolean; notice: string; onNotice: (message: string) => void; error: string; onLogout: () => void; onRefresh: () => void; onSubmitOrder: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onCancelOrder?: (table: RestaurantTable, reason?: string) => Promise<{ queued: boolean; message: string }>; onOpenCashSession: (registerId: number, openingFloat: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCloseCashSession: (sessionId: number, countedCash: number, expectedCash: number | undefined, note: string, sendForApproval: boolean, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onApproveCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onRejectCashSession: (sessionId: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onReopenCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCashMovement: (movement: 'cash-in' | 'cash-out' | 'safe-drop', sessionId: number, amount: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onClockIn: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onClockOut: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onUpdateKotStatus: (kotId: number, status: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onSelectTable: (table: RestaurantTable | null) => void; activeTable: RestaurantTable | null }) {
+function FloorScreen({ brand, branch, roleKey, userName, userId, deviceId, permissions, tables, items, kitchenPlaces, paymentMethods, fiscalCapabilities, offline, queueCount, isSyncing, notice, onNotice, error, onLogout, onRefresh, onSubmitOrder, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onCancelOrder, onOpenCashSession, onCloseCashSession, onApproveCashSession, onRejectCashSession, onReopenCashSession, onCashMovement, onClockIn, onClockOut, onUpdateKotStatus, onSelectTable, activeTable }: { brand: string; branch: string; roleKey: StaffRole; userName?: string; userId?: number; deviceId: string; permissions: Record<string, boolean>; tables: RestaurantTable[]; items: MenuItem[]; kitchenPlaces: KitchenPlace[]; paymentMethods: PaymentMethodOption[]; fiscalCapabilities?: FiscalCapabilities | null; offline: boolean; queueCount: number; isSyncing?: boolean; notice: string; onNotice: (message: string) => void; error: string; onLogout: () => void; onRefresh: () => void; onSubmitOrder: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onCancelOrder?: (table: RestaurantTable, reason?: string) => Promise<{ queued: boolean; message: string }>; onOpenCashSession: (registerId: number, openingFloat: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCloseCashSession: (sessionId: number, countedCash: number, expectedCash: number | undefined, note: string, sendForApproval: boolean, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onApproveCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onRejectCashSession: (sessionId: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onReopenCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCashMovement: (movement: 'cash-in' | 'cash-out' | 'safe-drop', sessionId: number, amount: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onClockIn: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onClockOut: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onUpdateKotStatus: (kotId: number, status: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onSelectTable: (table: RestaurantTable | null) => void; activeTable: RestaurantTable | null }) {
   const [showMenu, setShowMenu] = useState(false); const [showQuick, setShowQuick] = useState(false); const [showOps, setShowOps] = useState(false); const [showCashier, setShowCashier] = useState(false); const [showAttendance, setShowAttendance] = useState(false); const [opsLoading, setOpsLoading] = useState(false); const [notifications, setNotifications] = useState<LiveNotification[]>([]); const [deliverySettings, setDeliverySettings] = useState<DeliverySettings | null>(null); const [deliveryExecutives, setDeliveryExecutives] = useState<DeliveryExecutive[]>([]); const [deliveryPlatforms, setDeliveryPlatforms] = useState<DeliveryPlatform[]>([]); const [orderTypes, setOrderTypes] = useState<OrderTypeConfig[]>([])
   const [pickupPaymentTarget, setPickupPaymentTarget] = useState<{ summary: any; detail: any } | null>(null)
   const [pickupPaymentLoading, setPickupPaymentLoading] = useState(false)
@@ -2033,15 +2033,17 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
               onNotice('Abra el turno de caja para continuar.')
               return
             }
+            // Auto close mobile order drawer when switching between modules
+            if (mod !== 'tables' && mod !== 'menu') {
+              setMobileDrawerOpen(false)
+            }
             setActiveNavTab(mod)
             if (mod === 'kds') {
-              // Cocina ocupa la vista principal; el cajón de la orden no debe
-              // reducir el espacio de trabajo del KDS.
               setMobileDrawerOpen(false)
             }
             if (mod === 'users') setShowAttendance(true)
           }}
-          userName={roleLabel(roleKey)}
+          userName={userName && userName.trim() ? userName : roleLabel(roleKey)}
           roleKey={roleKey}
           brandName={brand || 'RestaPP'}
           permissions={permissions}
@@ -2254,13 +2256,14 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
                         setActiveNavTab('tables')
                         return
                       }
-                      setMobileDrawerOpen(true)
                       const hasMods = Array.isArray(item.modifiers) && item.modifiers.length > 0
                       const hasVars = Array.isArray(item.variations) && item.variations.length > 0
                       if (hasMods || hasVars) {
+                        setMobileDrawerOpen(true)
                         window.dispatchEvent(new CustomEvent('restapp:customize-item', { detail: item }))
                       } else {
                         window.dispatchEvent(new CustomEvent('restapp:quick-add-item', { detail: item }))
+                        onNotice(`+1 ${item.name} agregado a la comanda`)
                       }
                     }}
                   >
@@ -2305,6 +2308,29 @@ function FloorScreen({ brand, branch, roleKey, userId, deviceId, permissions, ta
                 )
               })}
             </div>
+
+            {/* Mobile / Tablet Floating Comanda Bar */}
+            {(table || showQuick) && (
+              <div className="pos-menu-floating-comanda-bar">
+                <button
+                  type="button"
+                  className="pos-menu-floating-comanda-btn"
+                  onClick={() => setMobileDrawerOpen(true)}
+                  aria-label="Abrir y revisar la comanda"
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <ClipboardList size={20} style={{ color: '#5edbac' }} />
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#f0f6fc' }}>
+                      {table ? `Mesa ${table.number}` : 'Venta Directa'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#5edbac', fontWeight: 800, fontSize: 13 }}>
+                    <span>Ver comanda</span>
+                    <span>→</span>
+                  </div>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* VIEW: POS DIRECT SALE */}
@@ -4255,70 +4281,6 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
               )}
             </div>
           )}
-
-          {/* Opciones de Tipo de Servicio y Cliente en Drawer */}
-          <div style={{ marginTop: 'auto', paddingTop: 10 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-              <button
-                type="button"
-                className="pos-category-chip"
-                style={{
-                  padding: '0.55rem 0.65rem',
-                  fontSize: '0.78rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  background: mode === 'room_service' ? 'rgba(234, 88, 12, 0.12)' : mode === 'delivery' ? 'rgba(96, 165, 250, 0.12)' : undefined,
-                  borderColor: mode === 'room_service' ? 'rgba(234, 88, 12, 0.35)' : mode === 'delivery' ? 'rgba(96, 165, 250, 0.35)' : undefined
-                }}
-                onClick={() => setOrderTypeModalOpen(true)}
-                title="Pulsar para cambiar tipo de servicio, habitación o delivery"
-              >
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {mode === 'room_service' ? <Hotel size={14} style={{ color: '#fb923c', flexShrink: 0 }} /> :
-                   mode === 'delivery' ? <Truck size={14} style={{ color: '#60a5fa', flexShrink: 0 }} /> :
-                   mode === 'pickup' ? <ShoppingBag size={14} style={{ color: '#c084fc', flexShrink: 0 }} /> :
-                   <Utensils size={14} style={{ color: '#5EDBAC', flexShrink: 0 }} />}
-                  <strong style={{ color: mode === 'room_service' ? '#fb923c' : mode === 'delivery' ? '#60a5fa' : 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {mode === 'room_service'
-                      ? (roomNumber ? `Hab. ${roomNumber}` : 'Habitación')
-                      : mode === 'delivery'
-                      ? (selectedDeliveryAppName ? `Envío: ${selectedDeliveryAppName}` : 'Entrega')
-                      : (selectedOrderTypeName || (mode === 'pickup' ? 'Recogida' : 'Comer aquí'))}
-                  </strong>
-                </span>
-                <span style={{ fontSize: '0.7rem', color: 'var(--pos-text-secondary)', marginLeft: 4, display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-                  <Edit3 size={10} />
-                </span>
-              </button>
-
-              <button
-                type="button"
-                className="pos-category-chip"
-                style={{
-                  padding: '0.55rem 0.65rem',
-                  fontSize: '0.78rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  background: customerName.trim() ? 'rgba(94, 219, 172, 0.08)' : undefined,
-                  borderColor: customerName.trim() ? 'rgba(94, 219, 172, 0.35)' : undefined
-                }}
-                onClick={() => setCustomerModalOpen(true)}
-                title="Pulsar para asignar, cambiar o actualizar cliente"
-              >
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  <UserCircle2 size={14} style={{ color: customerName.trim() ? '#5EDBAC' : 'var(--pos-text-secondary)', flexShrink: 0 }} />
-                  <strong style={{ color: customerName.trim() ? '#5EDBAC' : 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {customerName.trim() ? customerName : 'Cliente'}
-                  </strong>
-                </span>
-                <span style={{ fontSize: '0.7rem', color: 'var(--pos-text-secondary)', marginLeft: 4, display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-                  <Edit3 size={10} />
-                </span>
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Drawer Footer Resumen & CTA */}
