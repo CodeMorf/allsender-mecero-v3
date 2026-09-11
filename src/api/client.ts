@@ -473,20 +473,69 @@ export class ApiClient {
 }
 
 export function normalizeTable(raw: any): RestaurantTable {
-  const status = String(raw.ui_status || raw.available_status || raw.status || raw.table_status || 'available').toLowerCase()
-  const map: Record<string, RestaurantTable['status']> = { libre: 'available', available: 'available', running: 'occupied', ocupada: 'occupied', ocupada_orden_abierta: 'occupied', occupied: 'occupied', reservada: 'occupied', esperando: 'waiting_kitchen', waiting: 'waiting_kitchen', waiting_kitchen: 'waiting_kitchen', listo: 'food_ready', ready: 'food_ready', food_ready: 'food_ready', por_cobrar: 'bill_requested', cuenta: 'bill_requested', bill_requested: 'bill_requested', locked: 'locked', bloqueada: 'locked', cerrada: 'locked', closed: 'locked' }
+  const activeOrder = raw.active_order || raw.activeOrder || raw.order
+  const status = String(raw.ui_status || raw.available_status || (raw.status !== 'active' ? raw.status : undefined) || 'available').toLowerCase()
+  const map: Record<string, RestaurantTable['status']> = {
+    libre: 'available',
+    available: 'available',
+    active: 'available',
+    running: 'occupied',
+    ocupada: 'occupied',
+    ocupada_orden_abierta: 'occupied',
+    occupied: 'occupied',
+    reservada: 'occupied',
+    esperando: 'waiting_kitchen',
+    waiting: 'waiting_kitchen',
+    waiting_kitchen: 'waiting_kitchen',
+    listo: 'food_ready',
+    ready: 'food_ready',
+    food_ready: 'food_ready',
+    por_cobrar: 'bill_requested',
+    cuenta: 'bill_requested',
+    bill_requested: 'bill_requested',
+    locked: 'locked',
+    bloqueada: 'locked',
+    cerrada: 'locked',
+    closed: 'locked'
+  }
   const number = raw.table_code || raw.number || raw.table_number || raw.name || raw.table_name || raw.id
-  const rawOrderNumber = raw.current_order_number ?? raw.order_number
+  const rawOrderNumber = raw.current_order_number ?? raw.order_number ?? activeOrder?.order_number
   const currentOrderNumber = rawOrderNumber == null ? undefined : String(rawOrderNumber).replace(/^(order|orden)\s*#?/i, '').replace(/^#/, '')
-  const paymentState = String(raw.payment_status || raw.order_payment_status || raw.order?.status || '').toLowerCase()
-  const progressState = String(raw.order_status || raw.current_order_status || raw.kitchen_status || '').toLowerCase()
-  const progressMap: Record<string, RestaurantTable['status']> = { preparing: 'waiting_kitchen', food_ready: 'food_ready', ready_for_pickup: 'food_ready' }
-  // The production floor endpoint uses `por_cobrar` for every unpaid active
-  // order, not only when a waiter explicitly requests the bill. Keep those
-  const displayStatus = status === 'por_cobrar' && !['billed', 'payment_due', 'bill_requested'].includes(paymentState) ? progressMap[progressState] || 'occupied' : map[status] || 'unknown'
-  const customerRnc = raw.customer_rnc || raw.order_customer_rnc || raw.customer?.rnc_cedula || raw.customer?.rncCedula || raw.order?.customer?.rnc_cedula || raw.order?.customer?.rncCedula || raw.order?.rnc_cedula || undefined
-  const customerFiscalName = raw.customer_fiscal_name || raw.order_customer_fiscal_name || raw.customer?.fiscal_name || raw.customer?.fiscalName || raw.order?.customer?.fiscal_name || raw.order?.customer?.fiscalName || raw.order?.fiscal_name || undefined
-  return { id: Number(raw.id), name: raw.name || raw.table_name || raw.table_code || `Mesa ${raw.id}`, number: String(number), capacity: Number(raw.seating_capacity || raw.capacity || raw.seats || 2), status: displayStatus, area: raw.area?.name || raw.area_name, waiter: raw.waiter?.name || raw.waiter_name, currentOrderId: raw.current_order_id ?? raw.order_id, currentOrderNumber, currentOrderStatus: raw.order_status || raw.current_order_status, currentOrderTotal: raw.order_total ?? raw.current_order_total, currentOrderDue: raw.amount_due ?? raw.current_order_due, customerId: raw.customer_id ?? raw.order_customer_id, customerName: raw.customer_name || raw.order_customer_name || raw.customer?.name || raw.order?.customer?.name, customerPhone: raw.customer_phone || raw.order_customer_phone || raw.customer?.phone || raw.order?.customer?.phone, customerRnc, customerFiscalName, guestCount: raw.guest_count || raw.number_of_pax, kitchenStatus: raw.kitchen_status || raw.order_status, position: raw.position }
+  const paymentState = String(raw.payment_status || raw.order_payment_status || raw.order?.status || activeOrder?.status || '').toLowerCase()
+  const progressState = String(raw.order_status || raw.current_order_status || raw.kitchen_status || activeOrder?.order_status || activeOrder?.status || '').toLowerCase()
+  const progressMap: Record<string, RestaurantTable['status']> = { preparing: 'waiting_kitchen', food_ready: 'food_ready', ready_for_pickup: 'food_ready', kot: 'waiting_kitchen', billed: 'bill_requested' }
+  const displayStatus = status === 'por_cobrar' && !['billed', 'payment_due', 'bill_requested'].includes(paymentState)
+    ? (progressMap[progressState] || 'occupied')
+    : (raw.is_locked ? 'locked' : (activeOrder && status === 'running' ? (progressMap[progressState] || 'occupied') : (map[status] || 'available')))
+  const customerRnc = raw.customer_rnc || raw.order_customer_rnc || raw.customer?.rnc_cedula || raw.customer?.rncCedula || raw.order?.customer?.rnc_cedula || raw.order?.customer?.rncCedula || raw.order?.rnc_cedula || activeOrder?.customer?.rnc_cedula || undefined
+  const customerFiscalName = raw.customer_fiscal_name || raw.order_customer_fiscal_name || raw.customer?.fiscal_name || raw.customer?.fiscalName || raw.order?.customer?.fiscal_name || raw.order?.customer?.fiscalName || raw.order?.fiscal_name || activeOrder?.customer?.fiscal_name || undefined
+  const currentOrderId = raw.current_order_id ?? raw.order_id ?? activeOrder?.id
+  const currentOrderTotal = raw.order_total ?? raw.current_order_total ?? (activeOrder?.total != null ? Number(activeOrder.total) : undefined)
+  const currentOrderDue = raw.amount_due ?? raw.current_order_due ?? (activeOrder?.total != null ? Math.max(0, Number(activeOrder.total) - Number(activeOrder.amount_paid || 0)) : undefined)
+  const currentOrderStatus = raw.order_status || raw.current_order_status || activeOrder?.order_status || activeOrder?.status
+
+  return {
+    id: Number(raw.id),
+    name: raw.name || raw.table_name || raw.table_code || `Mesa ${raw.id}`,
+    number: String(number),
+    capacity: Number(raw.seating_capacity || raw.capacity || raw.seats || 2),
+    status: displayStatus,
+    area: raw.area?.name || raw.area?.area_name || raw.area_name,
+    waiter: raw.waiter?.name || raw.waiter_name,
+    currentOrderId,
+    currentOrderNumber,
+    currentOrderStatus,
+    currentOrderTotal,
+    currentOrderDue,
+    customerId: raw.customer_id ?? raw.order_customer_id ?? activeOrder?.customer_id,
+    customerName: raw.customer_name || raw.order_customer_name || raw.customer?.name || raw.order?.customer?.name || activeOrder?.customer?.name,
+    customerPhone: raw.customer_phone || raw.order_customer_phone || raw.customer?.phone || raw.order?.customer?.phone || activeOrder?.customer?.phone,
+    customerRnc,
+    customerFiscalName,
+    guestCount: raw.guest_count || raw.number_of_pax || activeOrder?.number_of_pax,
+    kitchenStatus: raw.kitchen_status || raw.order_status || activeOrder?.status,
+    position: raw.position
+  }
 }
 
 export function normalizeItem(raw: any): MenuItem {

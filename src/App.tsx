@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { api, ApiError, applyCategoryMetadata, normalizeAttendance } from './api/client'
 import type { AttendanceRecord, Branch, DeliveryExecutive, DeliveryPlatform, DeliverySettings, DeviceBinding, FiscalCapabilities, KitchenPlace, KitchenTicket, KitchenView, MenuCategory, MenuItem, ModifierGroup, ModifierOption, NotificationSettings, OfflineOperation, OfflineStep, OfflineWorkflow, OrderDraft, OrderLine, OrderMode, OrderTypeConfig, PaymentMethodOption, PosCustomer, ProductVariation, RestaurantTable, Session, StaffRole, WaiterRequest } from './types'
@@ -300,36 +300,38 @@ export default function App() {
     try { localStorage.setItem('restapp:theme', 'dark') } catch { /* ignore */ }
   }, [])
 
-  useEffect(() => {
-    if (screen !== 'floor' || !pinSession || offline) return
-    let cancelled = false
-    const pollFloorTables = async () => {
-      try {
-        if (!pinSession.permissions['tables.view']) return
-        const remoteTables = await api.tables('pin')
-        if (cancelled || !Array.isArray(remoteTables)) return
+  const pollFloorTables = useCallback(async () => {
+    if (!pinSession || offline || !pinSession.permissions['tables.view']) return
+    try {
+      const remoteTables = await api.tables('pin')
+      if (!Array.isArray(remoteTables)) return
+      if (remoteTables.length > 0) {
         setTables(remoteTables)
         setActiveTable(current => current ? remoteTables.find(t => t.id === current.id) || current : current)
         saveCache({ tables: remoteTables, branchId: pinSession.branchId, scopeKey: pinSession.scopeKey || tenantScope(pinSession) })
-        // Attempt background outbox sync to drain any lingering queued operations
-        void syncOutbox()
-      } catch {
-        // Fallback silencioso en segundo plano sin interrumpir la interfaz
       }
+      void syncOutbox()
+    } catch {
+      // Fallback silencioso en segundo plano sin interrumpir la interfaz
     }
+  }, [pinSession, offline])
+
+  useEffect(() => {
+    if (screen !== 'floor' || !pinSession || offline) return
     const onVisibility = () => {
       if (document.visibilityState === 'visible') void pollFloorTables()
     }
-    const timer = window.setInterval(pollFloorTables, 3_000)
+    const timer = window.setInterval(pollFloorTables, 4_000)
     window.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('focus', pollFloorTables)
+    window.addEventListener('restapp:refresh-tables', pollFloorTables)
     return () => {
-      cancelled = true
       window.clearInterval(timer)
       window.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('focus', pollFloorTables)
+      window.removeEventListener('restapp:refresh-tables', pollFloorTables)
     }
-  }, [screen, pinSession, offline])
+  }, [screen, pinSession, offline, pollFloorTables])
 
   async function restore() {
     const cachedPin = readSession('pin')
@@ -456,7 +458,12 @@ export default function App() {
       }
       if (Array.isArray(config?.modules)) cachePatch.modules = config.modules.map((module: unknown) => String(typeof module === 'string' ? module : (module as any)?.name || '')).filter(Boolean)
       if (config?.features && typeof config.features === 'object') cachePatch.features = config.features
-      setTables(remoteTables); setActiveTable(current => current ? remoteTables.find(table => table.id === current.id) || current : current); if (enrichedItems) setItems(enrichedItems); saveCache(cachePatch)
+      if (Array.isArray(remoteTables) && remoteTables.length > 0) {
+        setTables(remoteTables)
+        setActiveTable(current => current ? remoteTables.find(table => table.id === current.id) || current : current)
+      }
+      if (enrichedItems) setItems(enrichedItems)
+      saveCache(cachePatch)
     } catch (cause) {
       if (!tables.length && !items.length) setError(cause instanceof Error ? cause.message : 'No se pudo cargar el catálogo.')
     }
@@ -1949,18 +1956,18 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
         setRealtimeState(state)
       },
       onOrderCreated: (data) => {
-        onRefresh()
+        window.dispatchEvent(new CustomEvent('restapp:refresh-tables'))
         void loadPosDanData()
         window.dispatchEvent(new CustomEvent('restapp:kot-updated', { detail: data }))
       },
       onOrderUpdated: (data) => {
-        onRefresh()
+        window.dispatchEvent(new CustomEvent('restapp:refresh-tables'))
         void loadPosDanData()
         window.dispatchEvent(new CustomEvent('restapp:kot-updated', { detail: data }))
       },
       onKotUpdated: (data) => {
+        window.dispatchEvent(new CustomEvent('restapp:refresh-tables'))
         window.dispatchEvent(new CustomEvent('restapp:kot-updated', { detail: data }))
-        onRefresh()
         void loadPosDanData()
         // If waiter or supervisor, notify
         if (data?.kot_status === 'food_ready') {
@@ -3835,21 +3842,28 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
       if (latest) setLastSentSummary(`${latest.items.map(item => `${item.quantity}× ${item.name}`).join(' · ') || 'Artículos sin detalle'}${latest.createdAt ? ` · ${new Date(latest.createdAt).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' })}` : ''}`)
       return () => { cancelled = true }
     }
-    Promise.all([api.getOrder('pin', table.currentOrderId), api.orderKots('pin', table.currentOrderId)]).then(([orderPayload, kots]) => {
+    Promise.allSettled([
+      api.getOrder('pin', table.currentOrderId),
+      api.orderKots('pin', table.currentOrderId).catch(() => [] as KitchenTicket[])
+    ]).then(([orderRes, kotsRes]) => {
       if (cancelled) return
-      const data = orderPayload?.data ?? orderPayload
-      saveCache({
-        orderDetails: { ...(readCache().orderDetails || {}), [String(table.currentOrderId)]: data },
-        orderKots: { ...(readCache().orderKots || {}), [String(table.currentOrderId)]: kots }
-      })
-      setOrderDetail(data)
-      const values = extractOrderItems(data)
-      if (values.length) {
-        setExistingItems(values.map((item: any) => {
-          const quantity = Math.max(1, Number(item.quantity || 1))
-          const amount = Number(item.amount ?? item.total ?? 0)
-          return { id: Number(item.id || item.order_item_id || 1), name: String(item.name || item.menu_item_name || item.product_name || 'Producto'), quantity, amount: amount || Number(item.price || 0) * quantity }
-        }))
+      const orderPayload = orderRes.status === 'fulfilled' ? orderRes.value : null
+      const kots: KitchenTicket[] = kotsRes.status === 'fulfilled' ? (kotsRes.value || []) : []
+      if (orderPayload) {
+        const data = orderPayload?.data ?? orderPayload
+        saveCache({
+          orderDetails: { ...(readCache().orderDetails || {}), [String(table.currentOrderId)]: data },
+          orderKots: { ...(readCache().orderKots || {}), [String(table.currentOrderId)]: kots }
+        })
+        setOrderDetail(data)
+        const values = extractOrderItems(data)
+        if (values.length) {
+          setExistingItems(values.map((item: any) => {
+            const quantity = Math.max(1, Number(item.quantity || 1))
+            const amount = Number(item.amount ?? item.total ?? 0)
+            return { id: Number(item.id || item.order_item_id || 1), name: String(item.name || item.menu_item_name || item.product_name || 'Producto'), quantity, amount: amount || Number(item.price || 0) * quantity }
+          }))
+        }
       }
       const latest = kots.slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0]
       if (latest) {
