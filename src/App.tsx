@@ -1567,7 +1567,32 @@ function PinScreen({ brand, branch, role, onRoleChange, offline, loading, error,
   )
 }
 
+function PosProductCardImage({ item }: { item: MenuItem }) {
+
+  const [failed, setFailed] = useState(false)
+
+  if (!item.imageUrl || failed) {
+    return (
+      <div className="pos-product-placeholder-wrap">
+        <Utensils size={28} style={{ opacity: 0.5 }} />
+        <span>{item.categoryName || 'Plato'}</span>
+      </div>
+    )
+  }
+
+  return (
+    <img
+      src={item.imageUrl}
+      alt={item.name}
+      loading="lazy"
+      crossOrigin="anonymous"
+      onError={() => setFailed(true)}
+    />
+  )
+}
+
 function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName, userId, deviceId, permissions, tables, items, kitchenPlaces, paymentMethods, fiscalCapabilities, offline, queueCount, isSyncing, notice, onNotice, error, onLogout, onRefresh, onSubmitOrder, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onCancelOrder, onOpenCashSession, onCloseCashSession, onApproveCashSession, onRejectCashSession, onReopenCashSession, onCashMovement, onClockIn, onClockOut, onUpdateKotStatus, onSelectTable, activeTable }: { brand: string; branch: string; branchId?: number; restaurantId?: number; roleKey: StaffRole; userName?: string; userId?: number; deviceId: string; permissions: Record<string, boolean>; tables: RestaurantTable[]; items: MenuItem[]; kitchenPlaces: KitchenPlace[]; paymentMethods: PaymentMethodOption[]; fiscalCapabilities?: FiscalCapabilities | null; offline: boolean; queueCount: number; isSyncing?: boolean; notice: string; onNotice: (message: string) => void; error: string; onLogout: () => void; onRefresh: () => void; onSubmitOrder: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onCancelOrder?: (table: RestaurantTable, reason?: string) => Promise<{ queued: boolean; message: string }>; onOpenCashSession: (registerId: number, openingFloat: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCloseCashSession: (sessionId: number, countedCash: number, expectedCash: number | undefined, note: string, sendForApproval: boolean, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onApproveCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onRejectCashSession: (sessionId: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onReopenCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCashMovement: (movement: 'cash-in' | 'cash-out' | 'safe-drop', sessionId: number, amount: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onClockIn: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onClockOut: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onUpdateKotStatus: (kotId: number, status: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onSelectTable: (table: RestaurantTable | null) => void; activeTable: RestaurantTable | null }) {
+
   const [showMenu, setShowMenu] = useState(false); const [showQuick, setShowQuick] = useState(false); const [showOps, setShowOps] = useState(false); const [showCashier, setShowCashier] = useState(false); const [showAttendance, setShowAttendance] = useState(false); const [opsLoading, setOpsLoading] = useState(false); const [notifications, setNotifications] = useState<LiveNotification[]>([]); const [deliverySettings, setDeliverySettings] = useState<DeliverySettings | null>(null); const [deliveryExecutives, setDeliveryExecutives] = useState<DeliveryExecutive[]>([]); const [deliveryPlatforms, setDeliveryPlatforms] = useState<DeliveryPlatform[]>([]); const [orderTypes, setOrderTypes] = useState<OrderTypeConfig[]>([])
   const [pickupPaymentTarget, setPickupPaymentTarget] = useState<{ summary: any; detail: any } | null>(null)
   const [pickupPaymentLoading, setPickupPaymentLoading] = useState(false)
@@ -1809,28 +1834,33 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
     return () => clearInterval(timer)
   }, [])
 
+  const [catalogItems, setCatalogItems] = useState<MenuItem[]>(items)
+  useEffect(() => { setCatalogItems(items) }, [items])
+  const activeItems = catalogItems.length > 0 ? catalogItems : items
+
   const menuCategories = useMemo(() => {
-    const list = menuCategoryNames(items)
+    const list = menuCategoryNames(activeItems)
     return ['Todos', ...list]
-  }, [items])
+  }, [activeItems])
 
   const effectiveMenuItems = useMemo(() => {
-    return items.map(item => {
+    return activeItems.map(item => {
       if (localItemAvailability[item.id] !== undefined) {
         return { ...item, available: localItemAvailability[item.id] }
       }
       return item
     })
-  }, [items, localItemAvailability])
+  }, [activeItems, localItemAvailability])
 
   const filteredMenuItems = useMemo(() => {
     const q = productSearch.trim().toLowerCase()
-    return items.filter(item => {
+    return activeItems.filter(item => {
       const matchCat = selectedCategory === 'Todos' || item.categoryName === selectedCategory
       const matchSearch = !q || item.name.toLowerCase().includes(q) || (item.code && item.code.toLowerCase().includes(q))
       return matchCat && matchSearch
     })
-  }, [items, selectedCategory, productSearch])
+  }, [activeItems, selectedCategory, productSearch])
+
 
   const totalFreeTables = useMemo(() => tables.filter(t => t.status === 'available').length, [tables])
   const totalOccupiedTables = useMemo(() => tables.filter(t => t.status === 'occupied' || t.status === 'waiting_kitchen' || t.status === 'food_ready').length, [tables])
@@ -1840,7 +1870,7 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
   const loadPosDanData = async () => {
     try {
       if (!offline) {
-        const [custs, regs, actSess, ords, oTypes, delPlats, delExecs, delSets] = await Promise.all([
+        const [custs, regs, actSess, ords, oTypes, delPlats, delExecs, delSets, remoteItems] = await Promise.all([
           api.customers('pin').catch(() => []),
           api.cashRegisters('pin').catch(() => []),
           api.activeCashSession('pin').catch(() => null),
@@ -1848,12 +1878,17 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
           api.orderTypes('pin').catch(() => []),
           api.deliveryPlatforms('pin').catch(() => []),
           api.deliveryExecutives('pin').catch(() => []),
-          api.deliverySettings('pin').catch(() => null)
+          api.deliverySettings('pin').catch(() => null),
+          api.menuItems('pin').catch(() => null)
         ])
         setPosCustomers(custs)
         setCashRegisters(regs)
         setActiveCashSession(actSess)
         setAllOrders(ords)
+        if (Array.isArray(remoteItems) && remoteItems.length > 0) {
+          setCatalogItems(remoteItems)
+        }
+
         if (oTypes && oTypes.length > 0) setOrderTypes(oTypes)
         if (delPlats) setDeliveryPlatforms(delPlats)
         if (delExecs) setDeliveryExecutives(delExecs)
@@ -1869,7 +1904,9 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
         } else {
           setActiveCashSummary(null)
         }
-        saveCache({ cashRegisters: regs, cashSession: actSess, cashSummary, orders: ords })
+        const cachePatch: any = { cashRegisters: regs, cashSession: actSess, cashSummary, orders: ords }
+        if (Array.isArray(remoteItems) && remoteItems.length > 0) cachePatch.menuItems = remoteItems
+        saveCache(cachePatch)
       } else {
         const cached = readCache()
         setAllOrders(cached.orders || [])
@@ -1888,6 +1925,36 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
   useEffect(() => {
     loadPosDanData()
   }, [offline, activeNavTab])
+
+  // Fast polling when viewing Orders tab so new orders appear immediately (every 2.5s)
+  useEffect(() => {
+    if (activeNavTab !== 'orders' || offline) return
+
+    let cancelled = false
+    const refreshOrders = async () => {
+      if (cancelled || document.visibilityState === 'hidden') return
+      try {
+        const ords = await api.orders('pin')
+        if (!cancelled && Array.isArray(ords)) setAllOrders(ords)
+      } catch {
+        // keep existing
+      }
+    }
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void refreshOrders()
+    }
+
+    void refreshOrders()
+    const timer = window.setInterval(() => void refreshOrders(), 2_500)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [activeNavTab, offline])
+
 
   // Cash summaries must reflect payments made by another terminal without
   // forcing the cashier to press F5. Poll only the small cash endpoints while
@@ -2375,14 +2442,8 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
                     }}
                   >
                     <div className="pos-product-image-wrap">
-                      {item.imageUrl ? (
-                        <img src={item.imageUrl} alt={item.name} loading="lazy" />
-                      ) : (
-                        <div className="pos-product-placeholder-wrap">
-                          <Utensils size={28} style={{ opacity: 0.4 }} />
-                          <span>{item.categoryName || 'Plato'}</span>
-                        </div>
-                      )}
+                      <PosProductCardImage item={item} />
+
                       <button
                         type="button"
                         className="pos-product-add-btn"

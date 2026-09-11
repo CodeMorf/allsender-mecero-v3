@@ -56,7 +56,35 @@ export function cartItemUnitPrice(item: Pick<PosCartItem, 'price' | 'modifiers'>
   return item.price + (item.modifiers || []).reduce((sum, modifier) => sum + Number(modifier.price || 0), 0)
 }
 
+const PosItemCardImage: React.FC<{ item: MenuItem }> = ({ item }) => {
+  const [failed, setFailed] = useState(false)
+
+  if (!item.imageUrl || failed) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', padding: 4 }}>
+        <Utensils style={{ color: '#6e7681', opacity: 0.7 }} size={28} />
+        {item.categoryName && (
+          <span style={{ fontSize: 10, color: '#8b949e', marginTop: 4, textAlign: 'center', maxWidth: '90%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {item.categoryName}
+          </span>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <img
+      src={item.imageUrl}
+      alt={item.name}
+      loading="lazy"
+      crossOrigin="anonymous"
+      onError={() => setFailed(true)}
+    />
+  )
+}
+
 export const PosModule: React.FC<PosModuleProps> = ({
+
   menuItems,
   tables,
   selectedCustomer,
@@ -436,17 +464,8 @@ export const PosModule: React.FC<PosModuleProps> = ({
                 className="posdan-item-card"
               >
                 <div className="posdan-item-image-wrap">
-                  {item.imageUrl ? (
-                    <img
-                      src={item.imageUrl}
-                      alt={item.name}
-                      onError={e => {
-                        ;(e.currentTarget as HTMLElement).style.display = 'none'
-                      }}
-                    />
-                  ) : (
-                    <Utensils style={{ color: '#484f58' }} size={28} />
-                  )}
+                  <PosItemCardImage item={item} />
+
                   {!item.available && (
                     <div style={{ position: 'absolute', inset: 0, background: 'rgba(9, 13, 20, 0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <span className="posdan-badge-danger" style={{ fontSize: 10 }}>Agotado</span>
