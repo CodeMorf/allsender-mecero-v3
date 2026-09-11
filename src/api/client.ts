@@ -192,6 +192,45 @@ export class ApiClient {
     }))
   }
 
+  async createDeliveryExecutive(kind: TokenKind, body: { name: string; phone?: string; phone_code?: string; status?: string }): Promise<DeliveryExecutive> {
+    const res = await this.request<any>('/pos/delivery-executives', {
+      method: 'POST',
+      tokenKind: kind,
+      body: JSON.stringify(body),
+    })
+    const data = unwrap<any>(res)
+    return {
+      id: Number(data.id),
+      name: String(data.name),
+      phone: data.phone,
+      phone_code: data.phone_code,
+      status: data.status || 'available',
+    }
+  }
+
+  async updateDeliveryExecutive(kind: TokenKind, id: number, body: { name?: string; phone?: string; phone_code?: string; status?: string }): Promise<DeliveryExecutive> {
+    const res = await this.request<any>(`/pos/delivery-executives/${id}`, {
+      method: 'PUT',
+      tokenKind: kind,
+      body: JSON.stringify(body),
+    })
+    const data = unwrap<any>(res)
+    return {
+      id: Number(data.id),
+      name: String(data.name),
+      phone: data.phone,
+      phone_code: data.phone_code,
+      status: data.status,
+    }
+  }
+
+  async deleteDeliveryExecutive(kind: TokenKind, id: number): Promise<void> {
+    await this.request(`/pos/delivery-executives/${id}`, {
+      method: 'DELETE',
+      tokenKind: kind,
+    })
+  }
+
   async deliveryOrders(kind: TokenKind, params: { status?: string; deliveryExecutiveId?: number; deliveryAppId?: number; date?: string; limit?: number; offset?: number } = {}): Promise<DeliveryOrder[]> {
     const query = new URLSearchParams()
     if (params.status) query.set('status', params.status)

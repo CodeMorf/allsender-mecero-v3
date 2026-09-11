@@ -23,7 +23,8 @@ import {
   Calendar,
   X,
   XCircle,
-  ChevronDown
+  ChevronDown,
+  Plus
 } from 'lucide-react'
 import { api, ApiError } from '../api/client'
 import type { DeliveryOrder, DeliveryOrderItem, DeliveryExecutive, DeliveryPlatform, StaffRole } from '../types'
@@ -116,6 +117,35 @@ export const DispatchModule: React.FC<DispatchModuleProps> = ({
   const [packedItems, setPackedItems] = useState<Record<string, boolean>>({}) // key: orderId_itemId
   const [assigningExecId, setAssigningExecId] = useState<number | ''>('')
   const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null)
+
+  // New Driver Modal State
+  const [showNewDriverModal, setShowNewDriverModal] = useState(false)
+  const [newDriverName, setNewDriverName] = useState('')
+  const [newDriverPhone, setNewDriverPhone] = useState('')
+  const [creatingDriver, setCreatingDriver] = useState(false)
+
+  const handleCreateDriver = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newDriverName.trim()) return
+    setCreatingDriver(true)
+    try {
+      const created = await api.createDeliveryExecutive('pin', {
+        name: newDriverName.trim(),
+        phone: newDriverPhone.trim() || undefined,
+        phone_code: '1',
+        status: 'active'
+      })
+      onNotice?.(`Repartidor ${created.name} registrado en la sucursal.`)
+      setNewDriverName('')
+      setNewDriverPhone('')
+      setShowNewDriverModal(false)
+      await loadData(true)
+    } catch (err: any) {
+      alert(err?.message || 'Error al crear repartidor.')
+    } finally {
+      setCreatingDriver(false)
+    }
+  }
 
   // Fetch Delivery Orders & Catalog
   const loadData = useCallback(async (quiet = false) => {
@@ -300,6 +330,16 @@ export const DispatchModule: React.FC<DispatchModuleProps> = ({
         </div>
 
         <div className="dispatch-actions">
+          <button
+            type="button"
+            className="dispatch-action-btn btn-route"
+            style={{ padding: '8px 14px', width: 'auto', background: '#5EDBAC', color: '#0A0C0F' }}
+            onClick={() => setShowNewDriverModal(true)}
+            title="Registrar nuevo repartidor"
+          >
+            <Plus size={16} />
+            <span>Nuevo Repartidor</span>
+          </button>
           <button
             type="button"
             className="dispatch-refresh-btn"
@@ -788,6 +828,124 @@ export const DispatchModule: React.FC<DispatchModuleProps> = ({
           </aside>
         )}
       </div>
+
+      {/* Modal: Registrar Nuevo Repartidor */}
+      {showNewDriverModal && (
+        <div className="pos-drawer-overlay is-visible" style={{ zIndex: 1000, display: 'grid', placeItems: 'center' }}>
+          <div
+            className="dispatch-box"
+            style={{
+              width: 'min(420px, 92vw)',
+              background: '#14171C',
+              border: '1px solid #30363D',
+              boxShadow: '0 20px 48px rgba(0,0,0,0.6)',
+              borderRadius: 14,
+              padding: 24,
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(94, 219, 172, 0.15)', display: 'grid', placeItems: 'center', color: '#5EDBAC' }}>
+                  <Truck size={20} />
+                </div>
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>Nuevo Repartidor</h3>
+              </div>
+              <button
+                type="button"
+                className="dispatch-close-panel-btn"
+                onClick={() => setShowNewDriverModal(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateDriver} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#C9D1D9', marginBottom: 6 }}>
+                  Nombre Completo *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ej: Carlos Express"
+                  value={newDriverName}
+                  onChange={e => setNewDriverName(e.target.value)}
+                  style={{
+                    width: '100%',
+                    height: 40,
+                    background: '#1C2128',
+                    border: '1px solid #30363D',
+                    borderRadius: 8,
+                    color: '#FFF',
+                    padding: '0 12px',
+                    fontSize: '0.88rem',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#C9D1D9', marginBottom: 6 }}>
+                  Teléfono / Móvil
+                </label>
+                <input
+                  type="tel"
+                  placeholder="Ej: 8095550199"
+                  value={newDriverPhone}
+                  onChange={e => setNewDriverPhone(e.target.value)}
+                  style={{
+                    width: '100%',
+                    height: 40,
+                    background: '#1C2128',
+                    border: '1px solid #30363D',
+                    borderRadius: 8,
+                    color: '#FFF',
+                    padding: '0 12px',
+                    fontSize: '0.88rem',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                <button
+                  type="button"
+                  style={{
+                    flex: 1,
+                    height: 40,
+                    background: '#21262D',
+                    border: '1px solid #30363D',
+                    borderRadius: 8,
+                    color: '#C9D1D9',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => setShowNewDriverModal(false)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={creatingDriver || !newDriverName.trim()}
+                  style={{
+                    flex: 1,
+                    height: 40,
+                    background: '#5EDBAC',
+                    border: 'none',
+                    borderRadius: 8,
+                    color: '#0A0C0F',
+                    fontWeight: 800,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {creatingDriver ? 'Guardando...' : 'Crear Repartidor'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
