@@ -1887,7 +1887,7 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
 
   useEffect(() => {
     loadPosDanData()
-  }, [offline])
+  }, [offline, activeNavTab])
 
   // Cash summaries must reflect payments made by another terminal without
   // forcing the cashier to press F5. Poll only the small cash endpoints while

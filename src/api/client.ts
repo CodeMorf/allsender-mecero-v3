@@ -358,7 +358,13 @@ export class ApiClient {
     const customer = data?.customer ?? data
     return normalizeCustomer(customer)
   }
-  async orders(kind: TokenKind) { return asArray<any>(await this.request('/pos/orders', { tokenKind: kind })) }
+  async orders(kind: TokenKind) {
+    const res: any = await this.request('/pos/orders', { tokenKind: kind })
+    if (Array.isArray(res)) return res
+    if (Array.isArray(res?.data)) return res.data
+    if (Array.isArray(res?.orders)) return res.orders
+    return asArray<any>(res)
+  }
   async getOrder(kind: TokenKind, orderId: number) { return unwrap<any>(await this.request(`/pos/orders/${orderId}`, { tokenKind: kind })) }
   async printOrder(kind: TokenKind, orderId: number, document: 'prebill' | 'receipt' | 'fiscal', idempotencyKey: string) {
     return this.request(`/pos/orders/${orderId}/print`, {

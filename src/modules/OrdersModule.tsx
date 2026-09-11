@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   AlertCircle,
   CheckCircle2,
@@ -180,7 +180,7 @@ function serviceIcon(service: OrderServiceKind) {
 export const OrdersModule: React.FC<OrdersModuleProps> = ({ orders, onRefresh, onOpenPayment, onUpdateStatus, canCharge = false, currencySymbol = 'RD$' }) => {
   const [search, setSearch] = useState('')
   const [serviceFilter, setServiceFilter] = useState<OrderServiceKind | 'ALL'>('ALL')
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'active' | 'paid' | 'cancelled'>('ALL')
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'active' | 'paid' | 'served' | 'cancelled'>('ALL')
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [updatingOrderId, setUpdatingOrderId] = useState<number | null>(null)
@@ -205,7 +205,8 @@ export const OrdersModule: React.FC<OrdersModuleProps> = ({ orders, onRefresh, o
         && (statusFilter === 'ALL'
           || (statusFilter === 'paid' && payment === 'paid')
           || (statusFilter === 'cancelled' && status === 'cancelled')
-          || (statusFilter === 'active' && status !== 'cancelled' && status !== 'served' && status !== 'unknown'))
+          || (statusFilter === 'served' && status === 'served')
+          || (statusFilter === 'active' && status !== 'cancelled' && status !== 'served'))
     })
   }, [orders, search, serviceFilter, statusFilter])
 
@@ -221,6 +222,19 @@ export const OrdersModule: React.FC<OrdersModuleProps> = ({ orders, onRefresh, o
       setRefreshing(false)
     }
   }
+
+  // Ensure orders are always fetched fresh on mount and periodically updated
+  useEffect(() => {
+    if (onRefresh) {
+      void onRefresh()
+    }
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible' && onRefresh && !refreshing) {
+        void onRefresh()
+      }
+    }, 4000)
+    return () => clearInterval(timer)
+  }, [onRefresh])
 
   const handleMarkPickupCollected = async (orderId: number) => {
     if (!onUpdateStatus || updatingOrderId !== null) return
@@ -277,6 +291,7 @@ export const OrdersModule: React.FC<OrdersModuleProps> = ({ orders, onRefresh, o
           >
             <option value="ALL">Todos los estados</option>
             <option value="active">Activas</option>
+            <option value="served">Servidas / Entregadas</option>
             <option value="paid">Pagadas</option>
             <option value="cancelled">Canceladas</option>
           </select>
