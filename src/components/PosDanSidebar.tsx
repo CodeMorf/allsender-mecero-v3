@@ -19,6 +19,7 @@ import {
   ClipboardList,
   MoreHorizontal,
   X,
+  Truck,
 } from 'lucide-react'
 import type { StaffRole } from '../types'
 
@@ -26,6 +27,7 @@ export type PosDanModule =
   | 'pos'
   | 'orders'
   | 'tables'
+  | 'dispatch'
   | 'menu'
   | 'ops'
   | 'kds'
@@ -62,11 +64,13 @@ interface PosDanSidebarProps {
   kdsPendingCount?: number
   waiterCallsCount?: number
   ordersCount?: number
+  dispatchCount?: number
 }
 
 export const POSDAN_MODULES: NavItemDef[] = [
   { id: 'pos', label: 'Punto de venta', icon: Store, permissionKey: ['orders.create', 'orders.view'] },
   { id: 'orders', label: 'Órdenes', icon: ClipboardList, permissionKey: ['orders.view', 'orders.create'] },
+  { id: 'dispatch', label: 'Despacho', icon: Truck, permissionKey: ['orders.view', 'orders.create'], allowedRoles: ['head', 'cajero', 'mesero', 'repartidor', 'chef'] },
   { id: 'tables', label: 'Mesas', icon: UtensilsCrossed, permissionKey: 'tables.view' },
   { id: 'kds', label: 'Cocina (KDS)', icon: ChefHat, permissionKey: 'kitchen.manage', allowedRoles: ['chef', 'head', 'cajero', 'mesero'] },
   { id: 'cash', label: 'Cajas/Turnos', icon: DollarSign, permissionKey: ['cash.view', 'cash.open', 'cash.close', 'cash.movement', 'payments.charge'], allowedRoles: ['cajero', 'head'] },
@@ -81,11 +85,12 @@ export const POSDAN_MODULES: NavItemDef[] = [
   { id: 'settings', label: 'Configuración', icon: Settings },
 ]
 
-export const MOBILE_PRIMARY_MODULES: PosDanModule[] = ['pos', 'orders', 'tables', 'kds']
+export const MOBILE_PRIMARY_MODULES: PosDanModule[] = ['pos', 'orders', 'dispatch', 'tables', 'kds']
 
 export const MOBILE_LABELS: Record<string, string> = {
   pos: 'POS',
   orders: 'Órdenes',
+  dispatch: 'Despacho',
   tables: 'Mesas',
   kds: 'Cocina',
   cash: 'Cajas',
@@ -140,6 +145,7 @@ export const PosDanSidebar: React.FC<PosDanSidebarProps> = ({
   kdsPendingCount = 0,
   waiterCallsCount = 0,
   ordersCount = 0,
+  dispatchCount = 0,
 }) => {
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false)
   const visibleModules = POSDAN_MODULES.filter(item => isModuleAllowed(item, permissions, roleKey))
@@ -148,6 +154,7 @@ export const PosDanSidebar: React.FC<PosDanSidebarProps> = ({
     if (id === 'kds' && kdsPendingCount > 0) return kdsPendingCount
     if (id === 'tables' && waiterCallsCount > 0) return waiterCallsCount
     if (id === 'orders' && ordersCount > 0) return ordersCount
+    if (id === 'dispatch' && dispatchCount > 0) return dispatchCount
     return undefined
   }
 

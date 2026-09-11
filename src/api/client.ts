@@ -1,4 +1,4 @@
-import type { ApiErrorShape, AttendanceRecord, Branch, DeliveryExecutive, DeliveryPlatform, DeliverySettings, DeviceBinding, FiscalCapabilities, KitchenPlace, KitchenTicket, MenuCategory, MenuItem, OrderTypeConfig, PaymentMethodOption, PosCustomer, Printer, ProductVariation, ReceiptSettings, RestaurantTable, Session, StaffRole, StaffSchedule, TokenKind, WaiterRequest } from '../types'
+import type { ApiErrorShape, AttendanceRecord, Branch, DeliveryExecutive, DeliveryOrder, DeliveryOrderItem, DeliveryPlatform, DeliverySettings, DeviceBinding, FiscalCapabilities, KitchenPlace, KitchenTicket, MenuCategory, MenuItem, OrderTypeConfig, PaymentMethodOption, PosCustomer, Printer, ProductVariation, ReceiptSettings, RestaurantTable, Session, StaffRole, StaffSchedule, TokenKind, WaiterRequest } from '../types'
 
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'https://restapp.allsender.tech/api/application-integration').replace(/\/$/, '')
 
@@ -181,7 +181,53 @@ export class ApiClient {
       logo_url: p.logo_url
     }))
   }
-  async deliveryExecutives(kind: TokenKind): Promise<DeliveryExecutive[]> { return asArray<any>(await this.request('/pos/delivery-executives', { tokenKind: kind })).map((value: any) => ({ id: Number(value.id), name: String(value.name || `Repartidor ${value.id}`), phone: value.phone, status: value.status || value.status_raw })) }
+  async deliveryExecutives(kind: TokenKind, status?: string): Promise<DeliveryExecutive[]> {
+    const query = status ? `?status=${encodeURIComponent(status)}` : ''
+    return asArray<any>(await this.request(`/pos/delivery-executives${query}`, { tokenKind: kind })).map((value: any) => ({
+      id: Number(value.id),
+      name: String(value.name || `Repartidor ${value.id}`),
+      phone: value.phone,
+      phone_code: value.phone_code,
+      status: value.status || value.status_raw
+    }))
+  }
+
+  async deliveryOrders(kind: TokenKind, params: { status?: string; deliveryExecutiveId?: number; deliveryAppId?: number; date?: string; limit?: number; offset?: number } = {}): Promise<DeliveryOrder[]> {
+    const query = new URLSearchParams()
+    if (params.status) query.set('status', params.status)
+    if (params.deliveryExecutiveId) query.set('delivery_executive_id', String(params.deliveryExecutiveId))
+    if (params.deliveryAppId) query.set('delivery_app_id', String(params.deliveryAppId))
+    if (params.date) query.set('date', params.date)
+    if (params.limit) query.set('limit', String(params.limit))
+    if (params.offset) query.set('offset', String(params.offset))
+    const suffix = query.toString() ? `?${query.toString()}` : ''
+    const payload = await this.request<any>(`/pos/delivery-orders${suffix}`, { tokenKind: kind })
+    return asArray<any>(payload).map(normalizeDeliveryOrder)
+  }
+
+  async assignDeliveryExecutive(kind: TokenKind, orderId: number, body: { deliveryExecutiveId?: number; deliveryAppId?: number }, idempotencyKey?: string) {
+    const headers = idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined
+    return this.request(`/pos/orders/${orderId}/assign-delivery`, {
+      method: 'PUT',
+      tokenKind: kind,
+      headers,
+      body: JSON.stringify({
+        delivery_executive_id: body.deliveryExecutiveId,
+        delivery_app_id: body.deliveryAppId,
+      }),
+    })
+  }
+
+  async updateDeliveryStatus(kind: TokenKind, orderId: number, status: string, idempotencyKey?: string) {
+    const headers = idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined
+    return this.request(`/pos/orders/${orderId}/delivery-status`, {
+      method: 'PUT',
+      tokenKind: kind,
+      headers,
+      body: JSON.stringify({ status }),
+    })
+  }
+
   async deliverySettings(kind: TokenKind): Promise<DeliverySettings | null> { const value = await this.request<any>('/pos/delivery-settings', { tokenKind: kind }); const data = value?.data; if (!data) return null; return { ...data, is_enabled: data.is_enabled === true || data.is_enabled === 1 || data.is_enabled === '1', fixed_fee: data.fixed_fee == null ? null : Number(data.fixed_fee) } }
 
   async customers(kind: TokenKind, search = ''): Promise<PosCustomer[]> {
@@ -710,4 +756,56 @@ function normalizeMediaUrl(value: unknown): string | undefined {
   }
 }
 
+export function normalizeDeliveryOrder(raw: any): DeliveryOrder {
+  const items = Array.isArray(raw?.items) ? raw.items : []
+  const customer = raw?.customer || null
+  const exec = raw?.delivery_executive || null
+  const platform = raw?.delivery_app || raw?.delivery_platform || null
+
+  return {
+    id: Number(raw?.id || 0),
+    order_number: raw?.order_number,
+    formatted_order_number: raw?.formatted_order_number,
+    status: String(raw?.status || raw?.order_status || 'preparing').toLowerCase(),
+    order_type: raw?.order_type || 'delivery',
+    total: Number(raw?.total || 0),
+    delivery_fee: raw?.delivery_fee != null ? Number(raw.delivery_fee) : 0,
+    delivery_address: raw?.delivery_address || undefined,
+    delivery_time: raw?.delivery_time || undefined,
+    delivery_executive_id: raw?.delivery_executive_id != null ? Number(raw.delivery_executive_id) : null,
+    delivery_app_id: raw?.delivery_app_id != null ? Number(raw.delivery_app_id) : null,
+    customer: customer ? {
+      id: customer.id ? Number(customer.id) : undefined,
+      name: customer.name,
+      phone: customer.phone,
+    } : null,
+    delivery_executive: exec ? {
+      id: Number(exec.id),
+      name: String(exec.name || `Repartidor ${exec.id}`),
+      phone: exec.phone,
+      phone_code: exec.phone_code,
+      status: exec.status,
+    } : null,
+    delivery_platform: platform ? {
+      id: Number(platform.id),
+      name: String(platform.name || `Plataforma ${platform.id}`),
+      logo: platform.logo,
+      logo_url: platform.logo_url,
+    } : null,
+    items: items.map((it: any) => ({
+      id: Number(it.id || 0),
+      name: String(it.item_name || it.name || it.menu_item_name || 'Artículo'),
+      quantity: Number(it.quantity || 1),
+      price: Number(it.price || it.amount || 0),
+      item_total: it.item_total != null ? Number(it.item_total) : (Number(it.price || 0) * Number(it.quantity || 1)),
+      note: it.note || it.notes || undefined,
+      variation_name: it.variation_name || it.variation?.name || undefined,
+      modifiers: Array.isArray(it.modifiers) ? it.modifiers : undefined,
+    })),
+    created_at: raw?.created_at || raw?.createdAt,
+    updated_at: raw?.updated_at || raw?.updatedAt,
+  }
+}
+
 export const api = new ApiClient()
+

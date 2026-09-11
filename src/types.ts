@@ -180,6 +180,7 @@ export type DeliveryExecutive = {
   id: number
   name: string
   phone?: string
+  phone_code?: string
   status?: string
 }
 
@@ -188,6 +189,41 @@ export type DeliveryPlatform = {
   name: string
   logo?: string
   logo_url?: string
+}
+
+export type DeliveryOrderItem = {
+  id: number
+  name: string
+  quantity: number
+  price: number
+  item_total?: number
+  note?: string
+  variation_name?: string
+  modifiers?: Array<{ id: number; name: string; price?: number }>
+}
+
+export type DeliveryOrder = {
+  id: number
+  order_number?: string
+  formatted_order_number?: string
+  status: 'preparing' | 'ready_for_pickup' | 'out_for_delivery' | 'delivered' | 'failed' | 'canceled' | string
+  order_type?: string
+  total: number
+  delivery_fee?: number
+  delivery_address?: string
+  delivery_time?: string
+  delivery_executive_id?: number | null
+  delivery_app_id?: number | null
+  customer?: {
+    id?: number
+    name?: string
+    phone?: string
+  } | null
+  delivery_executive?: DeliveryExecutive | null
+  delivery_platform?: DeliveryPlatform | null
+  items: DeliveryOrderItem[]
+  created_at?: string
+  updated_at?: string
 }
 
 export type OrderTypeConfig = {

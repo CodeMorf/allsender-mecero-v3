@@ -17,6 +17,7 @@ import { DiscountsModule } from './modules/DiscountsModule'
 import { ReturnsModule } from './modules/ReturnsModule'
 import { UsersModule } from './modules/UsersModule'
 import { SettingsModule } from './modules/SettingsModule'
+import { DispatchModule } from './modules/DispatchModule'
 import { OrderTypeModal, type OrderTypeSelection, translateOrderTypeName } from './components/OrderTypeModal'
 import { ArrowRightLeft, Banknote, BatteryCharging, BedDouble, Bell, BookOpen, CalendarDays, Check, ChefHat, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, CloudLightning, CloudOff, Clock, Coffee, CreditCard, Delete, Divide, Edit3, FileText, Flame, Globe2, History, Hotel, LayoutGrid, Lock, LogOut, Map as LucideMap, Martini, Minus, Plus, Printer, Receipt, Search, Send, ShieldCheck, SlidersHorizontal, ShoppingBag, ShoppingCart, Trash2, Truck, Unlock, UserCheck, UserCircle2, UserRound, Users, UserX, Utensils, UtensilsCrossed, Wallet, Wifi, X, XCircle } from 'lucide-react'
 
@@ -2151,6 +2152,11 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
           kdsPendingCount={0}
           waiterCallsCount={waiterRequests.length}
           ordersCount={allOrders.length}
+          dispatchCount={allOrders.filter((o: any) => {
+            const type = String(o.order_type || o.orderType || '').toLowerCase()
+            const st = String(o.status || o.order_status || '').toLowerCase()
+            return type.includes('delivery') && !['delivered', 'cancelled', 'canceled'].includes(st)
+          }).length}
         />
 
         {/* Main Content Area: Vistas con transición */}
@@ -2503,6 +2509,18 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
                 onUpdateStatus={markPickupCollected}
                 canCharge={canCharge}
                 currencySymbol={activeCurrency.symbol}
+              />
+            </div>
+          )}
+
+          {/* VIEW: DISPATCH / DELIVERY */}
+          {activeNavTab === 'dispatch' && (
+            <div className="pos-view-layer view-active">
+              <DispatchModule
+                roleKey={roleKey}
+                permissions={permissions}
+                currencySymbol={activeCurrency.symbol}
+                onNotice={onNotice}
               />
             </div>
           )}
