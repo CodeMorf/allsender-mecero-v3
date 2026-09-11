@@ -80,6 +80,17 @@ describe('contrato base del mesero', () => {
     expect(normalizeItem({ id: 101, item_photo_url: 'https://restapp.allsender.tech/img/food.svg' }).imageUrl).toBeUndefined()
   })
 
+  it('reescribe URLs firmadas de R2 y nombres crudos de item_photo al proxy permanente', () => {
+    // URL prefirmada de Cloudflare R2 con expiración
+    const signedR2Url = 'https://restapp-media.r2.cloudflarestorage.com/item/b1fd2b430f936f18b6b12c54192466de.png?X-Amz-Expires=3600&X-Amz-Signature=abcd'
+    const itemWithSigned = normalizeItem({ id: 24, item_name: 'Mangu', item_photo_url: signedR2Url })
+    expect(itemWithSigned.imageUrl).toBe('https://restapp.allsender.tech/api/application-integration/media/item/b1fd2b430f936f18b6b12c54192466de.png')
+
+    // Nombre crudo en item_photo (como está almacenado en BD)
+    const itemWithRaw = normalizeItem({ id: 25, item_name: 'Arroz', item_photo: '7df47249aa7d90a7fb4bb9b0afc1a142.png' })
+    expect(itemWithRaw.imageUrl).toBe('https://restapp.allsender.tech/api/application-integration/media/item/7df47249aa7d90a7fb4bb9b0afc1a142.png')
+  })
+
   it('genera claves únicas para reintentos offline idempotentes', () => {
     const first = newIdempotencyKey()
     const second = newIdempotencyKey()

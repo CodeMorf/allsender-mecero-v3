@@ -1585,7 +1585,6 @@ function PosProductCardImage({ item }: { item: MenuItem }) {
       src={item.imageUrl}
       alt={item.name}
       loading="lazy"
-      crossOrigin="anonymous"
       onError={() => setFailed(true)}
     />
   )

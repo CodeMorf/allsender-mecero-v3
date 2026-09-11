@@ -1,9 +1,11 @@
 import type { AppCache, OfflineOperation, Session } from '../types'
+import { extractProxiedMediaUrl, normalizeMediaUrl, R2_SIGNED_RE } from '../api/client'
 
 const LEGACY_CACHE_KEY = 'restapp.web.cache.v1'
+const LEGACY_CACHE_V2_PREFIX = 'restapp.web.cache.v2.'
 const LEGACY_ADMIN_KEY = 'restapp.web.admin.v1'
 const LEGACY_PIN_KEY = 'restapp.web.pin.v1'
-const CACHE_PREFIX = 'restapp.web.cache.v2.'
+const CACHE_PREFIX = 'restapp.web.cache.v3.'
 const ADMIN_PREFIX = 'restapp.web.admin.v2.'
 const PIN_PREFIX = 'restapp.web.pin.v2.'
 const DEVICE_KEY = 'restapp.web.device-id.v1'
@@ -34,15 +36,49 @@ export function getDeviceId() {
   return value
 }
 
+function sanitizeCachedMenuItems(cache: AppCache): AppCache {
+  if (!Array.isArray(cache.menuItems) || cache.menuItems.length === 0) return cache
+  let modified = false
+  const menuItems = cache.menuItems.map(item => {
+    if (!item?.imageUrl) return item
+    if (R2_SIGNED_RE.test(item.imageUrl)) {
+      const proxied = extractProxiedMediaUrl(item.imageUrl)
+      if (proxied) {
+        modified = true
+        return { ...item, imageUrl: normalizeMediaUrl(proxied) }
+      }
+    }
+    return item
+  })
+  return modified ? { ...cache, menuItems } : cache
+}
+
 export function saveCache(cache: AppCache, scope = activeScope) {
   const current = readCache(scope)
-  storageSet(scopedKey(CACHE_PREFIX, scope), JSON.stringify({ ...current, ...cache, scopeKey: scope }))
+  const sanitized = sanitizeCachedMenuItems({ ...current, ...cache, scopeKey: scope })
+  storageSet(scopedKey(CACHE_PREFIX, scope), JSON.stringify(sanitized))
 }
 
 export function readCache(scope = activeScope): AppCache {
   try {
-    const scoped = storageGet(scopedKey(CACHE_PREFIX, scope))
-    if (scoped) return JSON.parse(scoped)
+    const v3Key = scopedKey(CACHE_PREFIX, scope)
+    const scopedV3 = storageGet(v3Key)
+    if (scopedV3) {
+      const parsed = JSON.parse(scopedV3)
+      return sanitizeCachedMenuItems(parsed)
+    }
+
+    // Migrate from v2 if available
+    const v2Key = scopedKey(LEGACY_CACHE_V2_PREFIX, scope)
+    const scopedV2 = storageGet(v2Key)
+    if (scopedV2) {
+      const parsed = JSON.parse(scopedV2)
+      const sanitized = sanitizeCachedMenuItems(parsed)
+      storageSet(v3Key, JSON.stringify(sanitized))
+      storageRemove(v2Key)
+      return sanitized
+    }
+
     // One-time compatibility for the previous single-tenant build. It is only
     // read before a tenant scope exists; the first scoped write separates it.
     if (scope === 'unconfigured') return JSON.parse(storageGet(LEGACY_CACHE_KEY) || '{}')

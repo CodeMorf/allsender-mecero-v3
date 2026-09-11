@@ -77,7 +77,6 @@ const PosItemCardImage: React.FC<{ item: MenuItem }> = ({ item }) => {
       src={item.imageUrl}
       alt={item.name}
       loading="lazy"
-      crossOrigin="anonymous"
       onError={() => setFailed(true)}
     />
   )

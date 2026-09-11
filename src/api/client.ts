@@ -37,6 +37,7 @@ function asArray<T>(payload: unknown): T[] {
 export class ApiClient {
   private tokens: Partial<Record<TokenKind, string>> = {}
   private kotsInFlight = new Map<string, Promise<KitchenTicket[]>>()
+  private ordersInFlight = new Map<TokenKind, Promise<any[]>>()
 
   setToken(kind: TokenKind, token: string | undefined) {
     if (token) this.tokens[kind] = token
@@ -358,12 +359,23 @@ export class ApiClient {
     const customer = data?.customer ?? data
     return normalizeCustomer(customer)
   }
-  async orders(kind: TokenKind) {
-    const res: any = await this.request('/pos/orders', { tokenKind: kind })
-    if (Array.isArray(res)) return res
-    if (Array.isArray(res?.data)) return res.data
-    if (Array.isArray(res?.orders)) return res.orders
-    return asArray<any>(res)
+  async orders(kind: TokenKind): Promise<any[]> {
+    const inFlight = this.ordersInFlight.get(kind)
+    if (inFlight) return inFlight
+
+    const request = this.request<any>('/pos/orders', { tokenKind: kind }).then(res => {
+      if (Array.isArray(res)) return res
+      if (Array.isArray(res?.data)) return res.data
+      if (Array.isArray(res?.orders)) return res.orders
+      return asArray<any>(res)
+    }).finally(() => {
+      if (this.ordersInFlight.get(kind) === request) {
+        this.ordersInFlight.delete(kind)
+      }
+    })
+
+    this.ordersInFlight.set(kind, request)
+    return request
   }
   async getOrder(kind: TokenKind, orderId: number) { return unwrap<any>(await this.request(`/pos/orders/${orderId}`, { tokenKind: kind })) }
   async printOrder(kind: TokenKind, orderId: number, document: 'prebill' | 'receipt' | 'fiscal', idempotencyKey: string) {
@@ -631,6 +643,44 @@ export function normalizeTable(raw: any): RestaurantTable {
   }
 }
 
+export const IMG_FILENAME_RE = /^[a-zA-Z0-9._-]+\.(png|jpe?g|webp|gif|avif)$/i
+export const R2_SIGNED_RE = /(?:[?&]x-amz-(?:expires|signature|credential)=|r2\.cloudflarestorage\.com|restapp-media)/i
+
+export function extractProxiedMediaUrl(...candidates: Array<unknown>): string | undefined {
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string' || !candidate.trim()) continue
+    const value = candidate.trim()
+    const cleanUrl = value.split('?')[0].trim()
+    const basename = cleanUrl.split('/').pop() || ''
+
+    if (!basename || /(?:food\.svg|transparent\.svg|food-default\.png)$/i.test(basename)) {
+      continue
+    }
+
+    // 1) Si es una URL firmada de R2/S3 (expira) o viene de storage R2
+    if (R2_SIGNED_RE.test(value)) {
+      if (IMG_FILENAME_RE.test(basename)) {
+        return `api/application-integration/media/item/${basename}`
+      }
+      continue
+    }
+
+    // 2) Si ya es una ruta relativa o absoluta al proxy de media
+    if (value.includes('/api/application-integration/media/item/')) {
+      if (IMG_FILENAME_RE.test(basename)) {
+        return `api/application-integration/media/item/${basename}`
+      }
+    }
+
+    // 3) Si es un nombre de archivo crudo (e.g. b1fd2b430f936f18b6b12c54192466de.png o item/xyz.jpg)
+    // No debe ser una ruta absoluta de servidor como /storage/... ni una URL completa https://
+    if (IMG_FILENAME_RE.test(basename) && !value.startsWith('/') && !/^(data:|blob:|https?:\/\/)/i.test(value)) {
+      return `api/application-integration/media/item/${basename}`
+    }
+  }
+  return undefined
+}
+
 export function normalizeItem(raw: any): MenuItem {
   const dineInPrice = (raw.prices || []).find((value: any) => value?.order_type?.order_type_name === 'Comer aquí' || value?.order_type?.translated_name === 'Dine In')?.final_price
   const allergens = raw.allergens || raw.eu_allergen_keys || []
@@ -643,11 +693,26 @@ export function normalizeItem(raw: any): MenuItem {
       price: Number(variation.price ?? variation.final_price ?? variation.amount ?? 0),
     })).filter((variation: ProductVariation) => variation.id > 0)
     : undefined
+
   const computedPhotoUrl = raw.item_photo_url || raw.itemPhotoUrl
+  const proxied = extractProxiedMediaUrl(
+    raw.image,
+    raw.item_photo,
+    raw.itemPhoto,
+    raw.photo,
+    computedPhotoUrl,
+    raw.image_url,
+    raw.imageUrl,
+    raw.photo_url,
+    raw.thumbnail_url,
+    raw.image?.url,
+    raw.image?.path,
+    raw.photo?.url,
+    raw.images?.[0]?.url,
+    raw.images?.[0]?.path
+  )
   const hasRealComputedPhoto = typeof computedPhotoUrl === 'string' && computedPhotoUrl.trim() && !/(?:food\.svg|transparent\.svg|food-default\.png)(?:\?|$)/i.test(computedPhotoUrl)
-  const rawImage = typeof raw.image === 'string' && raw.image.trim() && !/(?:food\.svg|transparent\.svg|food-default\.png)(?:\?|$)/i.test(raw.image) ? raw.image.trim() : undefined
-  const proxyImageUrl = rawImage ? `api/application-integration/media/item/${rawImage}` : undefined
-  const imageSource = proxyImageUrl || (hasRealComputedPhoto ? computedPhotoUrl : undefined) || raw.image_url || raw.imageUrl || raw.photo_url || raw.thumbnail_url || raw.image?.url || raw.image?.path || raw.photo?.url || raw.images?.[0]?.url || raw.images?.[0]?.path
+  const imageSource = proxied || (hasRealComputedPhoto ? computedPhotoUrl : undefined) || raw.image_url || raw.imageUrl || raw.photo_url || raw.thumbnail_url || raw.image?.url || raw.image?.path || raw.photo?.url || raw.images?.[0]?.url || raw.images?.[0]?.path
 
   const categoryValue = raw.category_name || raw.category?.name || raw.category?.title || raw.category?.label || (typeof raw.category === 'string' ? raw.category : undefined) || raw.item_category?.name || raw.item_category?.title || (typeof raw.item_category === 'string' ? raw.item_category : undefined)
   const categoryName = typeof categoryValue === 'string' && categoryValue.trim() ? categoryValue.trim() : `Categoría ${raw.category_id || raw.item_category_id || ''}`.trim()
@@ -794,7 +859,7 @@ export function normalizeCustomer(raw: any): PosCustomer {
   }
 }
 
-function normalizeMediaUrl(value: unknown): string | undefined {
+export function normalizeMediaUrl(value: unknown): string | undefined {
   if (typeof value !== 'string' || !value.trim()) return undefined
   let source = value.trim()
   // Ignore fallback default images that aren't real item photos so the UI renders sleek SVG icons
@@ -802,6 +867,13 @@ function normalizeMediaUrl(value: unknown): string | undefined {
   if (cleanPath.endsWith('/food-default.png') || cleanPath.endsWith('/food.svg') || cleanPath.endsWith('/transparent.svg') || cleanPath.endsWith('/img/food-default.png')) {
     return undefined
   }
+
+  // Rewrite signed R2 URLs or raw filenames directly to permanent media proxy
+  const proxied = extractProxiedMediaUrl(source)
+  if (proxied) {
+    source = proxied
+  }
+
   // Replace localhost or 127.0.0.1 with backend origin
   if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(source)) {
     try {

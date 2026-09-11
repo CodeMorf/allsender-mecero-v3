@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertCircle,
   CheckCircle2,
@@ -213,27 +213,25 @@ export const OrdersModule: React.FC<OrdersModuleProps> = ({ orders, onRefresh, o
   const pickupOrders = orders.filter(order => resolveOrderService(order) === 'pickup')
   const pendingPickupOrders = pickupOrders.filter(order => paymentStatusKey(order) !== 'paid' && orderStatusKey(order) !== 'cancelled')
 
+  const refreshingRef = useRef(false)
+
   const handleRefresh = async () => {
-    if (!onRefresh || refreshing) return
+    if (!onRefresh || refreshingRef.current) return
+    refreshingRef.current = true
     setRefreshing(true)
     try {
       await onRefresh()
     } finally {
+      refreshingRef.current = false
       setRefreshing(false)
     }
   }
 
-  // Ensure orders are always fetched fresh on mount and periodically updated
+  // Ensure orders are fetched fresh on mount (continuous polling is handled centrally by FloorScreen)
   useEffect(() => {
     if (onRefresh) {
       void onRefresh()
     }
-    const timer = setInterval(() => {
-      if (document.visibilityState === 'visible' && onRefresh && !refreshing) {
-        void onRefresh()
-      }
-    }, 4000)
-    return () => clearInterval(timer)
   }, [onRefresh])
 
   const handleMarkPickupCollected = async (orderId: number) => {
