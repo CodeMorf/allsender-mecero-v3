@@ -72,6 +72,7 @@ export const PosModule: React.FC<PosModuleProps> = ({
   deliverySettings = null
 }) => {
   const [orderTypeModalOpen, setOrderTypeModalOpen] = useState(false)
+  const [mobileCartOpen, setMobileCartOpen] = useState(false)
   const [orderSelection, setOrderSelection] = useState<OrderTypeSelection>(() => ({
     mode: 'dine_in',
     orderTypeId: orderTypes.find(t => t.slug === 'dine_in')?.id ?? 25,
@@ -88,6 +89,10 @@ export const PosModule: React.FC<PosModuleProps> = ({
   const categories = useMemo(() => {
     return ['ALL', ...menuCategoryNames(menuItems)]
   }, [menuItems])
+
+  const totalQuantity = useMemo(() => {
+    return cart.reduce((acc, ci) => acc + ci.quantity, 0)
+  }, [cart])
 
   const filteredItems = useMemo(() => {
     return menuItems.filter(item => {
@@ -261,6 +266,7 @@ export const PosModule: React.FC<PosModuleProps> = ({
       })
       if (orderSelection.mode === 'pickup') onOpenOrders?.()
       clearCart()
+      setMobileCartOpen(false)
     } finally {
       setIsProcessing(false)
     }
@@ -477,23 +483,80 @@ export const PosModule: React.FC<PosModuleProps> = ({
             )
           })}
         </div>
+
+        {/* Mobile Floating Cart Action Bar */}
+        <div className="posdan-mobile-cart-bar">
+          <button
+            type="button"
+            className={`posdan-mobile-cart-btn ${totalQuantity > 0 ? 'has-items' : ''}`}
+            onClick={() => setMobileCartOpen(true)}
+            aria-label="Ver orden actual"
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div className="posdan-mobile-cart-icon-wrap">
+                <ShoppingCart size={18} />
+                {totalQuantity > 0 && (
+                  <span className="posdan-mobile-cart-count">{totalQuantity}</span>
+                )}
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: '#ffffff', lineHeight: 1.2 }}>
+                  {totalQuantity > 0 ? `${totalQuantity} ${totalQuantity === 1 ? 'producto' : 'productos'}` : 'Orden vacía'}
+                </div>
+                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>
+                  {orderSelection.orderTypeName} {selectedTable ? `· Mesa ${selectedTable.name}` : ''}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 15, fontWeight: 900, fontFamily: 'monospace', color: '#34d399' }}>
+                {currencySymbol} {total.toFixed(2)}
+              </span>
+              <span className="posdan-mobile-cart-action-chip">
+                Ver orden →
+              </span>
+            </div>
+          </button>
+        </div>
       </div>
 
-      <div className="posdan-cart-sidebar">
+      {/* Cart Backdrop on Mobile */}
+      {mobileCartOpen && (
+        <div
+          className="posdan-cart-backdrop"
+          onClick={() => setMobileCartOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Cart Sidebar / Drawer */}
+      <div className={`posdan-cart-sidebar ${mobileCartOpen ? 'mobile-open' : ''}`}>
         <div className="posdan-cart-header">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <ShoppingCart size={18} style={{ color: '#f97316' }} />
               <h3 style={{ margin: 0, fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#f0f6fc' }}>Orden Actual</h3>
             </div>
-            {cart.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {cart.length > 0 && (
+                <button
+                  onClick={clearCart}
+                  style={{ background: 'transparent', border: 'none', color: '#f87171', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}
+                >
+                  <Trash2 size={13} /> Limpiar
+                </button>
+              )}
               <button
-                onClick={clearCart}
-                style={{ background: 'transparent', border: 'none', color: '#f87171', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}
+                type="button"
+                className="posdan-cart-mobile-close"
+                onClick={() => setMobileCartOpen(false)}
+                title="Volver a los platillos"
+                aria-label="Cerrar orden"
               >
-                <Trash2 size={13} /> Limpiar
+                <X size={18} />
               </button>
-            )}
+            </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: '#161b22', padding: '8px 12px', borderRadius: 12, border: '1px solid #30363d' }}>
