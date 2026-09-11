@@ -37,7 +37,7 @@ function asArray<T>(payload: unknown): T[] {
 export class ApiClient {
   private tokens: Partial<Record<TokenKind, string>> = {}
   private kotsInFlight = new Map<string, Promise<KitchenTicket[]>>()
-  private ordersInFlight = new Map<TokenKind, Promise<any[]>>()
+  private ordersInFlight = new Map<string, Promise<any[]>>()
 
   setToken(kind: TokenKind, token: string | undefined) {
     if (token) this.tokens[kind] = token
@@ -272,6 +272,10 @@ export class ApiClient {
 
   async deliverySettings(kind: TokenKind): Promise<DeliverySettings | null> { const value = await this.request<any>('/pos/delivery-settings', { tokenKind: kind }); const data = value?.data; if (!data) return null; return { ...data, is_enabled: data.is_enabled === true || data.is_enabled === 1 || data.is_enabled === '1', fixed_fee: data.fixed_fee == null ? null : Number(data.fixed_fee) } }
 
+  async waiters(kind: TokenKind): Promise<any[]> {
+    return asArray<any>(await this.request('/pos/waiters?include_permissions=true', { tokenKind: kind }))
+  }
+
   async customers(kind: TokenKind, search = ''): Promise<PosCustomer[]> {
     const query = search ? `?search=${encodeURIComponent(search)}` : ''
     return asArray<any>(await this.request(`/pos/customers${query}`, { tokenKind: kind })).map(normalizeCustomer)
@@ -359,22 +363,43 @@ export class ApiClient {
     const customer = data?.customer ?? data
     return normalizeCustomer(customer)
   }
-  async orders(kind: TokenKind): Promise<any[]> {
-    const inFlight = this.ordersInFlight.get(kind)
+  async orders(kind: TokenKind, params: { dateFrom?: string; dateTo?: string; status?: string; search?: string; branchId?: number; perPage?: number } = {}): Promise<any[]> {
+    const query = new URLSearchParams()
+    if (params.dateFrom) query.set('date_from', params.dateFrom)
+    if (params.dateTo) query.set('date_to', params.dateTo)
+    if (params.status) query.set('status', params.status)
+    if (params.search) query.set('search', params.search)
+    if (params.branchId) query.set('branch_id', String(params.branchId))
+    if (params.perPage) query.set('per_page', String(params.perPage))
+    const suffix = query.toString() ? `?${query.toString()}` : ''
+    const requestKey = `${kind}:${this.tokens[kind] || 'no-token'}:${suffix}`
+    const inFlight = this.ordersInFlight.get(requestKey)
     if (inFlight) return inFlight
 
-    const request = this.request<any>('/pos/orders', { tokenKind: kind }).then(res => {
-      if (Array.isArray(res)) return res
-      if (Array.isArray(res?.data)) return res.data
-      if (Array.isArray(res?.orders)) return res.orders
-      return asArray<any>(res)
-    }).finally(() => {
-      if (this.ordersInFlight.get(kind) === request) {
-        this.ordersInFlight.delete(kind)
+    const request = (async () => {
+      const readPage = (res: any) => {
+        if (Array.isArray(res)) return { rows: res, lastPage: 1 }
+        if (Array.isArray(res?.data)) return { rows: res.data, lastPage: Number(res?.last_page || res?.meta?.last_page || 1) }
+        if (Array.isArray(res?.orders)) return { rows: res.orders, lastPage: 1 }
+        return { rows: asArray<any>(res), lastPage: 1 }
+      }
+      const first = await this.request<any>(`/pos/orders${suffix}`, { tokenKind: kind })
+      const firstPage = readPage(first)
+      const rows = [...firstPage.rows]
+      for (let page = 2; page <= firstPage.lastPage; page += 1) {
+        const pageQuery = new URLSearchParams(query)
+        pageQuery.set('page', String(page))
+        const next = await this.request<any>(`/pos/orders?${pageQuery.toString()}`, { tokenKind: kind })
+        rows.push(...readPage(next).rows)
+      }
+      return rows
+    })().finally(() => {
+      if (this.ordersInFlight.get(requestKey) === request) {
+        this.ordersInFlight.delete(requestKey)
       }
     })
 
-    this.ordersInFlight.set(kind, request)
+    this.ordersInFlight.set(requestKey, request)
     return request
   }
   async getOrder(kind: TokenKind, orderId: number) { return unwrap<any>(await this.request(`/pos/orders/${orderId}`, { tokenKind: kind })) }
@@ -384,6 +409,14 @@ export class ApiClient {
       tokenKind: kind,
       headers: { 'Idempotency-Key': idempotencyKey },
       body: JSON.stringify({ document }),
+    })
+  }
+  async sendOrderEmail(kind: TokenKind, orderId: number, email: string, idempotencyKey: string) {
+    return this.request(`/pos/orders/${orderId}/send-email`, {
+      method: 'POST',
+      tokenKind: kind,
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify({ email }),
     })
   }
   async payOrder(kind: TokenKind, orderId: number, amount: number, method: string, idempotencyKey: string) { return this.request(`/pos/orders/${orderId}/pay`, { method: 'POST', tokenKind: kind, headers: { 'Idempotency-Key': idempotencyKey }, body: JSON.stringify({ amount, method }) }) }

@@ -1,9 +1,7 @@
 import React from 'react'
 import {
   RotateCcw,
-  Search,
-  AlertCircle,
-  Clock
+  AlertCircle
 } from 'lucide-react'
 
 export const ReturnsModule: React.FC = () => {
@@ -19,9 +17,9 @@ export const ReturnsModule: React.FC = () => {
       </div>
 
       <div className="posdan-card" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 48, textAlign: 'center' }}>
-        <RotateCcw size={48} style={{ color: '#6e7681', opacity: 0.35, marginBottom: 12 }} />
-        <h4 style={{ fontSize: 14, fontWeight: 700, color: '#f0f6fc', margin: 0 }}>No hay devoluciones registradas hoy</h4>
-        <p style={{ fontSize: 12, color: '#8b949e', maxWidth: 360, margin: '8px 0 0' }}>Todas las órdenes cobradas se mantienen en estado firme sin reembolsos pendientes.</p>
+        <AlertCircle size={48} style={{ color: '#fbbf24', opacity: 0.8, marginBottom: 12 }} />
+        <h4 style={{ fontSize: 14, fontWeight: 700, color: '#f0f6fc', margin: 0 }}>Devoluciones no disponibles en Mesero</h4>
+        <p style={{ fontSize: 12, color: '#8b949e', maxWidth: 420, margin: '8px 0 0' }}>No se encontró una ruta REST real para consultar o ejecutar reembolsos en esta sucursal. No se presentan resultados vacíos como si fueran una confirmación.</p>
       </div>
     </div>
   )

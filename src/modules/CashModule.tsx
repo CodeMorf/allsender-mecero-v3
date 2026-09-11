@@ -65,10 +65,10 @@ interface CashModuleProps {
   currencySymbol?: string
   loading?: boolean
   onRefresh: () => Promise<void>
-  onOpenSession: (registerId: number, openingFloat: number, note: string) => Promise<void>
-  onCloseSession: (sessionId: number, countedCash: number, expectedCash: number | undefined, note: string, sendForApproval: boolean) => Promise<{ queued?: boolean } | void>
+  onOpenSession: (registerId: number, openingFloat: number, note: string) => Promise<{ queued?: boolean; message?: string } | void>
+  onCloseSession: (sessionId: number, countedCash: number, expectedCash: number | undefined, note: string, sendForApproval: boolean) => Promise<{ queued?: boolean; message?: string } | void>
   onSessionClosed?: () => Promise<void> | void
-  onCashMovement: (type: 'cash-in' | 'cash-out' | 'safe-drop', amount: number, reason: string) => Promise<void>
+  onCashMovement: (type: 'cash-in' | 'cash-out' | 'safe-drop', amount: number, reason: string) => Promise<{ queued?: boolean; message?: string } | void>
   onFetchHistory?: () => Promise<CashSession[]>
   onPrintReport?: (sessionId: number, type: 'x_report' | 'z_report', sessionData?: any) => void | Promise<void>
 }
@@ -93,6 +93,7 @@ export const CashModule: React.FC<CashModuleProps> = ({
   const [modalType, setModalType] = useState<'cash_in' | 'cash_out' | 'close' | 'open' | 'history' | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
   const [actionError, setActionError] = useState('')
+  const [actionNotice, setActionNotice] = useState('')
 
   // Form states
   const [amount, setAmount] = useState('')
@@ -171,9 +172,14 @@ export const CashModule: React.FC<CashModuleProps> = ({
     e.preventDefault()
     setActionLoading(true)
     setActionError('')
+    setActionNotice('')
     try {
       const floatVal = parseFloat(openingFloat) || 0
-      await onOpenSession(selectedRegisterId, floatVal, openingNote)
+      const result = await onOpenSession(selectedRegisterId, floatVal, openingNote)
+      if (result?.queued) {
+        setActionNotice(result.message || 'Apertura guardada en cola. La caja no se cerró ni se confirmó todavía.')
+        return
+      }
       setModalType(null)
       setOpeningFloat('0.00')
       setOpeningNote('')
@@ -200,9 +206,14 @@ export const CashModule: React.FC<CashModuleProps> = ({
 
     setActionLoading(true)
     setActionError('')
+    setActionNotice('')
     try {
       const movement = modalType === 'cash_in' ? 'cash-in' : 'cash-out'
-      await onCashMovement(movement, num, reason.trim())
+      const result = await onCashMovement(movement, num, reason.trim())
+      if (result?.queued) {
+        setActionNotice(result.message || 'Movimiento guardado en cola. Aún no ha sido confirmado por el servidor.')
+        return
+      }
       setModalType(null)
       setAmount('')
       setReason('')
@@ -225,10 +236,15 @@ export const CashModule: React.FC<CashModuleProps> = ({
 
     setActionLoading(true)
     setActionError('')
+    setActionNotice('')
     try {
       const expected = effectiveExpectedCash
       const hasDiscrepancy = Math.abs(counted - expected) > 0.01
       const closeResult = await onCloseSession(activeSession.id, counted, expected, closingNote, hasDiscrepancy)
+      if (closeResult?.queued) {
+        setActionNotice(closeResult.message || 'Cierre guardado en cola. El turno sigue abierto hasta la confirmación del servidor.')
+        return
+      }
       if (onPrintReport) {
         await onPrintReport(activeSession.id, 'z_report', {
           ...activeSession,
@@ -461,6 +477,7 @@ export const CashModule: React.FC<CashModuleProps> = ({
             </div>
 
             {actionError && <div className="posdan-modal-error">{actionError}</div>}
+            {actionNotice && <div className="posdan-modal-notice" role="status">{actionNotice}</div>}
 
             <form onSubmit={handleMovementSubmit}>
               <div className="posdan-form-group">
@@ -529,6 +546,7 @@ export const CashModule: React.FC<CashModuleProps> = ({
             </div>
 
             {actionError && <div className="posdan-modal-error">{actionError}</div>}
+            {actionNotice && <div className="posdan-modal-notice" role="status">{actionNotice}</div>}
 
             <form onSubmit={handleMovementSubmit}>
               <div className="posdan-form-group">
@@ -597,6 +615,7 @@ export const CashModule: React.FC<CashModuleProps> = ({
             </div>
 
             {actionError && <div className="posdan-modal-error">{actionError}</div>}
+            {actionNotice && <div className="posdan-modal-notice" role="status">{actionNotice}</div>}
 
             <form onSubmit={handleCloseSubmit}>
               <div className="posdan-close-summary-card">
@@ -706,6 +725,7 @@ export const CashModule: React.FC<CashModuleProps> = ({
             </div>
 
             {actionError && <div className="posdan-modal-error">{actionError}</div>}
+            {actionNotice && <div className="posdan-modal-notice" role="status">{actionNotice}</div>}
 
             <form onSubmit={handleOpenSubmit}>
               {registers.length > 1 && (

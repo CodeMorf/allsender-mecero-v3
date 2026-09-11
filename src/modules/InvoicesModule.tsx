@@ -54,7 +54,7 @@ function OrderServiceCell({ order }: { order: any }) {
 export interface InvoicesModuleProps {
   orders: any[]
   onPrintInvoice: (orderId: number) => void
-  onSendEmail?: (orderId: number, email: string) => Promise<void>
+  onSendEmail?: (orderId: number, email: string) => Promise<{ message?: string } | void>
   currencySymbol?: string
 }
 
@@ -97,12 +97,9 @@ export const InvoicesModule: React.FC<InvoicesModuleProps> = ({
     setSendingEmail(true)
     setEmailSuccess('')
     try {
-      if (onSendEmail) {
-        await onSendEmail(emailModalOrder.id, recipientEmail.trim())
-      } else {
-        await new Promise(r => setTimeout(r, 800))
-      }
-      setEmailSuccess(`Factura #${emailModalOrder.order_number || emailModalOrder.id} enviada exitosamente a ${recipientEmail}`)
+      if (!onSendEmail) throw new Error('El envío por correo no está disponible en esta instalación.')
+      const result = await onSendEmail(emailModalOrder.id, recipientEmail.trim())
+      setEmailSuccess(result?.message || `Solicitud de envío de factura #${emailModalOrder.order_number || emailModalOrder.id} aceptada.`)
       setTimeout(() => {
         setEmailModalOrder(null)
         setRecipientEmail('')

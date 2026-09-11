@@ -28,9 +28,9 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({ menuItems }) =
       <div className="posdan-module-header">
         <div className="posdan-module-title-wrap">
           <h2 className="posdan-module-title">
-            <Boxes style={{ color: '#f97316' }} size={24} /> Control de Inventario
+            <Boxes style={{ color: '#f97316' }} size={24} /> Disponibilidad del menú
           </h2>
-          <p className="posdan-module-subtitle">Control de existencias, insumos y alertas de stock crítico</p>
+          <p className="posdan-module-subtitle">Disponibilidad publicada de artículos; no representa existencias de ingredientes</p>
         </div>
 
         <div className="posdan-module-actions">
@@ -53,7 +53,7 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({ menuItems }) =
             <CheckCircle2 size={22} />
           </div>
           <div>
-            <p className="posdan-stat-label">Artículos en Stock Óptimo</p>
+            <p className="posdan-stat-label">Disponibles en menú</p>
             <h4 className="posdan-stat-value" style={{ color: '#34d399' }}>{menuItems.filter(i => i.available).length}</h4>
           </div>
         </div>
@@ -63,7 +63,7 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({ menuItems }) =
             <AlertTriangle size={22} />
           </div>
           <div>
-            <p className="posdan-stat-label">Sin Existencias / Agotados</p>
+            <p className="posdan-stat-label">No disponibles en menú</p>
             <h4 className="posdan-stat-value" style={{ color: '#f87171' }}>{menuItems.filter(i => !i.available).length}</h4>
           </div>
         </div>
@@ -73,7 +73,7 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({ menuItems }) =
             <Package size={22} />
           </div>
           <div>
-            <p className="posdan-stat-label">Total de Ítems en Menú</p>
+            <p className="posdan-stat-label">Total publicado en menú</p>
             <h4 className="posdan-stat-value" style={{ color: '#f97316' }}>{menuItems.length}</h4>
           </div>
         </div>
@@ -87,8 +87,8 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({ menuItems }) =
                 <th>Artículo</th>
                 <th>Código</th>
                 <th>Categoría</th>
-                <th>Estado Stock</th>
-                <th style={{ textAlign: 'right' }}>Alerta</th>
+                <th>Disponibilidad publicada</th>
+                <th style={{ textAlign: 'right' }}>Fuente</th>
               </tr>
             </thead>
             <tbody>
@@ -104,15 +104,15 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({ menuItems }) =
                   <td>
                     <span className={item.available ? 'posdan-badge-success' : 'posdan-badge-danger'}>
                       {item.available ? <CheckCircle2 size={12} /> : <AlertTriangle size={12} />}
-                      {item.available ? 'En Existencia' : 'Agotado'}
+                      {item.available ? 'Disponible' : 'No disponible'}
                     </span>
                   </td>
                   <td style={{ textAlign: 'right' }}>
                     {item.available ? (
-                      <span style={{ fontSize: 12, color: '#34d399', fontWeight: 600 }}>Normal</span>
+                      <span style={{ fontSize: 12, color: '#8b949e', fontWeight: 600 }}>Catálogo del menú</span>
                     ) : (
                       <span style={{ fontSize: 12, color: '#f87171', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                        <AlertTriangle size={12} /> Requiere Reposición
+                        <AlertTriangle size={12} /> Catálogo del menú
                       </span>
                     )}
                   </td>
@@ -128,6 +128,9 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({ menuItems }) =
             </tbody>
           </table>
         </div>
+      </div>
+      <div className="posdan-card" style={{ marginTop: 16, padding: '12px 16px', color: '#fbbf24', fontSize: 12 }} role="note">
+        La API actual publica disponibilidad del menú, pero no existencias, consumo ni reposición de ingredientes.
       </div>
     </div>
   )

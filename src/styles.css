@@ -6083,6 +6083,17 @@ textarea,
   border-radius: 4px;
 }
 
+.posdan-modal-notice {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.12);
+  color: #fbbf24;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .posdan-form-group {
   padding: 0 22px;
   margin-top: 14px;

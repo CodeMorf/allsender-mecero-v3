@@ -123,6 +123,8 @@ export const DispatchModule: React.FC<DispatchModuleProps> = ({
   const [newDriverName, setNewDriverName] = useState('')
   const [newDriverPhone, setNewDriverPhone] = useState('')
   const [creatingDriver, setCreatingDriver] = useState(false)
+  const today = new Date()
+  const localToday = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 
   const handleCreateDriver = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -155,7 +157,7 @@ export const DispatchModule: React.FC<DispatchModuleProps> = ({
     try {
       const [orderRes, execRes, platRes] = await Promise.allSettled([
         api.deliveryOrders('pin', {
-          date: selectedDate === 'all' ? undefined : selectedDate,
+          date: selectedDate === 'all' ? 'all' : selectedDate,
           status: selectedStatus === 'all' ? undefined : selectedStatus,
           deliveryExecutiveId: selectedExecutiveId === 'all' ? undefined : selectedExecutiveId,
           deliveryAppId: selectedPlatformId === 'all' ? undefined : selectedPlatformId,
@@ -375,18 +377,18 @@ export const DispatchModule: React.FC<DispatchModuleProps> = ({
         <div className="dispatch-filter-item">
           <Calendar size={15} style={{ color: '#A1A5AB' }} />
           <select
-            value={selectedDate === 'all' ? 'all' : selectedDate === new Date().toISOString().split('T')[0] ? 'today' : 'custom'}
+            value={selectedDate === 'all' ? 'all' : selectedDate === localToday ? 'today' : 'custom'}
             onChange={e => {
               const val = e.target.value
               if (val === 'all') setSelectedDate('all')
-              else if (val === 'today') setSelectedDate(new Date().toISOString().split('T')[0])
-              else setSelectedDate(new Date().toISOString().split('T')[0])
+              else if (val === 'today') setSelectedDate(localToday)
+              else setSelectedDate(localToday)
             }}
             className="dispatch-select"
             style={{ minWidth: 110 }}
           >
             <option value="all">Todas las órdenes</option>
-            <option value="today">Hoy ({new Date().toLocaleDateString('es-DO', { day: '2-digit', month: '2-digit' })})</option>
+            <option value="today">Hoy ({today.toLocaleDateString('es-DO', { day: '2-digit', month: '2-digit' })})</option>
             <option value="custom">Elegir fecha...</option>
           </select>
           {selectedDate !== 'all' && (

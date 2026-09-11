@@ -1046,7 +1046,9 @@ export default function App() {
     const operation = makeWorkflow([makeStep(method, path, body, idempotencyKey)], { label: 'cash-register' })
     try {
       const result = await queueAndRun(operation)
-      return { queued: !navigator.onLine || !result.firstResponse, message: !navigator.onLine ? 'Operación de caja guardada; se validará al restablecerse la conexión.' : successMessage, data: responseData(result.firstResponse) }
+      const queued = !navigator.onLine || !result.firstResponse
+      if (queued) setQueueCount((await safeOutbox()).length)
+      return { queued, message: queued ? 'Operación de caja guardada en cola; el servidor aún no la ha confirmado.' : successMessage, data: responseData(result.firstResponse) }
     } catch (cause) {
       if (!isRetryableOffline(cause)) throw cause
       setQueueCount((await safeOutbox()).length)
@@ -1592,9 +1594,9 @@ function PosProductCardImage({ item }: { item: MenuItem }) {
   )
 }
 
-function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName, userId, deviceId, permissions, tables, items, categories = [], kitchenPlaces, paymentMethods, fiscalCapabilities, offline, queueCount, isSyncing, notice, onNotice, error, onLogout, onRefresh, onSubmitOrder, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onCancelOrder, onOpenCashSession, onCloseCashSession, onApproveCashSession, onRejectCashSession, onReopenCashSession, onCashMovement, onClockIn, onClockOut, onUpdateKotStatus, onSelectTable, activeTable }: { brand: string; branch: string; branchId?: number; restaurantId?: number; roleKey: StaffRole; userName?: string; userId?: number; deviceId: string; permissions: Record<string, boolean>; tables: RestaurantTable[]; items: MenuItem[]; categories?: MenuCategory[]; kitchenPlaces: KitchenPlace[]; paymentMethods: PaymentMethodOption[]; fiscalCapabilities?: FiscalCapabilities | null; offline: boolean; queueCount: number; isSyncing?: boolean; notice: string; onNotice: (message: string) => void; error: string; onLogout: () => void; onRefresh: () => void; onSubmitOrder: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onCancelOrder?: (table: RestaurantTable, reason?: string) => Promise<{ queued: boolean; message: string }>; onOpenCashSession: (registerId: number, openingFloat: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCloseCashSession: (sessionId: number, countedCash: number, expectedCash: number | undefined, note: string, sendForApproval: boolean, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onApproveCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onRejectCashSession: (sessionId: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onReopenCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCashMovement: (movement: 'cash-in' | 'cash-out' | 'safe-drop', sessionId: number, amount: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onClockIn: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onClockOut: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onUpdateKotStatus: (kotId: number, status: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onSelectTable: (table: RestaurantTable | null) => void; activeTable: RestaurantTable | null }) {
+function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName, userId, deviceId, permissions, tables, items, staff = [], categories = [], kitchenPlaces, paymentMethods, fiscalCapabilities, offline, queueCount, isSyncing, notice, onNotice, error, onLogout, onRefresh, onSubmitOrder, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onCancelOrder, onOpenCashSession, onCloseCashSession, onApproveCashSession, onRejectCashSession, onReopenCashSession, onCashMovement, onClockIn, onClockOut, onUpdateKotStatus, onSelectTable, activeTable }: { brand: string; branch: string; branchId?: number; restaurantId?: number; roleKey: StaffRole; userName?: string; userId?: number; deviceId: string; permissions: Record<string, boolean>; tables: RestaurantTable[]; items: MenuItem[]; staff?: any[]; categories?: MenuCategory[]; kitchenPlaces: KitchenPlace[]; paymentMethods: PaymentMethodOption[]; fiscalCapabilities?: FiscalCapabilities | null; offline: boolean; queueCount: number; isSyncing?: boolean; notice: string; onNotice: (message: string) => void; error: string; onLogout: () => void; onRefresh: () => void; onSubmitOrder: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onCancelOrder?: (table: RestaurantTable, reason?: string) => Promise<{ queued: boolean; message: string }>; onOpenCashSession: (registerId: number, openingFloat: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCloseCashSession: (sessionId: number, countedCash: number, expectedCash: number | undefined, note: string, sendForApproval: boolean, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onApproveCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onRejectCashSession: (sessionId: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onReopenCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCashMovement: (movement: 'cash-in' | 'cash-out' | 'safe-drop', sessionId: number, amount: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onClockIn: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onClockOut: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onUpdateKotStatus: (kotId: number, status: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onSelectTable: (table: RestaurantTable | null) => void; activeTable: RestaurantTable | null }) {
 
-  const [showMenu, setShowMenu] = useState(false); const [showQuick, setShowQuick] = useState(false); const [showOps, setShowOps] = useState(false); const [showCashier, setShowCashier] = useState(false); const [showAttendance, setShowAttendance] = useState(false); const [opsLoading, setOpsLoading] = useState(false); const [notifications, setNotifications] = useState<LiveNotification[]>([]); const [deliverySettings, setDeliverySettings] = useState<DeliverySettings | null>(null); const [deliveryExecutives, setDeliveryExecutives] = useState<DeliveryExecutive[]>([]); const [deliveryPlatforms, setDeliveryPlatforms] = useState<DeliveryPlatform[]>([]); const [orderTypes, setOrderTypes] = useState<OrderTypeConfig[]>([])
+  const [showMenu, setShowMenu] = useState(false); const [showQuick, setShowQuick] = useState(false); const [showOps, setShowOps] = useState(false); const [showCashier, setShowCashier] = useState(false); const [showAttendance, setShowAttendance] = useState(false); const [opsLoading, setOpsLoading] = useState(false); const [notifications, setNotifications] = useState<LiveNotification[]>([]); const [deliverySettings, setDeliverySettings] = useState<DeliverySettings | null>(null); const [deliveryExecutives, setDeliveryExecutives] = useState<DeliveryExecutive[]>([]); const [deliveryPlatforms, setDeliveryPlatforms] = useState<DeliveryPlatform[]>([]); const [orderTypes, setOrderTypes] = useState<OrderTypeConfig[]>([]); const [staffMembers, setStaffMembers] = useState<any[]>([])
   const [pickupPaymentTarget, setPickupPaymentTarget] = useState<{ summary: any; detail: any } | null>(null)
   const [pickupPaymentLoading, setPickupPaymentLoading] = useState(false)
 
@@ -1872,7 +1874,7 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
     if (!navigator.onLine || !api.getToken('pin')) return
 
     try {
-      const orders = await api.orders('pin')
+      const orders = await api.orders('pin', { perPage: 100 })
       const nextOrders = dedupeOrders(orders.filter((order): order is Record<string, unknown> => Boolean(order && typeof order === 'object')))
       setAllOrders(nextOrders)
       saveCache({ orders: nextOrders, branchId })
@@ -1890,7 +1892,7 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
   const loadPosDanData = async () => {
     try {
       if (!offline) {
-        const [custs, regs, actSess, oTypes, delPlats, delExecs, delSets, remoteItems] = await Promise.all([
+        const [custs, regs, actSess, oTypes, delPlats, delExecs, delSets, remoteItems, staff] = await Promise.all([
           api.customers('pin').catch(() => []),
           api.cashRegisters('pin').catch(() => []),
           api.activeCashSession('pin').catch(() => null),
@@ -1898,11 +1900,13 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
           api.deliveryPlatforms('pin').catch(() => null),
           api.deliveryExecutives('pin').catch(() => []),
           api.deliverySettings('pin').catch(() => null),
-          api.menuItems('pin').catch(() => null)
+          api.menuItems('pin').catch(() => null),
+          api.waiters('pin').catch(() => [])
         ])
         setPosCustomers(custs)
         setCashRegisters(regs)
         setActiveCashSession(actSess)
+        setStaffMembers(Array.isArray(staff) ? staff : [])
         if (Array.isArray(remoteItems) && remoteItems.length > 0) {
           setCatalogItems(remoteItems)
         }
@@ -1934,6 +1938,7 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
         setActiveCashSession(cached.cashSession || null)
         setActiveCashSummary(cached.cashSummary || null)
         setDeliveryPlatforms(cached.deliveryPlatforms || [])
+        setStaffMembers([])
       }
     } catch {
       // ignore
@@ -2263,9 +2268,9 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
           waiterCallsCount={waiterRequests.length}
           ordersCount={allOrders.length}
           dispatchCount={allOrders.filter((o: any) => {
-            const type = String(o.order_type || o.orderType || '').toLowerCase()
-            const st = String(o.status || o.order_status || '').toLowerCase()
-            return type.includes('delivery') && !['delivered', 'cancelled', 'canceled'].includes(st)
+            const service = resolveOrderService(o)
+            const st = String(o.operational_status || o.status || o.order_status || '').toLowerCase().replace(/[_-]+/g, ' ')
+            return service === 'delivery' && !['delivered', 'cancelled', 'canceled', 'entregado', 'cancelado'].includes(st)
           }).length}
         />
 
@@ -2651,18 +2656,14 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
                     setCashLoading(false)
                   }
                 }}
-                onOpenSession={async (registerId, openingFloat, note) => {
-                  await onOpenCashSession(registerId, openingFloat, note, newIdempotencyKey())
-                  await loadPosDanData()
-                }}
+                onOpenSession={async (registerId, openingFloat, note) => onOpenCashSession(registerId, openingFloat, note, newIdempotencyKey())}
                 onCloseSession={async (sessionId, countedCash, expectedCash, note, sendForApproval) => {
                   return onCloseCashSession(sessionId, countedCash, expectedCash, note, sendForApproval, newIdempotencyKey())
                 }}
                 onSessionClosed={onLogout}
                 onCashMovement={async (type, amount, reason) => {
-                  if (!activeCashSession?.id) return
-                  await onCashMovement(type, activeCashSession.id, amount, reason, newIdempotencyKey())
-                  await loadPosDanData()
+                  if (!activeCashSession?.id) return { queued: false, message: 'No hay un turno de caja abierto.' }
+                  return onCashMovement(type, activeCashSession.id, amount, reason, newIdempotencyKey())
                 }}
                 onFetchHistory={async () => {
                   try {
@@ -2787,17 +2788,9 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
                   }
                 }}
                 onSendEmail={async (orderId, email) => {
-                  try {
-                    await api.request(`/pos/orders/${orderId}/send-email`, {
-                      method: 'POST',
-                      body: JSON.stringify({ email }),
-                      headers: { 'Content-Type': 'application/json' },
-                      tokenKind: 'pin'
-                    })
-                  } catch {
-                    // fallback simulated email dispatch
-                    await new Promise(r => setTimeout(r, 600))
-                  }
+                  const response = await api.sendOrderEmail('pin', orderId, email, newIdempotencyKey())
+                  const data = responseData(response)
+                  return { message: data?.message || 'Solicitud de envío de factura aceptada y encolada.' }
                 }}
               />
             </div>
@@ -2871,7 +2864,7 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
           {/* VIEW: USERS */}
           {activeNavTab === 'users' && (
             <div className="pos-view-layer view-active">
-              <UsersModule />
+              <UsersModule staff={staffMembers} />
             </div>
           )}
 
