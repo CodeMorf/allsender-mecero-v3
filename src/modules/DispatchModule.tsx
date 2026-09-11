@@ -26,7 +26,8 @@ import {
   ChevronDown,
   Plus
 } from 'lucide-react'
-import { api, ApiError } from '../api/client'
+import { api, ApiError, normalizeDeliveryOrder } from '../api/client'
+import { resolveOrderService } from '../utils/orderService'
 import type { DeliveryOrder, DeliveryOrderItem, DeliveryExecutive, DeliveryPlatform, StaffRole } from '../types'
 
 interface DispatchModuleProps {
@@ -34,6 +35,7 @@ interface DispatchModuleProps {
   permissions?: Record<string, boolean>
   currencySymbol?: string
   onNotice?: (msg: string) => void
+  sourceOrders?: any[]
 }
 
 type KanbanColumnId = 'preparing' | 'ready_for_pickup' | 'out_for_delivery' | 'delivered'
@@ -97,6 +99,7 @@ export const DispatchModule: React.FC<DispatchModuleProps> = ({
   permissions,
   currencySymbol = 'RD$',
   onNotice,
+  sourceOrders,
 }) => {
   const [orders, setOrders] = useState<DeliveryOrder[]>([])
   const [executives, setExecutives] = useState<DeliveryExecutive[]>([])
@@ -125,6 +128,13 @@ export const DispatchModule: React.FC<DispatchModuleProps> = ({
   const [creatingDriver, setCreatingDriver] = useState(false)
   const today = new Date()
   const localToday = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+
+  const sourceDeliveryOrders = useMemo(() => {
+    if (!Array.isArray(sourceOrders)) return null
+    return sourceOrders
+      .filter(order => resolveOrderService(order) === 'delivery')
+      .map(normalizeDeliveryOrder)
+  }, [sourceOrders])
 
   const handleCreateDriver = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -155,8 +165,22 @@ export const DispatchModule: React.FC<DispatchModuleProps> = ({
     else setRefreshing(true)
     setError(null)
     try {
+      const sourceOrdersForFilters = sourceDeliveryOrders?.filter(order => {
+        if (selectedDate !== 'all') {
+          const orderDate = order.created_at ? new Date(order.created_at) : null
+          const localOrderDate = orderDate && !Number.isNaN(orderDate.getTime())
+            ? `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, '0')}-${String(orderDate.getDate()).padStart(2, '0')}`
+            : ''
+          if (localOrderDate !== selectedDate) return false
+        }
+        if (selectedStatus !== 'all' && order.status !== selectedStatus) return false
+        if (selectedExecutiveId !== 'all' && order.delivery_executive_id !== selectedExecutiveId) return false
+        if (selectedPlatformId !== 'all' && order.delivery_app_id !== selectedPlatformId) return false
+        return true
+      })
+
       const [orderRes, execRes, platRes] = await Promise.allSettled([
-        api.deliveryOrders('pin', {
+        sourceOrdersForFilters ?? api.deliveryOrders('pin', {
           date: selectedDate === 'all' ? 'all' : selectedDate,
           status: selectedStatus === 'all' ? undefined : selectedStatus,
           deliveryExecutiveId: selectedExecutiveId === 'all' ? undefined : selectedExecutiveId,
@@ -191,7 +215,7 @@ export const DispatchModule: React.FC<DispatchModuleProps> = ({
       setLoading(false)
       setRefreshing(false)
     }
-  }, [selectedDate, selectedStatus, selectedExecutiveId, selectedPlatformId, selectedOrder])
+  }, [selectedDate, selectedStatus, selectedExecutiveId, selectedPlatformId, selectedOrder, sourceDeliveryOrders])
 
   // Load initially and when filters change
   useEffect(() => {

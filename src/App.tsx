@@ -2632,6 +2632,7 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
                 permissions={permissions}
                 currencySymbol={activeCurrency.symbol}
                 onNotice={onNotice}
+                sourceOrders={allOrders}
               />
             </div>
           )}
