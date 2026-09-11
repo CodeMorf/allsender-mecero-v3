@@ -9162,6 +9162,27 @@ body { overflow-x: hidden; }
   overflow-y: hidden;
 }
 
+.dispatch-loading-state {
+  grid-column: 1 / -1;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #8B949E;
+  text-align: center;
+}
+
+.dispatch-loading-state strong {
+  color: #F0F6FC;
+  font-size: 0.95rem;
+}
+
+.dispatch-loading-state span {
+  font-size: 0.8rem;
+}
+
 .dispatch-column {
   background: #14171C;
   border: 1px solid #21262D;

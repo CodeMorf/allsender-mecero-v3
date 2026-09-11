@@ -1823,6 +1823,9 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
   const [cashSessionReady, setCashSessionReady] = useState(false)
   const [cashLoading, setCashLoading] = useState(false)
   const [allOrders, setAllOrders] = useState<any[]>([])
+  const [ordersLoading, setOrdersLoading] = useState(false)
+  const [posDataLoading, setPosDataLoading] = useState(true)
+  const posDataReadyRef = useRef(false)
   const ordersInitialSyncDone = useRef(false)
   const [productSearch, setProductSearch] = useState('')
   const [posCustomizingItem, setPosCustomizingItem] = useState<MenuItem | null>(null)
@@ -1873,6 +1876,7 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
   const refreshOrdersTask = useCallback(async () => {
     if (!navigator.onLine || !api.getToken('pin')) return
 
+    setOrdersLoading(true)
     try {
       const orders = await api.orders('pin', { perPage: 100 })
       const nextOrders = dedupeOrders(orders.filter((order): order is Record<string, unknown> => Boolean(order && typeof order === 'object')))
@@ -1880,6 +1884,8 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
       saveCache({ orders: nextOrders, branchId })
     } catch {
       // Keep the last good list during a transient connection/API failure.
+    } finally {
+      setOrdersLoading(false)
     }
   }, [branchId, setAllOrders])
   // singleFlight intentionally returns a stable wrapper around the async task;
@@ -1890,6 +1896,11 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
   // Load POS data on mount / module changes. Orders have their own controlled
   // refresh so a realtime event never hydrates the entire POS again.
   const loadPosDanData = async () => {
+    const isInitialLoad = !posDataReadyRef.current
+    if (isInitialLoad) {
+      posDataReadyRef.current = true
+      setPosDataLoading(true)
+    }
     try {
       if (!offline) {
         const [custs, regs, actSess, oTypes, delPlats, delExecs, delSets, remoteItems, staff] = await Promise.all([
@@ -1943,6 +1954,7 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
     } catch {
       // ignore
     } finally {
+      if (isInitialLoad) setPosDataLoading(false)
       setCashSessionReady(true)
     }
   }
@@ -2615,6 +2627,7 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
             <div className="pos-view-layer view-active">
               <OrdersModule
                 orders={allOrders}
+                loading={ordersLoading}
                 onRefresh={refreshOrders}
                 onOpenPayment={openPickupPayment}
                 onUpdateStatus={markPickupCollected}
@@ -2802,6 +2815,7 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
             <div className="pos-view-layer view-active">
               <CustomersModule
                 customers={posCustomers}
+                loading={posDataLoading}
                 orders={allOrders}
                 onOpenCustomerModal={() => setCustomerModalOpen(true)}
                 onEditCustomer={(cust) => {

@@ -19,6 +19,7 @@ import { orderServiceLabel, resolveOrderService, type OrderServiceKind } from '.
 
 type OrdersModuleProps = {
   orders: any[]
+  loading?: boolean
   onRefresh?: () => Promise<void>
   onOpenPayment?: (order: any) => void
   onUpdateStatus?: (orderId: number, status: 'delivered') => Promise<void>
@@ -177,7 +178,7 @@ function serviceIcon(service: OrderServiceKind) {
   return <ClipboardList size={16} />
 }
 
-export const OrdersModule: React.FC<OrdersModuleProps> = ({ orders, onRefresh, onOpenPayment, onUpdateStatus, canCharge = false, currencySymbol = 'RD$' }) => {
+export const OrdersModule: React.FC<OrdersModuleProps> = ({ orders, loading = false, onRefresh, onOpenPayment, onUpdateStatus, canCharge = false, currencySymbol = 'RD$' }) => {
   const [search, setSearch] = useState('')
   const [serviceFilter, setServiceFilter] = useState<OrderServiceKind | 'ALL'>('ALL')
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'active' | 'paid' | 'served' | 'cancelled'>('ALL')
@@ -296,9 +297,15 @@ export const OrdersModule: React.FC<OrdersModuleProps> = ({ orders, onRefresh, o
       </div>
 
       <div className="orders-summary-strip" aria-live="polite">
-        <span><strong>{filteredOrders.length}</strong> visibles</span>
-        <span><strong>{orders.length}</strong> recibidas de la sucursal</span>
-        {search || serviceFilter !== 'ALL' || statusFilter !== 'ALL' ? <span>Filtros activos</span> : <span>Sin filtros</span>}
+        {loading && orders.length === 0 ? (
+          <span><strong>…</strong> sincronizando órdenes</span>
+        ) : (
+          <>
+            <span><strong>{filteredOrders.length}</strong> visibles</span>
+            <span><strong>{orders.length}</strong> recibidas de la sucursal</span>
+            {search || serviceFilter !== 'ALL' || statusFilter !== 'ALL' ? <span>Filtros activos</span> : <span>Sin filtros</span>}
+          </>
+        )}
       </div>
 
       {(serviceFilter === 'ALL' || serviceFilter === 'pickup') && pickupOrders.length > 0 && (
@@ -468,9 +475,9 @@ export const OrdersModule: React.FC<OrdersModuleProps> = ({ orders, onRefresh, o
           </table>
           {!filteredOrders.length && (
             <div className="orders-empty-state">
-              <XCircle size={32} />
-              <strong>{orders.length ? 'No hay órdenes con estos filtros.' : 'No hay órdenes recibidas.'}</strong>
-              <span>{orders.length ? 'Quite o cambie el filtro para ver las órdenes de esta sucursal.' : 'Las órdenes se sincronizan automáticamente para esta sucursal.'}</span>
+              {loading && orders.length === 0 ? <RefreshCw size={32} className="orders-refresh-spin" /> : <XCircle size={32} />}
+              <strong>{loading && orders.length === 0 ? 'Cargando órdenes…' : orders.length ? 'No hay órdenes con estos filtros.' : 'No hay órdenes recibidas.'}</strong>
+              <span>{loading && orders.length === 0 ? 'Estamos sincronizando las órdenes de esta sucursal.' : orders.length ? 'Quite o cambie el filtro para ver las órdenes de esta sucursal.' : 'Las órdenes se sincronizan automáticamente para esta sucursal.'}</span>
             </div>
           )}
         </div>

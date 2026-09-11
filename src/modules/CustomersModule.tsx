@@ -20,6 +20,7 @@ import type { PosCustomer } from '../types'
 
 export interface CustomersModuleProps {
   customers: PosCustomer[]
+  loading?: boolean
   orders?: any[]
   onOpenCustomerModal: () => void
   onEditCustomer: (cust: PosCustomer) => void
@@ -28,6 +29,7 @@ export interface CustomersModuleProps {
 
 export const CustomersModule: React.FC<CustomersModuleProps> = ({
   customers,
+  loading = false,
   orders = [],
   onOpenCustomerModal,
   onEditCustomer,
@@ -168,7 +170,7 @@ export const CustomersModule: React.FC<CustomersModuleProps> = ({
         {filtered.length === 0 && (
           <div style={{ gridColumn: '1 / -1', padding: '64px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#8b949e' }}>
             <Users size={48} style={{ opacity: 0.3, marginBottom: 12 }} />
-            <p style={{ fontSize: 14, fontWeight: 600 }}>No se encontraron clientes registrados.</p>
+            <p style={{ fontSize: 14, fontWeight: 600 }}>{loading ? 'Cargando clientes…' : 'No se encontraron clientes registrados.'}</p>
           </div>
         )}
       </div>

@@ -465,7 +465,13 @@ export const DispatchModule: React.FC<DispatchModuleProps> = ({
       <div className="dispatch-main-layout">
         {/* Kanban Board Area */}
         <div className="dispatch-board">
-          {COLUMNS.map(col => {
+          {loading ? (
+            <div className="dispatch-loading-state" aria-live="polite">
+              <RefreshCw size={28} className="animate-spin" />
+              <strong>Sincronizando pedidos de delivery…</strong>
+              <span>Estamos consultando las órdenes de esta sucursal.</span>
+            </div>
+          ) : COLUMNS.map(col => {
             const colOrders = columnOrders[col.id] || []
             return (
               <div key={col.id} className="dispatch-column" style={{ borderTop: `3px solid ${col.color}` }}>
