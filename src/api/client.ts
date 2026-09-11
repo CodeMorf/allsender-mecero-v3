@@ -787,9 +787,9 @@ export function applyCategoryMetadata(items: MenuItem[], categories: MenuCategor
       }
     }
 
-    const cleanName = item.categoryName && !/^Categoría\s*\d*$/i.test(item.categoryName)
-      ? item.categoryName
-      : 'Otros'
+    const hasValidCategoryId = item.categoryId != null && Number(item.categoryId) > 0
+    const cleanName = item.categoryName?.trim()
+      || (hasValidCategoryId ? `Categoría ${Number(item.categoryId)}` : 'Otros')
 
     return {
       ...item,
@@ -935,7 +935,9 @@ export function normalizeMediaUrl(value: unknown): string | undefined {
     try {
       const origin = new URL(API_BASE_URL).origin
       source = source.replace(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i, origin)
-    } catch {}
+    } catch {
+      // Keep the original media path when the configured API origin is invalid.
+    }
   }
   if (/^(data:|blob:|https?:\/\/)/i.test(source)) return source
   try {

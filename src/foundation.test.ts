@@ -4,6 +4,9 @@ import { cartItemUnitPrice } from './modules/PosModule'
 import { newIdempotencyKey, readCache, saveCache, setStorageScope } from './storage/offline'
 import { orderServiceLabel, resolveOrderService } from './utils/orderService'
 import { menuCategoryNames, buildCategoryFilterOptions, isItemInCategory } from './utils/menuCategories'
+import { dedupeOrders, mergeOrderRealtimeEvent } from './utils/orderRealtime'
+import { buildRealtimeChannelNames } from './services/realtime'
+import { shouldResyncAfterConnection } from './utils/realtimeState'
 
 describe('contrato base del mesero', () => {
   it('normaliza estados de mesa de la API al mapa visual', () => {
@@ -109,27 +112,123 @@ describe('contrato base del mesero', () => {
     expect(isItemInCategory(resolved[0], 999, 'Bebidas')).toBe(false)
   })
 
-  it('un producto con id de categoría sin nombre aparece una sola vez, en Otros', () => {
+  it('conserva un id de categoría válido aunque falte su metadata', () => {
     // La API manda el id de categoría, pero el endpoint de categorías no la
-    // incluye: antes generaba un chip propio ("Categoría 77") además del de
-    // "Otros", y el producto quedaba alcanzable desde los dos.
-    const item = normalizeItem({ id: 3, item_name: 'Producto sin categoría resoluble', item_category_id: 77, price: 100 })
+    // incluye. El producto conserva un fallback estable y no se agrupa en
+    // "Otros".
+    const item = normalizeItem({ id: 3, item_name: 'Producto sin categoría resoluble', item_category_id: 27, price: 100 })
     const resolved = applyCategoryMetadata([item], [])
     const options = buildCategoryFilterOptions(resolved, [])
 
     expect(options.map(o => ({ id: o.id, name: o.name }))).toEqual([
       { id: 'ALL', name: 'Todos los productos' },
-      { id: 'OTHER', name: 'Otros' }
+      { id: 27, name: 'Categoría 27' }
     ])
-    expect(options.filter(o => o.name === 'Otros')).toHaveLength(1)
-    expect(options.find(o => o.id === 'OTHER')?.count).toBe(1)
+    expect(options.find(o => o.id === 27)?.count).toBe(1)
+    expect(options.find(o => o.id === 'OTHER')).toBeUndefined()
 
-    // El producto no desaparece: sigue visible en Todos y en Otros, y por el
-    // número de categoría no responde nadie.
+    // El producto no desaparece: sigue visible en Todos y responde por su ID.
     expect(resolved.filter(it => isItemInCategory(it, 'ALL'))).toHaveLength(1)
-    expect(resolved.filter(it => isItemInCategory(it, 'OTHER'))).toHaveLength(1)
-    expect(resolved.filter(it => isItemInCategory(it, 77))).toHaveLength(0)
-    expect(String(options.find(o => o.id === 77)?.name ?? '')).not.toMatch(/^Categoría\s*\d+/i)
+    expect(resolved.filter(it => isItemInCategory(it, 'OTHER'))).toHaveLength(0)
+    expect(resolved.filter(it => isItemInCategory(it, 27))).toHaveLength(1)
+    expect(options.find(o => o.id === 27)?.name).toBe('Categoría 27')
+  })
+
+  it('reserva Otros exclusivamente para productos sin id de categoría válido', () => {
+    const item = normalizeItem({ id: 4, item_name: 'Producto sin categoría', category_name: 'Bebidas', price: 100 })
+    const resolved = applyCategoryMetadata([item], [])
+    const options = buildCategoryFilterOptions(resolved, [])
+
+    expect(resolved[0]).toMatchObject({ categoryId: undefined, categoryName: 'Bebidas' })
+    expect(options.find(o => o.id === 'OTHER')?.count).toBe(1)
+    expect(isItemInCategory(resolved[0], 'OTHER')).toBe(true)
+  })
+
+  it('aplica un alta realtime sin duplicar el pedido', () => {
+    const initial = [{ id: 10, branch_id: 9, status: 'placed', total: 120 }]
+    const created = { order_id: 11, branch_id: 9, restaurant_id: 3, status: 'placed', total: 250, updated_at: '2026-09-11T12:00:00Z' }
+
+    const first = mergeOrderRealtimeEvent(initial, created, { branchId: 9, restaurantId: 3 })
+    const second = mergeOrderRealtimeEvent(first.orders, { ...created, id: 11 }, { branchId: 9, restaurantId: 3 })
+
+    expect(first).toMatchObject({ applied: true, orderId: 11 })
+    expect(second.orders).toHaveLength(2)
+    expect(second.orders.filter(order => order.id === 11)).toHaveLength(1)
+  })
+
+  it('actualiza en memoria el pedido existente y rechaza otro tenant', () => {
+    const current = [{ id: 10, branch_id: 9, restaurant_id: 3, status: 'placed', total: 120 }]
+    const updated = mergeOrderRealtimeEvent(current, {
+      id: 10,
+      order_id: 10,
+      branch_id: 9,
+      restaurant_id: 3,
+      status: 'paid',
+      updated_at: '2026-09-11T12:01:00Z',
+    }, { branchId: 9, restaurantId: 3 })
+    const foreign = mergeOrderRealtimeEvent(updated.orders, {
+      id: 20,
+      order_id: 20,
+      branch_id: 10,
+      restaurant_id: 3,
+      status: 'placed',
+    }, { branchId: 9, restaurantId: 3 })
+
+    expect(updated.orders).toHaveLength(1)
+    expect(updated.orders[0]).toMatchObject({ id: 10, status: 'paid', total: 120 })
+    expect(foreign.applied).toBe(false)
+    expect(foreign.orders).toEqual(updated.orders)
+  })
+
+  it('mantiene una sola fila después de 100 eventos repetidos', () => {
+    let orders: Array<Record<string, unknown>> = []
+    for (let index = 0; index < 100; index += 1) {
+      orders = mergeOrderRealtimeEvent(orders, {
+        id: 77,
+        branch_id: 9,
+        restaurant_id: 3,
+        status: index === 99 ? 'paid' : 'placed',
+        updated_at: `2026-09-11T12:${String(Math.floor(index / 60)).padStart(2, '0')}:${String(index % 60).padStart(2, '0')}Z`,
+      }, { branchId: 9, restaurantId: 3 }).orders
+    }
+
+    expect(orders).toHaveLength(1)
+    expect(orders[0]).toMatchObject({ id: 77, status: 'paid' })
+  })
+
+  it('deduplica respuestas REST sin perder el resumen más reciente', () => {
+    expect(dedupeOrders([
+      { id: 1, status: 'placed', updated_at: '2026-09-11T12:00:00Z' },
+      { id: 1, status: 'confirmed', total: 90, updated_at: '2026-09-11T12:01:00Z' },
+      { id: 2, status: 'paid' },
+    ])).toEqual([
+      { id: 1, status: 'confirmed', total: 90, updated_at: '2026-09-11T12:01:00Z' },
+      { id: 2, status: 'paid' },
+    ])
+  })
+
+  it('resincroniza una sola vez al volver a conectado y no por eventos repetidos', () => {
+    expect(shouldResyncAfterConnection('disconnected', 'connected')).toBe(true)
+    expect(shouldResyncAfterConnection('connecting', 'connected')).toBe(true)
+    expect(shouldResyncAfterConnection('connected', 'connected')).toBe(false)
+    expect(shouldResyncAfterConnection('connected', 'connecting')).toBe(false)
+  })
+
+  it('suscribe una terminal a un solo alcance por cada flujo realtime', () => {
+    expect(buildRealtimeChannelNames(9, 3)).toEqual([
+      'private-orders.branch.9',
+      'private-kots.branch.9',
+      'private-print-jobs.branch.9',
+      'private-active-waiter-requests.branch.9',
+      'private-today-orders.branch.9',
+    ])
+    expect(buildRealtimeChannelNames(null, 3)).toEqual([
+      'private-orders.restaurant.3',
+      'private-kots.restaurant.3',
+      'private-print-jobs.restaurant.3',
+      'private-active-waiter-requests.restaurant.3',
+      'private-today-orders.restaurant.3',
+    ])
   })
 
   it('conserva las variaciones del catálogo para abrir el personalizador', () => {

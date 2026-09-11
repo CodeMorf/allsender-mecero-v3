@@ -9,7 +9,7 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     // La URL versionada evita que una copia CDN antigua del service worker
     // impida renovar el shell PWA después de una publicación web.
-    navigator.serviceWorker.register('/sw.js?release=v10-clean-responsive', { scope: '/' }).catch(() => {
+    navigator.serviceWorker.register('/sw.js?release=v11-orders-realtime', { scope: '/' }).catch(() => {
       // La app conserva sus datos en IndexedDB aunque el shell no pueda instalarse.
     })
   })

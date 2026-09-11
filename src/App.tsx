@@ -32,6 +32,8 @@ import { getStationPrinterConfig, routePrintReceipt, routePrintTest, type Therma
 import { realtimeService } from './services/realtime'
 import { orderServiceLabel, resolveOrderService } from './utils/orderService'
 import { menuCategoryNames, buildCategoryFilterOptions, isItemInCategory, type CategoryFilterId } from './utils/menuCategories'
+import { dedupeOrders, mergeOrderRealtimeEvent } from './utils/orderRealtime'
+import { shouldResyncAfterConnection, type RealtimeConnectionState } from './utils/realtimeState'
 
 type Screen = 'setup' | 'branches' | 'pin' | 'floor'
 type LiveNotification = { id: string; type: string; title: string; message: string; createdAt?: string; unread: boolean }
@@ -406,12 +408,11 @@ export default function App() {
       // transient outage never erases a usable offline catalog.
       const canLoadCatalog = session.permissions['menu.view'] || session.permissions['orders.create']
       const cached = readCache()
-      const [remoteTables, remoteItems, remoteCategories, config, remoteOrders, remoteKitchenPlaces, remoteNotifications, remoteReceiptSettings, remotePrinters, remotePaymentMethods, remoteFiscalCapabilities] = await Promise.all([
+      const [remoteTables, remoteItems, remoteCategories, config, remoteKitchenPlaces, remoteNotifications, remoteReceiptSettings, remotePrinters, remotePaymentMethods, remoteFiscalCapabilities] = await Promise.all([
         session.permissions['tables.view'] ? api.tables('pin').catch(() => []) : Promise.resolve([]),
         canLoadCatalog ? api.menuItems('pin').catch(() => null) : Promise.resolve(null),
         canLoadCatalog ? api.categories('pin').catch(() => null) : Promise.resolve(null),
         api.config('pin').catch(() => null),
-        session.permissions['payments.charge'] ? api.orders('pin').catch(() => null) : Promise.resolve(null),
         session.permissions['kitchen.manage'] ? api.kotPlaces('pin').catch(() => null) : Promise.resolve(null),
         api.notifications('pin').catch(() => null),
         api.receiptSettings('pin').catch(() => null),
@@ -447,7 +448,6 @@ export default function App() {
       const cachePatch: any = { tables: remoteTables, branchId: session.branchId, currency: activeCurrency, scopeKey: session.scopeKey || tenantScope(session) }
       if (Array.isArray(remoteCategories)) cachePatch.menuCategories = remoteCategories
       if (enrichedItems) cachePatch.menuItems = enrichedItems
-      if (remoteOrders) cachePatch.orders = remoteOrders
       if (remoteKitchenPlaces) { cachePatch.kotPlaces = remoteKitchenPlaces; setKitchenPlaces(remoteKitchenPlaces) }
       if (remoteNotifications) cachePatch.notifications = remoteNotifications
       if (remoteReceiptSettings) cachePatch.receiptSettings = remoteReceiptSettings
@@ -1630,7 +1630,7 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
     }
     try {
       await api.updateOrderStatus('pin', orderId, status, newIdempotencyKey())
-      await loadPosDanData()
+      await refreshOrders()
       onNotice(`Pedido n.º ${orderId} marcado como recogido.`)
     } catch (cause) {
       onNotice(normalizeError(cause, 'No se pudo confirmar la recogida. Actualice e intente nuevamente.'))
@@ -1822,6 +1822,8 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
   const [cashSessionReady, setCashSessionReady] = useState(false)
   const [cashLoading, setCashLoading] = useState(false)
   const [allOrders, setAllOrders] = useState<any[]>([])
+  const ordersRefreshInFlight = useRef<Promise<void> | null>(null)
+  const ordersInitialSyncDone = useRef(false)
   const [productSearch, setProductSearch] = useState('')
   const [posCustomizingItem, setPosCustomizingItem] = useState<MenuItem | null>(null)
   const [localItemAvailability, setLocalItemAvailability] = useState<Record<number, boolean>>({})
@@ -1868,15 +1870,33 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
   const totalOccupiedTables = useMemo(() => tables.filter(t => t.status === 'occupied' || t.status === 'waiting_kitchen' || t.status === 'food_ready').length, [tables])
   const totalBillTables = useMemo(() => tables.filter(t => t.status === 'bill_requested').length, [tables])
 
-  // Load POS data on mount / refresh
+  const refreshOrders = useCallback(async () => {
+    if (!navigator.onLine || !api.getToken('pin')) return
+    if (ordersRefreshInFlight.current) return ordersRefreshInFlight.current
+
+    const request = api.orders('pin').then((orders) => {
+      const nextOrders = dedupeOrders(orders.filter((order): order is Record<string, unknown> => Boolean(order && typeof order === 'object')))
+      setAllOrders(nextOrders)
+      saveCache({ orders: nextOrders, branchId })
+    }).catch(() => {
+      // Keep the last good list during a transient connection/API failure.
+    }).finally(() => {
+      if (ordersRefreshInFlight.current === request) ordersRefreshInFlight.current = null
+    })
+
+    ordersRefreshInFlight.current = request
+    return request
+  }, [branchId])
+
+  // Load POS data on mount / module changes. Orders have their own controlled
+  // refresh so a realtime event never hydrates the entire POS again.
   const loadPosDanData = async () => {
     try {
       if (!offline) {
-        const [custs, regs, actSess, ords, oTypes, delPlats, delExecs, delSets, remoteItems] = await Promise.all([
+        const [custs, regs, actSess, oTypes, delPlats, delExecs, delSets, remoteItems] = await Promise.all([
           api.customers('pin').catch(() => []),
           api.cashRegisters('pin').catch(() => []),
           api.activeCashSession('pin').catch(() => null),
-          api.orders('pin').catch(() => []),
           api.orderTypes('pin').catch(() => []),
           api.deliveryPlatforms('pin').catch(() => []),
           api.deliveryExecutives('pin').catch(() => []),
@@ -1886,7 +1906,6 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
         setPosCustomers(custs)
         setCashRegisters(regs)
         setActiveCashSession(actSess)
-        setAllOrders(ords)
         if (Array.isArray(remoteItems) && remoteItems.length > 0) {
           setCatalogItems(remoteItems)
         }
@@ -1906,7 +1925,7 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
         } else {
           setActiveCashSummary(null)
         }
-        const cachePatch: any = { cashRegisters: regs, cashSession: actSess, cashSummary, orders: ords }
+        const cachePatch: any = { cashRegisters: regs, cashSession: actSess, cashSummary }
         if (Array.isArray(remoteItems) && remoteItems.length > 0) cachePatch.menuItems = remoteItems
         saveCache(cachePatch)
       } else {
@@ -1925,37 +1944,30 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
 
 
   useEffect(() => {
-    loadPosDanData()
-  }, [offline, activeNavTab])
-
-  // Fast polling when viewing Orders tab so new orders appear immediately (every 2.5s)
-  useEffect(() => {
-    if (activeNavTab !== 'orders' || offline) return
-
-    let cancelled = false
-    const refreshOrders = async () => {
-      if (cancelled || document.visibilityState === 'hidden') return
-      try {
-        const ords = await api.orders('pin')
-        if (!cancelled && Array.isArray(ords)) setAllOrders(ords)
-      } catch {
-        // keep existing
-      }
+    void loadPosDanData()
+    if (!ordersInitialSyncDone.current || activeNavTab === 'orders') {
+      ordersInitialSyncDone.current = true
+      void refreshOrders()
     }
+  }, [offline, activeNavTab, refreshOrders])
 
+  // Orders resync at lifecycle boundaries only: reconnect, foreground/focus,
+  // and coming back online. There is intentionally no timer for this list.
+  useEffect(() => {
+    const onOnline = () => void refreshOrders()
+    const onFocus = () => void refreshOrders()
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') void refreshOrders()
     }
-
-    void refreshOrders()
-    const timer = window.setInterval(() => void refreshOrders(), 2_500)
+    window.addEventListener('online', onOnline)
+    window.addEventListener('focus', onFocus)
     document.addEventListener('visibilitychange', onVisibilityChange)
     return () => {
-      cancelled = true
-      window.clearInterval(timer)
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('focus', onFocus)
       document.removeEventListener('visibilitychange', onVisibilityChange)
     }
-  }, [activeNavTab, offline])
+  }, [refreshOrders])
 
 
   // Cash summaries must reflect payments made by another terminal without
@@ -2011,8 +2023,18 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
     setActiveNavTab('cash')
   }, [activeNavTab, cashierNeedsCashSession])
 
-  // Real-time WebSocket connection & live listeners
-  const [realtimeState, setRealtimeState] = useState<'connected' | 'connecting' | 'disconnected' | 'unavailable' | 'failed'>('disconnected')
+  const realtimeConnectionRef = useRef<RealtimeConnectionState>('disconnected')
+
+  const applyRealtimeOrder = useCallback((data: unknown) => {
+    setAllOrders(current => mergeOrderRealtimeEvent(
+      current,
+      data,
+      { branchId, restaurantId },
+    ).orders)
+  }, [branchId, restaurantId, setAllOrders])
+
+  // Real-time connection & live listeners
+  const [realtimeState, setRealtimeState] = useState<RealtimeConnectionState>('disconnected')
 
   useEffect(() => {
     if (offline) {
@@ -2021,28 +2043,32 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
       return
     }
 
-    realtimeService.init(branchId, restaurantId, {
-      onConnectionChange: (state) => {
-        setRealtimeState(state)
-      },
-      onOrderCreated: (data) => {
-        window.dispatchEvent(new CustomEvent('restapp:refresh-tables'))
-        void loadPosDanData()
-        window.dispatchEvent(new CustomEvent('restapp:kot-updated', { detail: data }))
-        window.dispatchEvent(new CustomEvent('restapp:order-updated', { detail: data }))
-      },
-      onOrderUpdated: (data) => {
-        window.dispatchEvent(new CustomEvent('restapp:refresh-tables'))
-        void loadPosDanData()
-        window.dispatchEvent(new CustomEvent('restapp:kot-updated', { detail: data }))
-        window.dispatchEvent(new CustomEvent('restapp:order-updated', { detail: data }))
-      },
-      onKotUpdated: (data) => {
-        window.dispatchEvent(new CustomEvent('restapp:refresh-tables'))
-        window.dispatchEvent(new CustomEvent('restapp:kot-updated', { detail: data }))
-        window.dispatchEvent(new CustomEvent('restapp:order-updated', { detail: data }))
-        void loadPosDanData()
-        // If waiter or supervisor, notify
+      realtimeService.init(branchId, restaurantId, {
+       onConnectionChange: (state) => {
+          const previous = realtimeConnectionRef.current
+          realtimeConnectionRef.current = state
+          setRealtimeState(state)
+          if (shouldResyncAfterConnection(previous, state)) void refreshOrders()
+       },
+       onOrderCreated: (data) => {
+         window.dispatchEvent(new CustomEvent('restapp:refresh-tables'))
+         applyRealtimeOrder(data)
+         window.dispatchEvent(new CustomEvent('restapp:order-created', { detail: data }))
+         window.dispatchEvent(new CustomEvent('restapp:kot-updated', { detail: data }))
+         window.dispatchEvent(new CustomEvent('restapp:order-updated', { detail: data }))
+       },
+       onOrderUpdated: (data) => {
+         window.dispatchEvent(new CustomEvent('restapp:refresh-tables'))
+         applyRealtimeOrder(data)
+         window.dispatchEvent(new CustomEvent('restapp:kot-updated', { detail: data }))
+         window.dispatchEvent(new CustomEvent('restapp:order-updated', { detail: data }))
+       },
+       onKotUpdated: (data) => {
+         window.dispatchEvent(new CustomEvent('restapp:refresh-tables'))
+         applyRealtimeOrder(data)
+         window.dispatchEvent(new CustomEvent('restapp:kot-updated', { detail: data }))
+         window.dispatchEvent(new CustomEvent('restapp:order-updated', { detail: data }))
+         // If waiter or supervisor, notify
         if (data?.kot_status === 'food_ready') {
           void playWaiterAlert(readCache().notificationSettings || defaultNotificationSettings, '¡Plato Listo!', `Mesa ${data.table_code || ''} orden ${data.order_number || ''}`)
         }
@@ -2056,10 +2082,11 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
             playWaiterAlert(readCache().notificationSettings || defaultNotificationSettings, '¡Llamada de Mesa!', `${rows.length === 1 ? rows[0].tableName : `${rows.length} mesas`} solicitan atención.`)
           }).catch(() => {})
         }
-      },
-      onTodayOrdersUpdated: () => {
-        void loadPosDanData()
-      },
+       },
+       // OrderUpdated/NewOrderCreated carry the row summary. This counter
+       // event is intentionally informational and must not trigger a second
+       // REST list request for every order mutation.
+       onTodayOrdersUpdated: () => undefined,
       onPrintJobCreated: async (data) => {
         // If device has local printer config and autoPrintOnPayment is active, route print job
         try {
@@ -2067,14 +2094,16 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
           if (config.mode === 'windows_local' && data?.payload) {
             routePrintReceipt(data.payload)
           }
-        } catch {}
+        } catch {
+          // Printing is best-effort; the order state does not depend on it.
+        }
       }
     })
 
     return () => {
       // Keep connection alive across tab switches, clean up on unmount
     }
-  }, [offline, branchId, restaurantId, onRefresh])
+  }, [offline, branchId, restaurantId, applyRealtimeOrder, refreshOrders])
 
 
   return (
@@ -2083,7 +2112,7 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
       <div className="system-status-bar">
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <span className={offline ? 'sync-offline' : 'sync-ok'}>
-            <CloudLightning size={13} /> {offline ? 'Modo Offline' : isSyncing ? 'Sincronizando…' : 'Sync OK'}
+            <CloudLightning size={13} /> {offline ? 'Sin conexión' : isSyncing ? 'Sincronizando…' : 'Sincronización lista'}
           </span>
           {!offline && (
             <span
@@ -2099,7 +2128,7 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
                 color: realtimeState === 'connected' ? '#34d399' : '#fbbf24',
                 border: realtimeState === 'connected' ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(245, 158, 11, 0.35)',
               }}
-              title={realtimeState === 'connected' ? 'WebSockets activo y conectado' : 'Conectando a WebSockets...'}
+              title={realtimeState === 'connected' ? 'Actualizaciones en vivo activas' : realtimeState === 'connecting' || realtimeState === 'unavailable' ? 'Reconectando actualizaciones en vivo…' : 'Sin conexión; puede actualizar manualmente.'}
             >
               <span
                 style={{
@@ -2109,7 +2138,7 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
                   background: realtimeState === 'connected' ? '#34d399' : '#fbbf24',
                 }}
               />
-              {realtimeState === 'connected' ? 'En vivo' : 'WS...'}
+              {realtimeState === 'connected' ? 'En vivo' : realtimeState === 'connecting' || realtimeState === 'unavailable' ? 'Reconectando…' : 'Sin conexión'}
             </span>
           )}
           <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#A1A5AB' }}>
@@ -2119,7 +2148,7 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           {queueCount > 0 && (
             <span style={{ color: '#FFD54F', fontSize: '0.7rem', fontWeight: 700 }}>
-              {queueCount} cola offline
+              {queueCount} en cola sin conexión
             </span>
           )}
           <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -2571,7 +2600,7 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
             <div className="pos-view-layer view-active">
               <OrdersModule
                 orders={allOrders}
-                onRefresh={loadPosDanData}
+                onRefresh={refreshOrders}
                 onOpenPayment={openPickupPayment}
                 onUpdateStatus={markPickupCollected}
                 canCharge={canCharge}
@@ -5351,6 +5380,7 @@ function KitchenPanel({
   const initialSelectedPlaceId: number | 'all' = cachedViewIsUsable ? cachedView.placeId : allowAll ? 'all' : places.find(place => place.isDefault)?.id || places[0]?.id || 'all'
   const initialTickets = cachedKots.filter(ticket => activeStatuses.includes(ticket.status) && (initialSelectedPlaceId === 'all' || ticket.kitchenPlaceId === initialSelectedPlaceId))
   const [tickets, setTickets] = useState<KitchenTicket[]>(initialTickets)
+  const [nowMs, setNowMs] = useState(() => Date.now())
   const [loading, setLoading] = useState(!offline && initialTickets.length === 0)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState('')
@@ -5362,6 +5392,11 @@ function KitchenPanel({
     const d = new Date()
     return d.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit', hour12: false })
   })
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 60000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -5496,7 +5531,7 @@ function KitchenPanel({
 
   function getElapsedMinutes(createdAt?: string): number {
     if (!createdAt) return 0
-    const diffMs = Date.now() - new Date(createdAt).getTime()
+    const diffMs = nowMs - new Date(createdAt).getTime()
     return Math.max(0, Math.floor(diffMs / 60000))
   }
 
@@ -5586,7 +5621,7 @@ function KitchenPanel({
           </div>
           <div className={`sync-pill ${offline ? 'offline' : realtimeConnected ? 'connected' : 'connecting'}`}>
             <span className="sync-dot" />
-            {offline ? 'Offline' : realtimeConnected ? 'Sync OK' : 'Conectando…'}
+            {offline ? 'Sin conexión' : realtimeConnected ? 'En vivo' : 'Conectando…'}
           </div>
         </div>
         <div className="topbar-right">

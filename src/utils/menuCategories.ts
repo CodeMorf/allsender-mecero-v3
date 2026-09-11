@@ -10,12 +10,6 @@ export interface CategoryFilterOption {
 }
 
 /**
- * Nombre que hay que evitar mostrar: cuando la metadata no trae nombre de
- * categoría se genera algo como "Categoría 77", que no le dice nada al usuario.
- */
-const GENERIC_CATEGORY_NAME = /^Categor[ií]a\s*\d*$/i
-
-/**
  * Normalizes text for tolerant category comparisons:
  * removes accents, lowercases and trims excessive whitespace.
  */
@@ -33,7 +27,7 @@ export function normalizeCategoryText(value: unknown): string {
  * Checks if a menu item belongs to the selected category:
  * 1. Matches by stable numeric categoryId first
  * 2. Falls back to normalized categoryName comparison when ID is not available
- * 3. Handles 'ALL' and 'OTHER' (unassigned / generic) cleanly
+ * 3. Handles 'ALL' and 'OTHER' (only truly unassigned items) cleanly
  */
 export function isItemInCategory(
   item: MenuItem,
@@ -68,14 +62,12 @@ export function isItemInCategory(
 }
 
 /**
- * Un producto va a "Otros" cuando no tiene categoría usable: sin id, sin
- * nombre, o con un nombre genérico que no aporta nada al usuario.
+ * "Otros" is reserved for items without a valid numeric category ID. A valid
+ * ID must remain addressable even when the categories endpoint has no metadata
+ * for it; the caller displays the stable fallback "Categoría {id}".
  */
 function itemBelongsToOthers(item: MenuItem): boolean {
-  if (item.categoryId == null || Number(item.categoryId) <= 0) return true
-  const name = item.categoryName?.trim()
-  if (!name) return true
-  return name === 'Otros' || GENERIC_CATEGORY_NAME.test(name)
+  return item.categoryId == null || Number(item.categoryId) <= 0
 }
 
 /**
@@ -115,15 +107,13 @@ export function buildCategoryFilterOptions(
   const pendingItemsByCategory = new Map<number, { name: string; sortOrder?: number }>()
 
   for (const item of items) {
-    // Un producto sin categoría resoluble ya cuenta en 'Otros': no debe generar
-    // además su propia categoría, o aparecería dos veces en el selector.
+    // A valid ID is a real category even if its metadata is absent from the
+    // categories endpoint. Only items without a valid ID belong to "Otros".
     if (itemBelongsToOthers(item)) continue
 
     if (item.categoryId != null && item.categoryId > 0 && !knownIds.has(item.categoryId)) {
       if (!pendingItemsByCategory.has(item.categoryId)) {
-        const name = item.categoryName?.trim() && !GENERIC_CATEGORY_NAME.test(item.categoryName)
-          ? item.categoryName.trim()
-          : `Categoría ${item.categoryId}`
+        const name = item.categoryName?.trim() || `Categoría ${item.categoryId}`
         pendingItemsByCategory.set(item.categoryId, {
           name,
           sortOrder: item.categorySortOrder,

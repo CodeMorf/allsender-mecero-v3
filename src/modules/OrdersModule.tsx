@@ -227,13 +227,6 @@ export const OrdersModule: React.FC<OrdersModuleProps> = ({ orders, onRefresh, o
     }
   }
 
-  // Ensure orders are fetched fresh on mount (continuous polling is handled centrally by FloorScreen)
-  useEffect(() => {
-    if (onRefresh) {
-      void onRefresh()
-    }
-  }, [onRefresh])
-
   const handleMarkPickupCollected = async (orderId: number) => {
     if (!onUpdateStatus || updatingOrderId !== null) return
     setUpdatingOrderId(orderId)
@@ -477,7 +470,7 @@ export const OrdersModule: React.FC<OrdersModuleProps> = ({ orders, onRefresh, o
             <div className="orders-empty-state">
               <XCircle size={32} />
               <strong>{orders.length ? 'No hay órdenes con estos filtros.' : 'No hay órdenes recibidas.'}</strong>
-              <span>{orders.length ? 'Quite o cambie el filtro para ver las órdenes de esta sucursal.' : 'La lista se alimenta de GET /pos/orders con la sesión actual.'}</span>
+              <span>{orders.length ? 'Quite o cambie el filtro para ver las órdenes de esta sucursal.' : 'Las órdenes se sincronizan automáticamente para esta sucursal.'}</span>
             </div>
           )}
         </div>

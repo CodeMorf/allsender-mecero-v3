@@ -1,10 +1,15 @@
 import Pusher from 'pusher-js'
+import { API_BASE_URL, api } from '../api/client'
+import type { RealtimeConnectionState } from '../utils/realtimeState'
 
 export const PUSHER_CONFIG = {
   key: 'dfbcd123451ef909b3d3',
   cluster: 'us2',
   forceTLS: true,
 }
+
+type ChannelAuthorizationData = { auth: string; channel_data?: string }
+type AuthorizationCallback = (error: Error | null, data: ChannelAuthorizationData | null) => void
 
 export type RealtimeCallbacks = {
   onOrderUpdated?: (data: any) => void
@@ -13,8 +18,16 @@ export type RealtimeCallbacks = {
   onWaiterRequest?: (data: any) => void
   onTodayOrdersUpdated?: (data: any) => void
   onPrintJobCreated?: (data: any) => void
-  onConnectionChange?: (state: 'connected' | 'connecting' | 'disconnected' | 'unavailable' | 'failed') => void
+  onConnectionChange?: (state: RealtimeConnectionState) => void
 }
+
+const REALTIME_CHANNELS = {
+  orders: 'orders',
+  kots: 'kots',
+  printJobs: 'print-jobs',
+  waiterRequests: 'active-waiter-requests',
+  todayOrders: 'today-orders',
+} as const
 
 export class RealtimeService {
   private pusher: Pusher | null = null
@@ -24,35 +37,45 @@ export class RealtimeService {
   private subscribedChannels: string[] = []
 
   init(branchId?: number, restaurantId?: number, callbacks?: RealtimeCallbacks) {
-    if (callbacks) {
-      this.callbacks = { ...this.callbacks, ...callbacks }
-    }
+    if (callbacks) this.callbacks = { ...this.callbacks, ...callbacks }
 
-    if (this.branchId === branchId && this.restaurantId === restaurantId && this.pusher) {
+    if (this.branchId === (branchId ?? null) && this.restaurantId === (restaurantId ?? null) && this.pusher) {
       return
     }
 
     this.disconnect()
-
     this.branchId = branchId ?? null
     this.restaurantId = restaurantId ?? null
+
+    if (!this.branchId && !this.restaurantId) {
+      this.callbacks.onConnectionChange?.('disconnected')
+      return
+    }
 
     try {
       this.pusher = new Pusher(PUSHER_CONFIG.key, {
         cluster: PUSHER_CONFIG.cluster,
         forceTLS: PUSHER_CONFIG.forceTLS,
-      })
+        // Pusher sends the `private-` channel name to this endpoint. The
+        // bearer token is the already authenticated PIN/admin session; the
+        // backend is responsible for tenant and branch authorization.
+        authorizer: (channel: { name: string }) => ({
+          authorize: (socketId: string, callback: AuthorizationCallback) => {
+            void this.authorizeChannel(channel.name, socketId, callback)
+          },
+        }),
+      } as any)
 
       this.pusher.connection.bind('state_change', (states: { current: string }) => {
-        const state = states.current as any
-        if (this.callbacks.onConnectionChange) {
-          this.callbacks.onConnectionChange(state)
+        const state = states.current as RealtimeConnectionState
+        if (['connected', 'connecting', 'disconnected', 'unavailable', 'failed'].includes(state)) {
+          this.callbacks.onConnectionChange?.(state)
         }
       })
 
       this.subscribeAll()
-    } catch (err) {
-      console.warn('[RealtimeService] Pusher initialization error:', err)
+    } catch {
+      this.callbacks.onConnectionChange?.('failed')
     }
   }
 
@@ -60,96 +83,97 @@ export class RealtimeService {
     this.callbacks = { ...this.callbacks, ...callbacks }
   }
 
+  private async authorizeChannel(channelName: string, socketId: string, callback: AuthorizationCallback) {
+    const token = api.getToken('pin') || api.getToken('admin')
+    if (!token) {
+      callback(new Error('La sesión de la sucursal no está disponible.'), null)
+      return
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/pusher/authorize-channel`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ channel_name: channelName, socket_id: socketId }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok || typeof payload?.auth !== 'string') {
+        callback(new Error(payload?.message || 'No se pudo validar el canal en vivo.'), null)
+        return
+      }
+      callback(null, payload as ChannelAuthorizationData)
+    } catch {
+      callback(new Error('No se pudo conectar con las actualizaciones en vivo.'), null)
+    }
+  }
+
   private subscribeAll() {
     if (!this.pusher) return
 
-    const channelsToSubscribe = new Set<string>()
+    // A branch-scoped terminal subscribes to exactly one channel per stream.
+    // Restaurant fallback is used only for sessions without a branch. This
+    // prevents the same event arriving through global, branch and restaurant
+    // subscriptions and keeps all received data tenant-scoped.
+    if (!this.branchId && !this.restaurantId) return
 
-    // Global / fallback channels
-    channelsToSubscribe.add('orders')
-    channelsToSubscribe.add('order-success')
-    channelsToSubscribe.add('kots')
-    channelsToSubscribe.add('print-jobs')
-    channelsToSubscribe.add('active-waiter-requests')
+    const channelNames = buildRealtimeChannelNames(this.branchId, this.restaurantId)
 
-    // Branch channels
-    if (this.branchId) {
-      channelsToSubscribe.add(`orders.branch.${this.branchId}`)
-      channelsToSubscribe.add(`kots.branch.${this.branchId}`)
-      channelsToSubscribe.add(`print-jobs.branch.${this.branchId}`)
-      channelsToSubscribe.add(`active-waiter-requests.branch.${this.branchId}`)
-      channelsToSubscribe.add(`today-orders.branch.${this.branchId}`)
-    }
-
-    // Restaurant channels
-    if (this.restaurantId) {
-      channelsToSubscribe.add(`orders.restaurant.${this.restaurantId}`)
-      channelsToSubscribe.add(`kots.restaurant.${this.restaurantId}`)
-      channelsToSubscribe.add(`active-waiter-requests.restaurant.${this.restaurantId}`)
-      channelsToSubscribe.add(`today-orders.restaurant.${this.restaurantId}`)
-    }
-
-    const orderUpdatedEvents = ['order.updated', '.order.updated', 'App\\Events\\OrderUpdated', 'OrderUpdated']
-    const orderCreatedEvents = ['order.created', '.order.created', 'order-success.created', '.order-success.created', 'App\\Events\\NewOrderCreated', 'App\\Events\\OrderSuccessEvent', 'NewOrderCreated']
-    const kotUpdatedEvents = ['kot.updated', '.kot.updated', 'App\\Events\\KotUpdated', 'KotUpdated']
-
-    channelsToSubscribe.forEach((channelName) => {
+    for (const channelName of channelNames) {
       try {
-        const channel = this.pusher!.subscribe(channelName)
+        const channel = this.pusher.subscribe(channelName)
         this.subscribedChannels.push(channelName)
 
-        // Bind order updated events
-        orderUpdatedEvents.forEach(evt => {
-          channel.bind(evt, (data: any) => {
-            this.callbacks.onOrderUpdated?.(data)
-          })
-        })
-
-        // Bind order created events
-        orderCreatedEvents.forEach(evt => {
-          channel.bind(evt, (data: any) => {
-            this.callbacks.onOrderCreated?.(data)
-          })
-        })
-
-        // Bind KOT updated events
-        kotUpdatedEvents.forEach(evt => {
-          channel.bind(evt, (data: any) => {
-            this.callbacks.onKotUpdated?.(data)
-          })
-        })
-
-        channel.bind('active-waiter-requests.created', (data: any) => {
-          this.callbacks.onWaiterRequest?.(data)
-        })
-
-        channel.bind('today-orders.updated', (data: any) => {
-          this.callbacks.onTodayOrdersUpdated?.(data)
-        })
-
-        channel.bind('print-job.created', (data: any) => {
-          this.callbacks.onPrintJobCreated?.(data)
-        })
-      } catch (err) {
-        console.warn(`[RealtimeService] Failed to subscribe to ${channelName}:`, err)
+        if (channelName.includes(`-${REALTIME_CHANNELS.orders}.`)) {
+          channel.bind('order.created', (data: any) => this.callbacks.onOrderCreated?.(data))
+          channel.bind('order.updated', (data: any) => this.callbacks.onOrderUpdated?.(data))
+        } else if (channelName.includes(`-${REALTIME_CHANNELS.kots}.`)) {
+          channel.bind('kot.updated', (data: any) => this.callbacks.onKotUpdated?.(data))
+        } else if (channelName.includes(`-${REALTIME_CHANNELS.waiterRequests}.`)) {
+          channel.bind('active-waiter-requests.created', (data: any) => this.callbacks.onWaiterRequest?.(data))
+        } else if (channelName.includes(`-${REALTIME_CHANNELS.todayOrders}.`)) {
+          channel.bind('today-orders.updated', (data: any) => this.callbacks.onTodayOrdersUpdated?.(data))
+        } else if (channelName.includes(`-${REALTIME_CHANNELS.printJobs}.`)) {
+          channel.bind('print-job.created', (data: any) => this.callbacks.onPrintJobCreated?.(data))
+        }
+      } catch {
+        // Pusher reports the connection state; individual channel failures do
+        // not expose internal details in the POS UI.
       }
-    })
+    }
   }
 
   disconnect() {
     if (this.pusher) {
-      this.subscribedChannels.forEach((ch) => {
-        try {
-          this.pusher?.unsubscribe(ch)
-        } catch {}
-      })
-      this.subscribedChannels = []
-      try {
-        this.pusher.disconnect()
-      } catch {}
-      this.pusher = null
+      for (const channel of this.subscribedChannels) {
+        try { this.pusher.unsubscribe(channel) } catch {
+          // The connection is already being torn down.
+        }
+      }
+      try { this.pusher.disconnect() } catch {
+        // Pusher may already be disconnected after a network failure.
+      }
     }
+    this.subscribedChannels = []
+    this.pusher = null
   }
 }
 
 export const realtimeService = new RealtimeService()
+
+export function buildRealtimeChannelNames(branchId?: number | null, restaurantId?: number | null): string[] {
+  const scope = branchId ? 'branch' : 'restaurant'
+  const scopeId = branchId || restaurantId
+  if (!scopeId) return []
+
+  return [
+    'private-' + REALTIME_CHANNELS.orders + '.' + scope + '.' + scopeId,
+    'private-' + REALTIME_CHANNELS.kots + '.' + scope + '.' + scopeId,
+    'private-' + REALTIME_CHANNELS.printJobs + '.' + scope + '.' + scopeId,
+    'private-' + REALTIME_CHANNELS.waiterRequests + '.' + scope + '.' + scopeId,
+    'private-' + REALTIME_CHANNELS.todayOrders + '.' + scope + '.' + scopeId,
+  ]
+}
