@@ -638,8 +638,9 @@ export function normalizeItem(raw: any): MenuItem {
     })).filter((variation: ProductVariation) => variation.id > 0)
     : undefined
   const computedPhotoUrl = raw.item_photo_url || raw.itemPhotoUrl
-  const hasRealComputedPhoto = typeof computedPhotoUrl === 'string' && computedPhotoUrl.trim() && !/(?:^|\/)food\.svg(?:\?|$)/i.test(computedPhotoUrl) && !/(?:^|\/)transparent\.svg(?:\?|$)/i.test(computedPhotoUrl)
-  const imageSource = raw.image_url || raw.imageUrl || raw.photo_url || raw.thumbnail_url || raw.image?.url || raw.image?.path || raw.photo?.url || raw.images?.[0]?.url || raw.images?.[0]?.path || (hasRealComputedPhoto ? computedPhotoUrl : undefined)
+  const hasRealComputedPhoto = typeof computedPhotoUrl === 'string' && computedPhotoUrl.trim() && !/(?:food\.svg|transparent\.svg|food-default\.png)(?:\?|$)/i.test(computedPhotoUrl)
+  const rawImage = typeof raw.image === 'string' && raw.image.trim() && !/(?:food\.svg|transparent\.svg|food-default\.png)(?:\?|$)/i.test(raw.image) ? raw.image.trim() : undefined
+  const imageSource = raw.image_url || raw.imageUrl || raw.photo_url || raw.thumbnail_url || raw.image?.url || raw.image?.path || raw.photo?.url || raw.images?.[0]?.url || raw.images?.[0]?.path || (hasRealComputedPhoto ? computedPhotoUrl : undefined) || (rawImage ? `storage/item/${rawImage}` : undefined)
   const categoryValue = raw.category_name || raw.category?.name || raw.category?.title || raw.category?.label || (typeof raw.category === 'string' ? raw.category : undefined) || raw.item_category?.name || raw.item_category?.title || (typeof raw.item_category === 'string' ? raw.item_category : undefined)
   const categoryName = typeof categoryValue === 'string' && categoryValue.trim() ? categoryValue.trim() : `Categoría ${raw.category_id || raw.item_category_id || ''}`.trim()
   return { id: Number(raw.id), name: raw.name || raw.item_name || raw.menu_item_name || `Producto ${raw.id}`, imageUrl: normalizeMediaUrl(imageSource), code: raw.code || raw.item_code || raw.sku || String(raw.id), price: Number(dineInPrice ?? raw.price ?? raw.selling_price ?? raw.final_price ?? 0), categoryId: raw.category_id || raw.item_category_id, categoryName, available: raw.available !== false && raw.is_available !== false && raw.in_stock !== 0 && raw.status !== 'sold_out', availabilityReason: raw.availability_reason || raw.reason || (raw.in_stock === 0 ? 'Sin existencia' : undefined), allergens: (Array.isArray(allergens) ? allergens : String(allergens).split(',').filter(Boolean)).map((x: any) => typeof x === 'string' ? x : x.name || x.code || x.key), dietaryTags: (Array.isArray(dietaryTags) ? dietaryTags : String(dietaryTags).split(',').filter(Boolean)).map((x: any) => typeof x === 'string' ? x : x.name || x.code), modifiers: raw.modifiers || raw.modifier_groups, variations }
@@ -787,7 +788,19 @@ export function normalizeCustomer(raw: any): PosCustomer {
 
 function normalizeMediaUrl(value: unknown): string | undefined {
   if (typeof value !== 'string' || !value.trim()) return undefined
-  const source = value.trim()
+  let source = value.trim()
+  // Ignore fallback default images that aren't real item photos so the UI renders sleek SVG icons
+  const cleanPath = source.split('?')[0].toLowerCase()
+  if (cleanPath.endsWith('/food-default.png') || cleanPath.endsWith('/food.svg') || cleanPath.endsWith('/transparent.svg') || cleanPath.endsWith('/img/food-default.png')) {
+    return undefined
+  }
+  // Replace localhost or 127.0.0.1 with backend origin
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(source)) {
+    try {
+      const origin = new URL(API_BASE_URL).origin
+      source = source.replace(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i, origin)
+    } catch {}
+  }
   if (/^(data:|blob:|https?:\/\/)/i.test(source)) return source
   try {
     const origin = new URL(API_BASE_URL).origin

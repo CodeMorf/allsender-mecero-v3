@@ -1960,15 +1960,18 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
         window.dispatchEvent(new CustomEvent('restapp:refresh-tables'))
         void loadPosDanData()
         window.dispatchEvent(new CustomEvent('restapp:kot-updated', { detail: data }))
+        window.dispatchEvent(new CustomEvent('restapp:order-updated', { detail: data }))
       },
       onOrderUpdated: (data) => {
         window.dispatchEvent(new CustomEvent('restapp:refresh-tables'))
         void loadPosDanData()
         window.dispatchEvent(new CustomEvent('restapp:kot-updated', { detail: data }))
+        window.dispatchEvent(new CustomEvent('restapp:order-updated', { detail: data }))
       },
       onKotUpdated: (data) => {
         window.dispatchEvent(new CustomEvent('restapp:refresh-tables'))
         window.dispatchEvent(new CustomEvent('restapp:kot-updated', { detail: data }))
+        window.dispatchEvent(new CustomEvent('restapp:order-updated', { detail: data }))
         void loadPosDanData()
         // If waiter or supervisor, notify
         if (data?.kot_status === 'food_ready') {

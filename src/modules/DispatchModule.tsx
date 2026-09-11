@@ -110,7 +110,7 @@ export const DispatchModule: React.FC<DispatchModuleProps> = ({
   const [selectedExecutiveId, setSelectedExecutiveId] = useState<number | 'all'>('all')
   const [selectedPlatformId, setSelectedPlatformId] = useState<number | 'all'>('all')
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedDate, setSelectedDate] = useState<string>(() => new Date().toISOString().split('T')[0])
+  const [selectedDate, setSelectedDate] = useState<string>('all')
 
   // Active / Selected Order for Inspection & Packing Checklist
   const [selectedOrder, setSelectedOrder] = useState<DeliveryOrder | null>(null)
@@ -155,7 +155,7 @@ export const DispatchModule: React.FC<DispatchModuleProps> = ({
     try {
       const [orderRes, execRes, platRes] = await Promise.allSettled([
         api.deliveryOrders('pin', {
-          date: selectedDate,
+          date: selectedDate === 'all' ? undefined : selectedDate,
           status: selectedStatus === 'all' ? undefined : selectedStatus,
           deliveryExecutiveId: selectedExecutiveId === 'all' ? undefined : selectedExecutiveId,
           deliveryAppId: selectedPlatformId === 'all' ? undefined : selectedPlatformId,
@@ -215,10 +215,10 @@ export const DispatchModule: React.FC<DispatchModuleProps> = ({
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim()
       list = list.filter(o =>
-        (o.order_number && o.order_number.toLowerCase().includes(q)) ||
-        (o.formatted_order_number && o.formatted_order_number.toLowerCase().includes(q)) ||
+        (o.order_number != null && String(o.order_number).toLowerCase().includes(q)) ||
+        (o.formatted_order_number && String(o.formatted_order_number).toLowerCase().includes(q)) ||
         (o.customer?.name && o.customer.name.toLowerCase().includes(q)) ||
-        (o.customer?.phone && o.customer.phone.includes(q)) ||
+        (o.customer?.phone != null && String(o.customer.phone).includes(q)) ||
         (o.delivery_address && o.delivery_address.toLowerCase().includes(q)) ||
         (o.delivery_executive?.name && o.delivery_executive.name.toLowerCase().includes(q)) ||
         (o.items && o.items.some(i => i.name.toLowerCase().includes(q)))
@@ -374,12 +374,30 @@ export const DispatchModule: React.FC<DispatchModuleProps> = ({
         {/* Date Filter */}
         <div className="dispatch-filter-item">
           <Calendar size={15} style={{ color: '#A1A5AB' }} />
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={e => setSelectedDate(e.target.value)}
-            className="dispatch-date-input"
-          />
+          <select
+            value={selectedDate === 'all' ? 'all' : selectedDate === new Date().toISOString().split('T')[0] ? 'today' : 'custom'}
+            onChange={e => {
+              const val = e.target.value
+              if (val === 'all') setSelectedDate('all')
+              else if (val === 'today') setSelectedDate(new Date().toISOString().split('T')[0])
+              else setSelectedDate(new Date().toISOString().split('T')[0])
+            }}
+            className="dispatch-select"
+            style={{ minWidth: 110 }}
+          >
+            <option value="all">Todas las órdenes</option>
+            <option value="today">Hoy ({new Date().toLocaleDateString('es-DO', { day: '2-digit', month: '2-digit' })})</option>
+            <option value="custom">Elegir fecha...</option>
+          </select>
+          {selectedDate !== 'all' && (
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={e => setSelectedDate(e.target.value)}
+              className="dispatch-date-input"
+              style={{ marginLeft: 4 }}
+            />
+          )}
         </div>
 
         {/* Rider Filter */}

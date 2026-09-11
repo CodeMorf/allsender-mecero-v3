@@ -67,6 +67,7 @@ export class RealtimeService {
 
     // Global / fallback channels
     channelsToSubscribe.add('orders')
+    channelsToSubscribe.add('order-success')
     channelsToSubscribe.add('kots')
     channelsToSubscribe.add('print-jobs')
     channelsToSubscribe.add('active-waiter-requests')
@@ -88,22 +89,34 @@ export class RealtimeService {
       channelsToSubscribe.add(`today-orders.restaurant.${this.restaurantId}`)
     }
 
+    const orderUpdatedEvents = ['order.updated', '.order.updated', 'App\\Events\\OrderUpdated', 'OrderUpdated']
+    const orderCreatedEvents = ['order.created', '.order.created', 'order-success.created', '.order-success.created', 'App\\Events\\NewOrderCreated', 'App\\Events\\OrderSuccessEvent', 'NewOrderCreated']
+    const kotUpdatedEvents = ['kot.updated', '.kot.updated', 'App\\Events\\KotUpdated', 'KotUpdated']
+
     channelsToSubscribe.forEach((channelName) => {
       try {
         const channel = this.pusher!.subscribe(channelName)
         this.subscribedChannels.push(channelName)
 
-        // Bind events
-        channel.bind('order.updated', (data: any) => {
-          this.callbacks.onOrderUpdated?.(data)
+        // Bind order updated events
+        orderUpdatedEvents.forEach(evt => {
+          channel.bind(evt, (data: any) => {
+            this.callbacks.onOrderUpdated?.(data)
+          })
         })
 
-        channel.bind('order.created', (data: any) => {
-          this.callbacks.onOrderCreated?.(data)
+        // Bind order created events
+        orderCreatedEvents.forEach(evt => {
+          channel.bind(evt, (data: any) => {
+            this.callbacks.onOrderCreated?.(data)
+          })
         })
 
-        channel.bind('kot.updated', (data: any) => {
-          this.callbacks.onKotUpdated?.(data)
+        // Bind KOT updated events
+        kotUpdatedEvents.forEach(evt => {
+          channel.bind(evt, (data: any) => {
+            this.callbacks.onKotUpdated?.(data)
+          })
         })
 
         channel.bind('active-waiter-requests.created', (data: any) => {
