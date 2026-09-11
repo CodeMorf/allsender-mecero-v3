@@ -3,7 +3,7 @@ import { ApiError, applyCategoryMetadata, normalizeAttendance, normalizeCategory
 import { cartItemUnitPrice } from './modules/PosModule'
 import { newIdempotencyKey, readCache, saveCache, setStorageScope } from './storage/offline'
 import { orderServiceLabel, resolveOrderService } from './utils/orderService'
-import { menuCategoryNames } from './utils/menuCategories'
+import { menuCategoryNames, buildCategoryFilterOptions, isItemInCategory } from './utils/menuCategories'
 
 describe('contrato base del mesero', () => {
   it('normaliza estados de mesa de la API al mapa visual', () => {
@@ -48,6 +48,53 @@ describe('contrato base del mesero', () => {
       { categoryName: 'Desayuno', categorySortOrder: 1 },
       { categoryName: 'Platos del día', categorySortOrder: 2 },
     ])).toEqual(['Desayuno', 'Platos del día', 'Bebidas'])
+  })
+
+  it('resuelve categoryId desde category_id, item_category_id, category.id o item_category.id', () => {
+    const it1 = normalizeItem({ id: 1, item_name: 'P1', category_id: 10, price: 100 })
+    const it2 = normalizeItem({ id: 2, item_name: 'P2', item_category_id: 20, price: 100 })
+    const it3 = normalizeItem({ id: 3, item_name: 'P3', category: { id: 30, name: 'Entradas' }, price: 100 })
+    const it4 = normalizeItem({ id: 4, item_name: 'P4', item_category: { id: 40, name: 'Postres' }, price: 100 })
+    const it5 = normalizeItem({ id: 5, item_name: 'P5', price: 100 })
+
+    expect(it1.categoryId).toBe(10)
+    expect(it2.categoryId).toBe(20)
+    expect(it3.categoryId).toBe(30)
+    expect(it3.categoryName).toBe('Entradas')
+    expect(it4.categoryId).toBe(40)
+    expect(it4.categoryName).toBe('Postres')
+    expect(it5.categoryId).toBeUndefined()
+    expect(it5.categoryName).toBe('Otros')
+  })
+
+  it('filtra por ID estable y tolera variaciones de acentos y mayúsculas', () => {
+    const itDesayuno = normalizeItem({ id: 24, item_name: 'Mangu', item_category_id: 15, price: 295 })
+    const itPlato = normalizeItem({ id: 71, item_name: 'Plato del Día', item_category_id: 35, price: 300 })
+    const itBebida = normalizeItem({ id: 76, item_name: 'Café', item_category_id: 36, price: 50 })
+    const itOtro = normalizeItem({ id: 99, item_name: 'Servicio extra', price: 10 })
+
+    const categories = [
+      normalizeCategory({ id: 15, category_name: 'Desayuno', sort_order: 1 }),
+      normalizeCategory({ id: 35, category_name: 'Platos del día', sort_order: 2 }),
+      normalizeCategory({ id: 36, category_name: 'Bebidas', sort_order: 10 }),
+    ]
+
+    const resolved = applyCategoryMetadata([itDesayuno, itPlato, itBebida, itOtro], categories)
+    const options = buildCategoryFilterOptions(resolved, categories)
+
+    expect(options.map(o => o.name)).toEqual(['Todos los productos', 'Desayuno', 'Platos del día', 'Bebidas', 'Otros'])
+    expect(options.find(o => o.id === 15)?.count).toBe(1)
+    expect(options.find(o => o.id === 35)?.count).toBe(1)
+    expect(options.find(o => o.id === 36)?.count).toBe(1)
+    expect(options.find(o => o.id === 'OTHER')?.count).toBe(1)
+    expect(options.find(o => o.id === 'ALL')?.count).toBe(4)
+
+    // Filtrar por ID estable
+    expect(resolved.filter(it => isItemInCategory(it, 15))).toEqual([resolved[0]])
+    expect(resolved.filter(it => isItemInCategory(it, 35))).toEqual([resolved[1]])
+    expect(resolved.filter(it => isItemInCategory(it, 36))).toEqual([resolved[2]])
+    expect(resolved.filter(it => isItemInCategory(it, 'OTHER'))).toEqual([resolved[3]])
+    expect(resolved.filter(it => isItemInCategory(it, 'ALL'))).toHaveLength(4)
   })
 
   it('conserva las variaciones del catálogo para abrir el personalizador', () => {

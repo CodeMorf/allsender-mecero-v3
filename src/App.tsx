@@ -31,7 +31,7 @@ import { printThermalZReport, printThermalCustomerReceipt } from './utils/therma
 import { getStationPrinterConfig, routePrintReceipt, routePrintTest, type ThermalReceiptData } from './utils/printRouter'
 import { realtimeService } from './services/realtime'
 import { orderServiceLabel, resolveOrderService } from './utils/orderService'
-import { menuCategoryNames } from './utils/menuCategories'
+import { menuCategoryNames, buildCategoryFilterOptions, isItemInCategory, type CategoryFilterId } from './utils/menuCategories'
 
 type Screen = 'setup' | 'branches' | 'pin' | 'floor'
 type LiveNotification = { id: string; type: string; title: string; message: string; createdAt?: string; unread: boolean }
@@ -259,6 +259,7 @@ export default function App() {
   const [activeBranch, setActiveBranch] = useState<Branch | null>(null)
   const [tables, setTables] = useState<RestaurantTable[]>([])
   const [items, setItems] = useState<MenuItem[]>([])
+  const [categories, setCategories] = useState<MenuCategory[]>([])
   const [kitchenPlaces, setKitchenPlaces] = useState<KitchenPlace[]>([])
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>(defaultPaymentMethods)
   const [fiscalCapabilities, setFiscalCapabilities] = useState<FiscalCapabilities | null>(null)
@@ -351,6 +352,7 @@ export default function App() {
     setBranches(cache.branches || [])
     setTables(cache.tables || [])
     setItems(cache.menuItems || [])
+    setCategories(cache.menuCategories || [])
     setKitchenPlaces(cache.kotPlaces || [])
     if (Array.isArray(cache.paymentMethods) && cache.paymentMethods.length) setPaymentMethods(cache.paymentMethods)
     if (cache.fiscalCapabilities) setFiscalCapabilities(cache.fiscalCapabilities)
@@ -420,6 +422,7 @@ export default function App() {
       const categorySource: MenuCategory[] = remoteCategories === null
         ? (cached.menuCategories || [])
         : remoteCategories
+      setCategories(categorySource)
       const initialItems = Array.isArray(remoteItems)
         ? applyCategoryMetadata(remoteItems, categorySource)
         : null
@@ -427,7 +430,7 @@ export default function App() {
       // a las consultas complementarias de suplementos de cada producto.
       if (initialItems) {
         setItems(initialItems)
-        saveCache({ menuItems: initialItems, branchId: session.branchId, scopeKey: session.scopeKey || tenantScope(session) })
+        saveCache({ menuItems: initialItems, menuCategories: categorySource, branchId: session.branchId, scopeKey: session.scopeKey || tenantScope(session) })
       }
       const enrichedItems = initialItems
         ? await Promise.all(initialItems.map(async item => {
@@ -1122,7 +1125,7 @@ export default function App() {
   if (screen === 'setup') return <SetupScreen loading={loading} error={error} defaultDeviceId={deviceId} onSubmit={handleAdminLogin} onDirectPin={handleDirectPin} />
   if (screen === 'branches') return <BranchScreen branches={branches} loading={loading} error={error} offline={offline} onSelect={chooseBranch} onBack={() => { clearSession('admin'); setScreen('setup') }} />
   if (screen === 'pin') return <PinScreen brand={restaurantName} branch={activeBranch?.name || ''} role={staffRole} onRoleChange={setStaffRole} offline={offline} loading={loading} error={error} notice={notice} onSubmit={handlePin} canChangeBranch={Boolean(adminSession)} onBack={() => setScreen('branches')} />
-  return <FloorScreen brand={restaurantName} branch={activeBranch?.name || ''} branchId={activeBranch?.id || pinSession?.branchId} restaurantId={pinSession?.restaurantId || adminSession?.restaurantId} roleKey={pinSession?.roleKey || staffRole} userName={pinSession?.userName} userId={pinSession?.userId} deviceId={deviceId} permissions={pinSession?.permissions || {}} tables={tables} items={items} kitchenPlaces={kitchenPlaces} paymentMethods={paymentMethods} fiscalCapabilities={fiscalCapabilities} offline={offline} queueCount={queueCount} isSyncing={isSyncing} notice={notice} onNotice={setNotice} error={error} onLogout={logout} onRefresh={() => pinSession && hydrate(pinSession)} onSubmitOrder={submitOrder} onSaveCustomer={saveTableCustomer} onRemoveOrderItem={removeOrderItem} onPrintPreBill={printPreBill} onPayOrder={payOrder} onTransferTable={transferTableOrder} onCancelOrder={cancelTableOrder} onOpenCashSession={openCashSession} onCloseCashSession={closeCashSession} onApproveCashSession={approveCashSession} onRejectCashSession={rejectCashSession} onReopenCashSession={reopenCashSession} onCashMovement={cashMovement} onClockIn={clockInAttendance} onClockOut={clockOutAttendance} onUpdateKotStatus={updateKotStatus} onSelectTable={setActiveTable} activeTable={activeTable} />
+  return <FloorScreen brand={restaurantName} branch={activeBranch?.name || ''} branchId={activeBranch?.id || pinSession?.branchId} restaurantId={pinSession?.restaurantId || adminSession?.restaurantId} roleKey={pinSession?.roleKey || staffRole} userName={pinSession?.userName} userId={pinSession?.userId} deviceId={deviceId} permissions={pinSession?.permissions || {}} tables={tables} items={items} categories={categories} kitchenPlaces={kitchenPlaces} paymentMethods={paymentMethods} fiscalCapabilities={fiscalCapabilities} offline={offline} queueCount={queueCount} isSyncing={isSyncing} notice={notice} onNotice={setNotice} error={error} onLogout={logout} onRefresh={() => pinSession && hydrate(pinSession)} onSubmitOrder={submitOrder} onSaveCustomer={saveTableCustomer} onRemoveOrderItem={removeOrderItem} onPrintPreBill={printPreBill} onPayOrder={payOrder} onTransferTable={transferTableOrder} onCancelOrder={cancelTableOrder} onOpenCashSession={openCashSession} onCloseCashSession={closeCashSession} onApproveCashSession={approveCashSession} onRejectCashSession={rejectCashSession} onReopenCashSession={reopenCashSession} onCashMovement={cashMovement} onClockIn={clockInAttendance} onClockOut={clockOutAttendance} onUpdateKotStatus={updateKotStatus} onSelectTable={setActiveTable} activeTable={activeTable} />
 }
 
 function nextAdminRestaurantId(session: Session) { return session.restaurantId }
@@ -1590,7 +1593,7 @@ function PosProductCardImage({ item }: { item: MenuItem }) {
   )
 }
 
-function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName, userId, deviceId, permissions, tables, items, kitchenPlaces, paymentMethods, fiscalCapabilities, offline, queueCount, isSyncing, notice, onNotice, error, onLogout, onRefresh, onSubmitOrder, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onCancelOrder, onOpenCashSession, onCloseCashSession, onApproveCashSession, onRejectCashSession, onReopenCashSession, onCashMovement, onClockIn, onClockOut, onUpdateKotStatus, onSelectTable, activeTable }: { brand: string; branch: string; branchId?: number; restaurantId?: number; roleKey: StaffRole; userName?: string; userId?: number; deviceId: string; permissions: Record<string, boolean>; tables: RestaurantTable[]; items: MenuItem[]; kitchenPlaces: KitchenPlace[]; paymentMethods: PaymentMethodOption[]; fiscalCapabilities?: FiscalCapabilities | null; offline: boolean; queueCount: number; isSyncing?: boolean; notice: string; onNotice: (message: string) => void; error: string; onLogout: () => void; onRefresh: () => void; onSubmitOrder: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onCancelOrder?: (table: RestaurantTable, reason?: string) => Promise<{ queued: boolean; message: string }>; onOpenCashSession: (registerId: number, openingFloat: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCloseCashSession: (sessionId: number, countedCash: number, expectedCash: number | undefined, note: string, sendForApproval: boolean, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onApproveCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onRejectCashSession: (sessionId: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onReopenCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCashMovement: (movement: 'cash-in' | 'cash-out' | 'safe-drop', sessionId: number, amount: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onClockIn: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onClockOut: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onUpdateKotStatus: (kotId: number, status: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onSelectTable: (table: RestaurantTable | null) => void; activeTable: RestaurantTable | null }) {
+function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName, userId, deviceId, permissions, tables, items, categories = [], kitchenPlaces, paymentMethods, fiscalCapabilities, offline, queueCount, isSyncing, notice, onNotice, error, onLogout, onRefresh, onSubmitOrder, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onCancelOrder, onOpenCashSession, onCloseCashSession, onApproveCashSession, onRejectCashSession, onReopenCashSession, onCashMovement, onClockIn, onClockOut, onUpdateKotStatus, onSelectTable, activeTable }: { brand: string; branch: string; branchId?: number; restaurantId?: number; roleKey: StaffRole; userName?: string; userId?: number; deviceId: string; permissions: Record<string, boolean>; tables: RestaurantTable[]; items: MenuItem[]; categories?: MenuCategory[]; kitchenPlaces: KitchenPlace[]; paymentMethods: PaymentMethodOption[]; fiscalCapabilities?: FiscalCapabilities | null; offline: boolean; queueCount: number; isSyncing?: boolean; notice: string; onNotice: (message: string) => void; error: string; onLogout: () => void; onRefresh: () => void; onSubmitOrder: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onCancelOrder?: (table: RestaurantTable, reason?: string) => Promise<{ queued: boolean; message: string }>; onOpenCashSession: (registerId: number, openingFloat: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCloseCashSession: (sessionId: number, countedCash: number, expectedCash: number | undefined, note: string, sendForApproval: boolean, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onApproveCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onRejectCashSession: (sessionId: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onReopenCashSession: (sessionId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onCashMovement: (movement: 'cash-in' | 'cash-out' | 'safe-drop', sessionId: number, amount: number, note: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string; data?: any }>; onClockIn: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onClockOut: (idempotencyKey: string) => Promise<{ queued: boolean; message: string; attendance: AttendanceRecord }>; onUpdateKotStatus: (kotId: number, status: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onSelectTable: (table: RestaurantTable | null) => void; activeTable: RestaurantTable | null }) {
 
   const [showMenu, setShowMenu] = useState(false); const [showQuick, setShowQuick] = useState(false); const [showOps, setShowOps] = useState(false); const [showCashier, setShowCashier] = useState(false); const [showAttendance, setShowAttendance] = useState(false); const [opsLoading, setOpsLoading] = useState(false); const [notifications, setNotifications] = useState<LiveNotification[]>([]); const [deliverySettings, setDeliverySettings] = useState<DeliverySettings | null>(null); const [deliveryExecutives, setDeliveryExecutives] = useState<DeliveryExecutive[]>([]); const [deliveryPlatforms, setDeliveryPlatforms] = useState<DeliveryPlatform[]>([]); const [orderTypes, setOrderTypes] = useState<OrderTypeConfig[]>([])
   const [pickupPaymentTarget, setPickupPaymentTarget] = useState<{ summary: any; detail: any } | null>(null)
@@ -1822,7 +1825,7 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
   const [productSearch, setProductSearch] = useState('')
   const [posCustomizingItem, setPosCustomizingItem] = useState<MenuItem | null>(null)
   const [localItemAvailability, setLocalItemAvailability] = useState<Record<number, boolean>>({})
-  const [selectedCategory, setSelectedCategory] = useState('Todos')
+  const [selectedCategoryId, setSelectedCategoryId] = useState<CategoryFilterId>('ALL')
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
   const [clockTime, setClockTime] = useState(() => new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }))
 
@@ -1837,10 +1840,9 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
   useEffect(() => { setCatalogItems(items) }, [items])
   const activeItems = catalogItems.length > 0 ? catalogItems : items
 
-  const menuCategories = useMemo(() => {
-    const list = menuCategoryNames(activeItems)
-    return ['Todos', ...list]
-  }, [activeItems])
+  const categoryFilterOptions = useMemo(() => {
+    return buildCategoryFilterOptions(activeItems, categories, 'Todos')
+  }, [activeItems, categories])
 
   const effectiveMenuItems = useMemo(() => {
     return activeItems.map(item => {
@@ -1853,12 +1855,13 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
 
   const filteredMenuItems = useMemo(() => {
     const q = productSearch.trim().toLowerCase()
+    const selectedOption = categoryFilterOptions.find(opt => opt.id === selectedCategoryId)
     return activeItems.filter(item => {
-      const matchCat = selectedCategory === 'Todos' || item.categoryName === selectedCategory
+      const matchCat = isItemInCategory(item, selectedCategoryId, selectedOption?.name)
       const matchSearch = !q || item.name.toLowerCase().includes(q) || (item.code && item.code.toLowerCase().includes(q))
       return matchCat && matchSearch
     })
-  }, [activeItems, selectedCategory, productSearch])
+  }, [activeItems, selectedCategoryId, categoryFilterOptions, productSearch])
 
 
   const totalFreeTables = useMemo(() => tables.filter(t => t.status === 'available').length, [tables])
@@ -2404,14 +2407,14 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
 
             {/* Categorías (Chips horizontales) */}
             <div className="pos-category-bar">
-              {menuCategories.map(cat => (
+              {categoryFilterOptions.map(opt => (
                 <button
-                  key={cat}
+                  key={String(opt.id)}
                   type="button"
-                  className={`pos-category-chip ${selectedCategory === cat ? 'active' : ''}`}
-                  onClick={() => setSelectedCategory(cat)}
+                  className={`pos-category-chip ${selectedCategoryId === opt.id ? 'active' : ''}`}
+                  onClick={() => setSelectedCategoryId(opt.id)}
                 >
-                  {cat === 'Todos' ? 'Todos los productos' : cat}
+                  {opt.name === 'Todos' ? 'Todos los productos' : opt.name}
                 </button>
               ))}
             </div>
@@ -2505,6 +2508,7 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
             <div className="pos-view-layer view-active">
               <PosModule
                 menuItems={effectiveMenuItems}
+                categories={categories}
                 tables={tables}
                 customers={posCustomers}
                 selectedCustomer={selectedPosCustomer}
@@ -4933,34 +4937,24 @@ function chairStyle(index: number, count: number): CSSProperties {
 }
 
 function ProductPicker({ items, onSelect, onQuickAdd }: { items: MenuItem[]; onSelect: (item: MenuItem) => void; onQuickAdd?: (item: MenuItem) => void }) {
-  const [category, setCategory] = useState('Todos')
+  const [selectedCategoryId, setSelectedCategoryId] = useState<CategoryFilterId>('ALL')
   const [search, setSearch] = useState('')
   const [allergen, setAllergen] = useState('')
 
-  const categories = useMemo(() => {
-    const list = menuCategoryNames(items)
-    return ['Todos', ...list]
-  }, [items])
-
-  const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = { Todos: items.length }
-    for (const item of items) {
-      if (item.categoryName) {
-        counts[item.categoryName] = (counts[item.categoryName] || 0) + 1
-      }
-    }
-    return counts
+  const categoryOptions = useMemo(() => {
+    return buildCategoryFilterOptions(items, undefined, 'Todos')
   }, [items])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
+    const selectedOption = categoryOptions.find(opt => opt.id === selectedCategoryId)
     return items.filter(item => {
-      const matchCat = category === 'Todos' || item.categoryName === category
+      const matchCat = isItemInCategory(item, selectedCategoryId, selectedOption?.name)
       const matchSearch = !q || item.name.toLowerCase().includes(q) || (item.code && item.code.toLowerCase().includes(q))
       const matchAllergen = !allergen || item.allergens.some(val => val.toLowerCase().includes(allergen.toLowerCase())) || item.dietaryTags.some(val => val.toLowerCase().includes(allergen.toLowerCase()))
       return matchCat && matchSearch && matchAllergen
     })
-  }, [items, category, search, allergen])
+  }, [items, selectedCategoryId, categoryOptions, search, allergen])
 
   return (
     <div className="product-picker-modern">
@@ -4996,20 +4990,19 @@ function ProductPicker({ items, onSelect, onQuickAdd }: { items: MenuItem[]; onS
       </div>
 
       <div className="category-chips-scroll" role="tablist" aria-label="Categorías del menú">
-        {categories.map(cat => {
-          const isActive = category === cat
-          const count = categoryCounts[cat] || 0
+        {categoryOptions.map(opt => {
+          const isActive = selectedCategoryId === opt.id
           return (
             <button
-              key={cat}
+              key={String(opt.id)}
               type="button"
               role="tab"
               aria-selected={isActive}
               className={`category-chip ${isActive ? 'active' : ''}`}
-              onClick={() => setCategory(cat)}
+              onClick={() => setSelectedCategoryId(opt.id)}
             >
-              <span>{cat === 'Todos' ? 'Todos los productos' : cat}</span>
-              <span className="category-count">{count}</span>
+              <span>{opt.name === 'Todos' ? 'Todos los productos' : opt.name}</span>
+              <span className="category-count">{opt.count}</span>
             </button>
           )
         })}

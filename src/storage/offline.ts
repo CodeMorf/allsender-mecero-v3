@@ -1,5 +1,5 @@
 import type { AppCache, OfflineOperation, Session } from '../types'
-import { extractProxiedMediaUrl, normalizeMediaUrl, R2_SIGNED_RE } from '../api/client'
+import { applyCategoryMetadata, extractProxiedMediaUrl, normalizeMediaUrl, R2_SIGNED_RE } from '../api/client'
 
 const LEGACY_CACHE_KEY = 'restapp.web.cache.v1'
 const LEGACY_CACHE_V2_PREFIX = 'restapp.web.cache.v2.'
@@ -15,22 +15,23 @@ function storageGet(key: string) { return typeof localStorage === 'undefined' ? 
 function storageSet(key: string, value: string) { if (typeof localStorage === 'undefined') memoryStorage.set(key, value); else localStorage.setItem(key, value) }
 function storageRemove(key: string) { if (typeof localStorage === 'undefined') memoryStorage.delete(key); else localStorage.removeItem(key) }
 
-let activeScope = storageGet(ACTIVE_SCOPE_KEY) || 'unconfigured'
+let activeScope = 'unconfigured'
 
-function safeScope(scope: string) {
-  return encodeURIComponent(scope || 'unconfigured')
-}
-
-export function getStorageScope() { return activeScope }
-
-export function setStorageScope(scope: string) {
-  activeScope = scope || 'unconfigured'
+export function setStorageScope(scope?: string | null) {
+  activeScope = scope && scope.trim() ? scope.trim() : 'unconfigured'
   storageSet(ACTIVE_SCOPE_KEY, activeScope)
 }
 
-function scopedKey(prefix: string, scope = activeScope) { return `${prefix}${safeScope(scope)}` }
+export function getStorageScope(): string {
+  if (activeScope && activeScope !== 'unconfigured') return activeScope
+  return storageGet(ACTIVE_SCOPE_KEY) || 'unconfigured'
+}
 
-export function getDeviceId() {
+function scopedKey(prefix: string, scope = activeScope) {
+  return `${prefix}${scope || 'unconfigured'}`
+}
+
+export function getDeviceId(): string {
   let value = storageGet(DEVICE_KEY)
   if (!value) { value = `web-${crypto.randomUUID()}`; storageSet(DEVICE_KEY, value) }
   return value
@@ -39,7 +40,7 @@ export function getDeviceId() {
 function sanitizeCachedMenuItems(cache: AppCache): AppCache {
   if (!Array.isArray(cache.menuItems) || cache.menuItems.length === 0) return cache
   let modified = false
-  const menuItems = cache.menuItems.map(item => {
+  let menuItems = cache.menuItems.map(item => {
     if (!item?.imageUrl) return item
     if (R2_SIGNED_RE.test(item.imageUrl)) {
       const proxied = extractProxiedMediaUrl(item.imageUrl)
@@ -50,6 +51,12 @@ function sanitizeCachedMenuItems(cache: AppCache): AppCache {
     }
     return item
   })
+
+  if (Array.isArray(cache.menuCategories) && cache.menuCategories.length > 0) {
+    menuItems = applyCategoryMetadata(menuItems, cache.menuCategories)
+    modified = true
+  }
+
   return modified ? { ...cache, menuItems } : cache
 }
 

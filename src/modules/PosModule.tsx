@@ -16,13 +16,14 @@ import {
   Hotel,
   ChevronDown
 } from 'lucide-react'
-import type { DeliveryExecutive, DeliveryPlatform, DeliverySettings, MenuItem, PosCustomer, RestaurantTable, StaffRole, OrderTypeConfig } from '../types'
+import type { DeliveryExecutive, DeliveryPlatform, DeliverySettings, MenuCategory, MenuItem, PosCustomer, RestaurantTable, StaffRole, OrderTypeConfig } from '../types'
 import { OrderTypeModal, type OrderTypeSelection } from '../components/OrderTypeModal'
 import { orderServiceLabel } from '../utils/orderService'
-import { menuCategoryNames } from '../utils/menuCategories'
+import { buildCategoryFilterOptions, isItemInCategory, type CategoryFilterId } from '../utils/menuCategories'
 
 export interface PosModuleProps {
   menuItems: MenuItem[]
+  categories?: MenuCategory[]
   tables: RestaurantTable[]
   customers: PosCustomer[]
   selectedCustomer: PosCustomer | null
@@ -83,8 +84,8 @@ const PosItemCardImage: React.FC<{ item: MenuItem }> = ({ item }) => {
 }
 
 export const PosModule: React.FC<PosModuleProps> = ({
-
   menuItems,
+  categories: categoriesProp,
   tables,
   selectedCustomer,
   onSelectCustomer,
@@ -107,29 +108,31 @@ export const PosModule: React.FC<PosModuleProps> = ({
   }))
   const [selectedTableId, setSelectedTableId] = useState<number | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState<string>('ALL')
+  const [selectedCategoryId, setSelectedCategoryId] = useState<CategoryFilterId>('ALL')
   const [cart, setCart] = useState<PosCartItem[]>([])
   const [discountPercent, setDiscountPercent] = useState<number>(0)
   const [isProcessing, setIsProcessing] = useState(false)
   const [orderNotes, setOrderNotes] = useState('')
 
-  const categories = useMemo(() => {
-    return ['ALL', ...menuCategoryNames(menuItems)]
-  }, [menuItems])
+  const categoryOptions = useMemo(() => {
+    return buildCategoryFilterOptions(menuItems, categoriesProp, 'Todos los productos')
+  }, [menuItems, categoriesProp])
 
   const totalQuantity = useMemo(() => {
     return cart.reduce((acc, ci) => acc + ci.quantity, 0)
   }, [cart])
 
   const filteredItems = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    const selectedOption = categoryOptions.find(opt => opt.id === selectedCategoryId)
     return menuItems.filter(item => {
-      const matchCat = selectedCategory === 'ALL' || item.categoryName === selectedCategory
-      const matchSearch =
-        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (item.code && item.code.toLowerCase().includes(searchQuery.toLowerCase()))
+      const matchCat = isItemInCategory(item, selectedCategoryId, selectedOption?.name)
+      const matchSearch = !q ||
+        item.name.toLowerCase().includes(q) ||
+        (item.code && item.code.toLowerCase().includes(q))
       return matchCat && matchSearch
     })
-  }, [menuItems, selectedCategory, searchQuery])
+  }, [menuItems, selectedCategoryId, categoryOptions, searchQuery])
 
   const handleProductClick = (item: MenuItem) => {
     const hasVars = Array.isArray(item.variations) && item.variations.length > 0
@@ -440,13 +443,13 @@ export const PosModule: React.FC<PosModuleProps> = ({
         </div>
 
         <div className="posdan-cat-bar">
-          {categories.map(cat => (
+          {categoryOptions.map(opt => (
             <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={`posdan-cat-btn ${selectedCategory === cat ? 'active' : ''}`}
+              key={String(opt.id)}
+              onClick={() => setSelectedCategoryId(opt.id)}
+              className={`posdan-cat-btn ${selectedCategoryId === opt.id ? 'active' : ''}`}
             >
-              {cat === 'ALL' ? 'Todos los Productos' : cat}
+              {opt.name}
             </button>
           ))}
         </div>
