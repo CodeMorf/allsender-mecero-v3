@@ -97,6 +97,41 @@ describe('contrato base del mesero', () => {
     expect(resolved.filter(it => isItemInCategory(it, 'ALL'))).toHaveLength(4)
   })
 
+  it('filtra por el nombre normalizado cuando el ID no alcanza', () => {
+    const item = normalizeItem({ id: 71, item_name: 'Plato del Día', item_category_id: 35, price: 300 })
+    const categories = [normalizeCategory({ id: 35, category_name: 'Platos del día', sort_order: 2 })]
+    const resolved = applyCategoryMetadata([item], categories)
+
+    // El respaldo por texto tolera acentos, mayúsculas y espacios sobrantes.
+    expect(isItemInCategory(resolved[0], 999, 'platos del dia')).toBe(true)
+    expect(isItemInCategory(resolved[0], 999, '  PLATOS   DEL   DÍA  ')).toBe(true)
+    // Y no arrastra productos de otras categorías.
+    expect(isItemInCategory(resolved[0], 999, 'Bebidas')).toBe(false)
+  })
+
+  it('un producto con id de categoría sin nombre aparece una sola vez, en Otros', () => {
+    // La API manda el id de categoría, pero el endpoint de categorías no la
+    // incluye: antes generaba un chip propio ("Categoría 77") además del de
+    // "Otros", y el producto quedaba alcanzable desde los dos.
+    const item = normalizeItem({ id: 3, item_name: 'Producto sin categoría resoluble', item_category_id: 77, price: 100 })
+    const resolved = applyCategoryMetadata([item], [])
+    const options = buildCategoryFilterOptions(resolved, [])
+
+    expect(options.map(o => ({ id: o.id, name: o.name }))).toEqual([
+      { id: 'ALL', name: 'Todos los productos' },
+      { id: 'OTHER', name: 'Otros' }
+    ])
+    expect(options.filter(o => o.name === 'Otros')).toHaveLength(1)
+    expect(options.find(o => o.id === 'OTHER')?.count).toBe(1)
+
+    // El producto no desaparece: sigue visible en Todos y en Otros, y por el
+    // número de categoría no responde nadie.
+    expect(resolved.filter(it => isItemInCategory(it, 'ALL'))).toHaveLength(1)
+    expect(resolved.filter(it => isItemInCategory(it, 'OTHER'))).toHaveLength(1)
+    expect(resolved.filter(it => isItemInCategory(it, 77))).toHaveLength(0)
+    expect(String(options.find(o => o.id === 77)?.name ?? '')).not.toMatch(/^Categoría\s*\d+/i)
+  })
+
   it('conserva las variaciones del catálogo para abrir el personalizador', () => {
     const item = normalizeItem({
       id: 18,

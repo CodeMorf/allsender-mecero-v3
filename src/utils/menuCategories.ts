@@ -10,6 +10,12 @@ export interface CategoryFilterOption {
 }
 
 /**
+ * Nombre que hay que evitar mostrar: cuando la metadata no trae nombre de
+ * categoría se genera algo como "Categoría 77", que no le dice nada al usuario.
+ */
+const GENERIC_CATEGORY_NAME = /^Categor[ií]a\s*\d*$/i
+
+/**
  * Normalizes text for tolerant category comparisons:
  * removes accents, lowercases and trims excessive whitespace.
  */
@@ -36,8 +42,12 @@ export function isItemInCategory(
 ): boolean {
   if (selectedId === 'ALL') return true
 
-  const hasNoCat = item.categoryId == null || item.categoryId <= 0 || !item.categoryName || item.categoryName === 'Otros'
+  const hasNoCat = itemBelongsToOthers(item)
   if (selectedId === 'OTHER') return hasNoCat
+
+  // Un producto sin categoría asignada no debe aparecer bajo un id concreto,
+  // ni siquiera si la API le dio un número de categoría que no se pudo resolver.
+  if (hasNoCat) return false
 
   if (typeof selectedId === 'number') {
     if (item.categoryId != null && Number(item.categoryId) === selectedId) {
@@ -55,6 +65,17 @@ export function isItemInCategory(
   }
 
   return false
+}
+
+/**
+ * Un producto va a "Otros" cuando no tiene categoría usable: sin id, sin
+ * nombre, o con un nombre genérico que no aporta nada al usuario.
+ */
+function itemBelongsToOthers(item: MenuItem): boolean {
+  if (item.categoryId == null || Number(item.categoryId) <= 0) return true
+  const name = item.categoryName?.trim()
+  if (!name) return true
+  return name === 'Otros' || GENERIC_CATEGORY_NAME.test(name)
 }
 
 /**
@@ -94,17 +115,19 @@ export function buildCategoryFilterOptions(
   const pendingItemsByCategory = new Map<number, { name: string; sortOrder?: number }>()
 
   for (const item of items) {
-    if (item.categoryId != null && item.categoryId > 0) {
-      if (!knownIds.has(item.categoryId)) {
-        if (!pendingItemsByCategory.has(item.categoryId)) {
-          const name = item.categoryName?.trim() && !/^Categoría\s*\d*$/i.test(item.categoryName)
-            ? item.categoryName.trim()
-            : `Categoría ${item.categoryId}`
-          pendingItemsByCategory.set(item.categoryId, {
-            name,
-            sortOrder: item.categorySortOrder,
-          })
-        }
+    // Un producto sin categoría resoluble ya cuenta en 'Otros': no debe generar
+    // además su propia categoría, o aparecería dos veces en el selector.
+    if (itemBelongsToOthers(item)) continue
+
+    if (item.categoryId != null && item.categoryId > 0 && !knownIds.has(item.categoryId)) {
+      if (!pendingItemsByCategory.has(item.categoryId)) {
+        const name = item.categoryName?.trim() && !GENERIC_CATEGORY_NAME.test(item.categoryName)
+          ? item.categoryName.trim()
+          : `Categoría ${item.categoryId}`
+        pendingItemsByCategory.set(item.categoryId, {
+          name,
+          sortOrder: item.categorySortOrder,
+        })
       }
     }
   }
