@@ -221,6 +221,7 @@ export type DeliveryOrder = {
   } | null
   delivery_executive?: DeliveryExecutive | null
   delivery_platform?: DeliveryPlatform | null
+  items_count?: number
   items: DeliveryOrderItem[]
   created_at?: string
   updated_at?: string

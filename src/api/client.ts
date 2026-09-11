@@ -52,7 +52,9 @@ export class ApiClient {
     const headers = new Headers(init.headers)
     headers.set('Accept', 'application/json')
     if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
-    const token = tokenKind ? this.tokens[tokenKind] : undefined
+    const token = tokenKind 
+      ? (this.tokens[tokenKind] || (tokenKind === 'pin' ? this.tokens['admin'] : this.tokens['pin']))
+      : (this.tokens['pin'] || this.tokens['admin'])
     if (token) headers.set('Authorization', `Bearer ${token}`)
 
     const controller = new AbortController()
@@ -831,6 +833,7 @@ export function normalizeDeliveryOrder(raw: any): DeliveryOrder {
       logo: platform.logo,
       logo_url: platform.logo_url,
     } : null,
+    items_count: raw?.items_count != null ? Number(raw.items_count) : items.length,
     items: items.map((it: any) => ({
       id: Number(it.id || 0),
       name: String(it.item_name || it.name || it.menu_item_name || 'Artículo'),
