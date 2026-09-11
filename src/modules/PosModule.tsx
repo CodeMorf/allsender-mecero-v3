@@ -36,6 +36,7 @@ export interface PosModuleProps {
   currencySymbol?: string
   orderTypes?: OrderTypeConfig[]
   deliveryPlatforms?: DeliveryPlatform[]
+  onRefreshDeliveryPlatforms?: () => Promise<void>
   deliveryExecutives?: DeliveryExecutive[]
   deliverySettings?: DeliverySettings | null
 }
@@ -96,6 +97,7 @@ export const PosModule: React.FC<PosModuleProps> = ({
   currencySymbol = 'RD$',
   orderTypes = [],
   deliveryPlatforms = [],
+  onRefreshDeliveryPlatforms,
   deliveryExecutives = [],
   deliverySettings = null
 }) => {
@@ -308,6 +310,7 @@ export const PosModule: React.FC<PosModuleProps> = ({
       <OrderTypeModal
         isOpen={orderTypeModalOpen}
         onClose={() => setOrderTypeModalOpen(false)}
+        onOpen={onRefreshDeliveryPlatforms}
         onSelect={(selection) => {
           setOrderSelection(selection)
           if (selection.mode !== 'dine_in') {

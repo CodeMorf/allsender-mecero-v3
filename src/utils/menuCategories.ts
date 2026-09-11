@@ -26,13 +26,13 @@ export function normalizeCategoryText(value: unknown): string {
 /**
  * Checks if a menu item belongs to the selected category:
  * 1. Matches by stable numeric categoryId first
- * 2. Falls back to normalized categoryName comparison when ID is not available
+ * 2. Uses the label only to render a fallback; it never changes ID membership
  * 3. Handles 'ALL' and 'OTHER' (only truly unassigned items) cleanly
  */
 export function isItemInCategory(
   item: MenuItem,
   selectedId: CategoryFilterId,
-  selectedName?: string
+  _selectedName?: string
 ): boolean {
   if (selectedId === 'ALL') return true
 
@@ -44,20 +44,8 @@ export function isItemInCategory(
   if (hasNoCat) return false
 
   if (typeof selectedId === 'number') {
-    if (item.categoryId != null && Number(item.categoryId) === selectedId) {
-      return true
-    }
+    return item.categoryId != null && Number(item.categoryId) === selectedId
   }
-
-  // Fallback: match by normalized text if name is supplied
-  if (selectedName && item.categoryName) {
-    const itemNorm = normalizeCategoryText(item.categoryName)
-    const selNorm = normalizeCategoryText(selectedName)
-    if (itemNorm && selNorm && itemNorm === selNorm) {
-      return true
-    }
-  }
-
   return false
 }
 

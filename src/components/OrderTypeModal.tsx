@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import {
   Utensils,
   ShoppingBag,
@@ -29,6 +29,7 @@ export interface OrderTypeSelection {
 export interface OrderTypeModalProps {
   isOpen: boolean
   onClose: () => void
+  onOpen?: () => void
   onSelect: (selection: OrderTypeSelection) => void
   currentSelection: OrderTypeSelection
   orderTypes: OrderTypeConfig[]
@@ -54,6 +55,7 @@ export function translateOrderTypeName(slug?: string, rawName?: string): string 
 export const OrderTypeModal: React.FC<OrderTypeModalProps> = ({
   isOpen,
   onClose,
+  onOpen,
   onSelect,
   currentSelection,
   orderTypes,
@@ -81,6 +83,12 @@ export const OrderTypeModal: React.FC<OrderTypeModalProps> = ({
   })
   const [locatingGps, setLocatingGps] = useState(false)
   const [gpsError, setGpsError] = useState('')
+  const wasOpen = useRef(false)
+
+  useEffect(() => {
+    if (isOpen && !wasOpen.current) onOpen?.()
+    wasOpen.current = isOpen
+  }, [isOpen, onOpen])
 
   if (!isOpen) return null
 

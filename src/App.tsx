@@ -34,6 +34,7 @@ import { orderServiceLabel, resolveOrderService } from './utils/orderService'
 import { menuCategoryNames, buildCategoryFilterOptions, isItemInCategory, type CategoryFilterId } from './utils/menuCategories'
 import { dedupeOrders, mergeOrderRealtimeEvent } from './utils/orderRealtime'
 import { shouldResyncAfterConnection, type RealtimeConnectionState } from './utils/realtimeState'
+import { singleFlight } from './utils/singleFlight'
 
 type Screen = 'setup' | 'branches' | 'pin' | 'floor'
 type LiveNotification = { id: string; type: string; title: string; message: string; createdAt?: string; unread: boolean }
@@ -304,7 +305,7 @@ export default function App() {
     try { localStorage.setItem('restapp:theme', 'dark') } catch { /* ignore */ }
   }, [])
 
-  const pollFloorTables = useCallback(async () => {
+  const refreshFloorTables = useCallback(async () => {
     if (!pinSession || offline || !pinSession.permissions['tables.view']) return
     try {
       const remoteTables = await api.tables('pin')
@@ -323,19 +324,17 @@ export default function App() {
   useEffect(() => {
     if (screen !== 'floor' || !pinSession || offline) return
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') void pollFloorTables()
+      if (document.visibilityState === 'visible') void refreshFloorTables()
     }
-    const timer = window.setInterval(pollFloorTables, 4_000)
     window.addEventListener('visibilitychange', onVisibility)
-    window.addEventListener('focus', pollFloorTables)
-    window.addEventListener('restapp:refresh-tables', pollFloorTables)
+    window.addEventListener('focus', refreshFloorTables)
+    window.addEventListener('restapp:refresh-tables', refreshFloorTables)
     return () => {
-      window.clearInterval(timer)
       window.removeEventListener('visibilitychange', onVisibility)
-      window.removeEventListener('focus', pollFloorTables)
-      window.removeEventListener('restapp:refresh-tables', pollFloorTables)
+      window.removeEventListener('focus', refreshFloorTables)
+      window.removeEventListener('restapp:refresh-tables', refreshFloorTables)
     }
-  }, [screen, pinSession, offline, pollFloorTables])
+  }, [screen, pinSession, offline, refreshFloorTables])
 
   async function restore() {
     const cachedPin = readSession('pin')
@@ -1822,7 +1821,6 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
   const [cashSessionReady, setCashSessionReady] = useState(false)
   const [cashLoading, setCashLoading] = useState(false)
   const [allOrders, setAllOrders] = useState<any[]>([])
-  const ordersRefreshInFlight = useRef<Promise<void> | null>(null)
   const ordersInitialSyncDone = useRef(false)
   const [productSearch, setProductSearch] = useState('')
   const [posCustomizingItem, setPosCustomizingItem] = useState<MenuItem | null>(null)
@@ -1870,23 +1868,22 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
   const totalOccupiedTables = useMemo(() => tables.filter(t => t.status === 'occupied' || t.status === 'waiting_kitchen' || t.status === 'food_ready').length, [tables])
   const totalBillTables = useMemo(() => tables.filter(t => t.status === 'bill_requested').length, [tables])
 
-  const refreshOrders = useCallback(async () => {
+  const refreshOrdersTask = useCallback(async () => {
     if (!navigator.onLine || !api.getToken('pin')) return
-    if (ordersRefreshInFlight.current) return ordersRefreshInFlight.current
 
-    const request = api.orders('pin').then((orders) => {
+    try {
+      const orders = await api.orders('pin')
       const nextOrders = dedupeOrders(orders.filter((order): order is Record<string, unknown> => Boolean(order && typeof order === 'object')))
       setAllOrders(nextOrders)
       saveCache({ orders: nextOrders, branchId })
-    }).catch(() => {
+    } catch {
       // Keep the last good list during a transient connection/API failure.
-    }).finally(() => {
-      if (ordersRefreshInFlight.current === request) ordersRefreshInFlight.current = null
-    })
-
-    ordersRefreshInFlight.current = request
-    return request
-  }, [branchId])
+    }
+  }, [branchId, setAllOrders])
+  // singleFlight intentionally returns a stable wrapper around the async task;
+  // React Compiler cannot infer that third-party-style helper's identity.
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
+  const refreshOrders = useMemo(() => singleFlight(refreshOrdersTask), [refreshOrdersTask])
 
   // Load POS data on mount / module changes. Orders have their own controlled
   // refresh so a realtime event never hydrates the entire POS again.
@@ -1898,7 +1895,7 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
           api.cashRegisters('pin').catch(() => []),
           api.activeCashSession('pin').catch(() => null),
           api.orderTypes('pin').catch(() => []),
-          api.deliveryPlatforms('pin').catch(() => []),
+          api.deliveryPlatforms('pin').catch(() => null),
           api.deliveryExecutives('pin').catch(() => []),
           api.deliverySettings('pin').catch(() => null),
           api.menuItems('pin').catch(() => null)
@@ -1911,7 +1908,9 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
         }
 
         if (oTypes && oTypes.length > 0) setOrderTypes(oTypes)
-        if (delPlats) setDeliveryPlatforms(delPlats)
+        // An optional endpoint failure must not erase the last good list from
+        // the selector (this is what made active platforms disappear).
+        if (Array.isArray(delPlats)) setDeliveryPlatforms(delPlats)
         if (delExecs) setDeliveryExecutives(delExecs)
         if (delSets) setDeliverySettings(delSets)
         let cashSummary = null
@@ -1934,6 +1933,7 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
         setCashRegisters(cached.cashRegisters || [])
         setActiveCashSession(cached.cashSession || null)
         setActiveCashSummary(cached.cashSummary || null)
+        setDeliveryPlatforms(cached.deliveryPlatforms || [])
       }
     } catch {
       // ignore
@@ -1941,6 +1941,17 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
       setCashSessionReady(true)
     }
   }
+
+  const refreshDeliveryPlatforms = useMemo(() => singleFlight(async () => {
+    if (offline || !api.getToken('pin')) return
+    try {
+      const platforms = await api.deliveryPlatforms('pin')
+      setDeliveryPlatforms(platforms)
+      saveCache({ deliveryPlatforms: platforms })
+    } catch {
+      onNotice('No se pudieron actualizar las plataformas de entrega. Se conserva la última configuración disponible.')
+    }
+  }), [offline, onNotice])
 
 
   useEffect(() => {
@@ -1954,16 +1965,13 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
   // Orders resync at lifecycle boundaries only: reconnect, foreground/focus,
   // and coming back online. There is intentionally no timer for this list.
   useEffect(() => {
-    const onOnline = () => void refreshOrders()
     const onFocus = () => void refreshOrders()
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') void refreshOrders()
     }
-    window.addEventListener('online', onOnline)
     window.addEventListener('focus', onFocus)
     document.addEventListener('visibilitychange', onVisibilityChange)
     return () => {
-      window.removeEventListener('online', onOnline)
       window.removeEventListener('focus', onFocus)
       document.removeEventListener('visibilitychange', onVisibilityChange)
     }
@@ -2101,7 +2109,8 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
     })
 
     return () => {
-      // Keep connection alive across tab switches, clean up on unmount
+      realtimeService.disconnect()
+      realtimeConnectionRef.current = 'disconnected'
     }
   }, [offline, branchId, restaurantId, applyRealtimeOrder, refreshOrders])
 
@@ -2546,6 +2555,7 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
                 onCustomizeItem={(item) => setPosCustomizingItem(item)}
                 orderTypes={orderTypes}
                 deliveryPlatforms={deliveryPlatforms}
+                onRefreshDeliveryPlatforms={refreshDeliveryPlatforms}
                 deliveryExecutives={deliveryExecutives}
                 deliverySettings={deliverySettings}
                 onOpenOrders={() => setActiveNavTab('orders')}
@@ -2915,6 +2925,7 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
             deliverySettings={deliverySettings}
             deliveryExecutives={deliveryExecutives}
             deliveryPlatforms={deliveryPlatforms}
+            onRefreshDeliveryPlatforms={refreshDeliveryPlatforms}
             orderTypes={orderTypes}
             items={items}
             onClose={() => {
@@ -3796,7 +3807,7 @@ function TablePaymentPanel({
   )
 }
 
-function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKey, permissions, paymentMethods, fiscalCapabilities, canCharge, cashSessionOpen, cashSessionReady, offline, deliverySettings, deliveryExecutives, deliveryPlatforms = [], orderTypes = [], items, onClose, onOpenMenu, onSubmit, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onCancelOrder }: { table: RestaurantTable | null; tables?: RestaurantTable[]; quick: boolean; mobileDrawerOpen?: boolean; isMenuOpen?: boolean; roleKey: StaffRole; permissions: Record<string, boolean>; paymentMethods: PaymentMethodOption[]; fiscalCapabilities?: FiscalCapabilities | null; canCharge: boolean; cashSessionOpen: boolean; cashSessionReady: boolean; offline: boolean; deliverySettings: DeliverySettings | null; deliveryExecutives: DeliveryExecutive[]; deliveryPlatforms?: DeliveryPlatform[]; orderTypes?: OrderTypeConfig[]; items: MenuItem[]; onClose: () => void; onOpenMenu?: () => void; onSubmit: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem?: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onCancelOrder?: (table: RestaurantTable, reason?: string) => Promise<{ queued: boolean; message: string }> }) {
+function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKey, permissions, paymentMethods, fiscalCapabilities, canCharge, cashSessionOpen, cashSessionReady, offline, deliverySettings, deliveryExecutives, deliveryPlatforms = [], onRefreshDeliveryPlatforms, orderTypes = [], items, onClose, onOpenMenu, onSubmit, onSaveCustomer, onRemoveOrderItem, onPrintPreBill, onPayOrder, onTransferTable, onCancelOrder }: { table: RestaurantTable | null; tables?: RestaurantTable[]; quick: boolean; mobileDrawerOpen?: boolean; isMenuOpen?: boolean; roleKey: StaffRole; permissions: Record<string, boolean>; paymentMethods: PaymentMethodOption[]; fiscalCapabilities?: FiscalCapabilities | null; canCharge: boolean; cashSessionOpen: boolean; cashSessionReady: boolean; offline: boolean; deliverySettings: DeliverySettings | null; deliveryExecutives: DeliveryExecutive[]; deliveryPlatforms?: DeliveryPlatform[]; onRefreshDeliveryPlatforms?: () => Promise<void>; orderTypes?: OrderTypeConfig[]; items: MenuItem[]; onClose: () => void; onOpenMenu?: () => void; onSubmit: (lines: OrderLine[], table: RestaurantTable | null, draft: OrderDraft) => Promise<void>; onSaveCustomer: (table: RestaurantTable, name: string, customerId?: number, rncCedula?: string, fiscalName?: string) => Promise<void>; onRemoveOrderItem?: (orderId: number, orderItemId: number, itemName: string) => Promise<{ queued: boolean; message: string }>; onPrintPreBill: (orderId: number, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onPayOrder: (orderId: number, amount: number, method: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>; onTransferTable?: (fromTable: RestaurantTable, targetTable: RestaurantTable) => Promise<{ queued: boolean; message: string }>; onCancelOrder?: (table: RestaurantTable, reason?: string) => Promise<{ queued: boolean; message: string }> }) {
   const canDelivery = roleKey === 'cajero' && permissions['orders.create'] === true
   const [mode, setMode] = useState<OrderMode>(table ? 'dine_in' : canDelivery ? 'pickup' : 'dine_in')
   const [orderTypeModalOpen, setOrderTypeModalOpen] = useState(false)
@@ -4726,6 +4737,7 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
         <OrderTypeModal
           isOpen={orderTypeModalOpen}
           onClose={() => setOrderTypeModalOpen(false)}
+          onOpen={onRefreshDeliveryPlatforms}
           onSelect={sel => {
             setMode(sel.mode)
             setSelectedOrderTypeId(sel.orderTypeId)
@@ -5410,6 +5422,7 @@ function KitchenPanel({
   const seenFilter = useRef<string | null>(null)
   const loadRequestId = useRef(0)
   const inFlightFilter = useRef<string | null>(null)
+  const inFlightOrderKots = useRef<Map<number, Promise<void>>>(new Map())
 
   const placeOptions = useMemo(() => {
     const known = new globalThis.Map<number, KitchenPlace>()
@@ -5492,18 +5505,67 @@ function KitchenPanel({
     }
   }
 
-  // KDS refresh on place change or heartbeat
+  async function refreshSpecificOrderKots(orderId: number) {
+    const normalizedOrderId = Number(orderId)
+    if (!Number.isFinite(normalizedOrderId) || normalizedOrderId <= 0 || offline) return
+    const running = inFlightOrderKots.current.get(normalizedOrderId)
+    if (running) return running
+
+    const request = api.orderKots('pin', normalizedOrderId).then(values => {
+      const visible = values.filter(ticket => activeStatuses.includes(ticket.status) && (activePlaceId === 'all' || ticket.kitchenPlaceId === activePlaceId))
+      setTickets(current => [...current.filter(ticket => ticket.orderId !== normalizedOrderId), ...visible])
+      const cached = readCache().kots || []
+      saveCache({ kots: [...cached.filter(ticket => ticket.orderId !== normalizedOrderId), ...values] })
+    }).catch(cause => {
+      setError(normalizeError(cause, 'No se pudo actualizar la comanda recibida.'))
+    }).finally(() => {
+      if (inFlightOrderKots.current.get(normalizedOrderId) === request) inFlightOrderKots.current.delete(normalizedOrderId)
+    })
+    inFlightOrderKots.current.set(normalizedOrderId, request)
+    return request
+  }
+
+  // KDS refresh on place change only. New mutations arrive through realtime;
+  // manual refresh remains available in the panel when a user requests it.
   useEffect(() => {
     void load(activePlaceId, false)
-    if (offline) return
-    const timer = window.setInterval(() => void load(activePlaceId, true), 10_000)
-    return () => window.clearInterval(timer)
   }, [offline, selectedFilterKey])
 
-  // Realtime instant refresh for KDS
+  // Realtime KOT updates are merged locally. Only a new order (or a KOT that
+  // is not currently visible) uses the narrow /pos/orders/{id}/kots request;
+  // the full /pos/kots list is never reloaded per event.
   useEffect(() => {
-    const handleKotEvent = () => {
-      void load(activePlaceId, true)
+    const handleKotEvent = (event: Event) => {
+      const payload = (event as CustomEvent<Record<string, unknown>>).detail || {}
+      const kotId = Number(payload.kot_id || payload.kotId || 0)
+      const orderId = Number(payload.order_id || payload.orderId || payload.id || 0)
+
+      if (event.type === 'restapp:order-created') {
+        if (orderId > 0) void refreshSpecificOrderKots(orderId)
+        return
+      }
+      if (kotId <= 0) return
+
+      const existing = tickets.find(ticket => ticket.id === kotId)
+      if (!existing) {
+        if (orderId > 0) void refreshSpecificOrderKots(orderId)
+        return
+      }
+
+      const nextStatus = payload.kot_status ? String(payload.kot_status).toLowerCase() : existing.status
+      setTickets(current => current
+        .map(ticket => ticket.id === kotId
+          ? {
+              ...ticket,
+              status: nextStatus,
+              orderNumber: payload.order_number ? String(payload.order_number) : ticket.orderNumber,
+              tableName: payload.table_code ? String(payload.table_code) : ticket.tableName,
+              updatedAt: payload.updated_at ? String(payload.updated_at) : ticket.updatedAt,
+            }
+          : ticket)
+        .filter(ticket => activeStatuses.includes(ticket.status)))
+      saveCache({ kots: (readCache().kots || []).map(ticket => ticket.id === kotId ? { ...ticket, status: nextStatus, updatedAt: payload.updated_at ? String(payload.updated_at) : ticket.updatedAt } : ticket) })
+      if (orderId > 0) void refreshSpecificOrderKots(orderId)
     }
     window.addEventListener('restapp:kot-updated', handleKotEvent)
     window.addEventListener('restapp:order-created', handleKotEvent)
@@ -5511,7 +5573,7 @@ function KitchenPanel({
       window.removeEventListener('restapp:kot-updated', handleKotEvent)
       window.removeEventListener('restapp:order-created', handleKotEvent)
     }
-  }, [activePlaceId])
+  }, [activePlaceId, offline, tickets])
 
   async function advance(ticket: KitchenTicket) {
     if (busyId !== null) return

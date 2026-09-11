@@ -452,6 +452,7 @@ export type AppCache = {
   notificationSettings?: NotificationSettings
   deliverySettings?: DeliverySettings | null
   deliveryExecutives?: DeliveryExecutive[]
+  deliveryPlatforms?: DeliveryPlatform[]
   receiptSettings?: ReceiptSettings | null
   fiscalCapabilities?: FiscalCapabilities | null
   printers?: Printer[]

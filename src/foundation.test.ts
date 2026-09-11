@@ -7,6 +7,7 @@ import { menuCategoryNames, buildCategoryFilterOptions, isItemInCategory } from 
 import { dedupeOrders, mergeOrderRealtimeEvent } from './utils/orderRealtime'
 import { buildRealtimeChannelNames } from './services/realtime'
 import { shouldResyncAfterConnection } from './utils/realtimeState'
+import { singleFlight } from './utils/singleFlight'
 
 describe('contrato base del mesero', () => {
   it('normaliza estados de mesa de la API al mapa visual', () => {
@@ -100,15 +101,14 @@ describe('contrato base del mesero', () => {
     expect(resolved.filter(it => isItemInCategory(it, 'ALL'))).toHaveLength(4)
   })
 
-  it('filtra por el nombre normalizado cuando el ID no alcanza', () => {
+  it('no mezcla categorías por nombre cuando el ID no coincide', () => {
     const item = normalizeItem({ id: 71, item_name: 'Plato del Día', item_category_id: 35, price: 300 })
     const categories = [normalizeCategory({ id: 35, category_name: 'Platos del día', sort_order: 2 })]
     const resolved = applyCategoryMetadata([item], categories)
 
-    // El respaldo por texto tolera acentos, mayúsculas y espacios sobrantes.
-    expect(isItemInCategory(resolved[0], 999, 'platos del dia')).toBe(true)
-    expect(isItemInCategory(resolved[0], 999, '  PLATOS   DEL   DÍA  ')).toBe(true)
-    // Y no arrastra productos de otras categorías.
+    expect(isItemInCategory(resolved[0], 35, 'PLATOS DEL DIA')).toBe(true)
+    // Un texto parecido no puede hacer que un producto cruce de categoría.
+    expect(isItemInCategory(resolved[0], 999, 'platos del dia')).toBe(false)
     expect(isItemInCategory(resolved[0], 999, 'Bebidas')).toBe(false)
   })
 
@@ -229,6 +229,30 @@ describe('contrato base del mesero', () => {
       'private-active-waiter-requests.restaurant.3',
       'private-today-orders.restaurant.3',
     ])
+  })
+
+  it('comparte una sola promesa cuando la resincronización se dispara en paralelo', async () => {
+    let calls = 0
+    let resolveTask: (() => void) | undefined
+    const refresh = singleFlight(() => {
+      calls += 1
+      return new Promise<void>(resolve => { resolveTask = resolve })
+    })
+
+    const first = refresh()
+    const second = refresh()
+    expect(second).toBe(first)
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(calls).toBe(1)
+
+    resolveTask?.()
+    await first
+    const third = refresh()
+    await Promise.resolve()
+    expect(calls).toBe(2)
+    resolveTask?.()
+    await third
   })
 
   it('conserva las variaciones del catálogo para abrir el personalizador', () => {
