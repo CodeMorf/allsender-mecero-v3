@@ -1951,13 +1951,17 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
       onOrderCreated: (data) => {
         onRefresh()
         void loadPosDanData()
+        window.dispatchEvent(new CustomEvent('restapp:kot-updated', { detail: data }))
       },
       onOrderUpdated: (data) => {
         onRefresh()
         void loadPosDanData()
+        window.dispatchEvent(new CustomEvent('restapp:kot-updated', { detail: data }))
       },
       onKotUpdated: (data) => {
         window.dispatchEvent(new CustomEvent('restapp:kot-updated', { detail: data }))
+        onRefresh()
+        void loadPosDanData()
         // If waiter or supervisor, notify
         if (data?.kot_status === 'food_ready') {
           void playWaiterAlert(readCache().notificationSettings || defaultNotificationSettings, '¡Plato Listo!', `Mesa ${data.table_code || ''} orden ${data.order_number || ''}`)
@@ -2756,6 +2760,9 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
                 viewScope="supervisor"
                 onClose={() => setActiveNavTab('tables')}
                 onUpdateStatus={onUpdateKotStatus}
+                brandName={brand}
+                branchName={branch}
+                realtimeConnected={realtimeState === 'connected'}
               />
             </div>
           )}
@@ -5226,7 +5233,29 @@ function KotElapsedTimer({ createdAt }: { createdAt?: string }) {
   )
 }
 
-function KitchenPanel({ offline, places, standalone = false, allowAll = true, viewScope = 'supervisor', onClose, onUpdateStatus }: { offline: boolean; places: KitchenPlace[]; standalone?: boolean; allowAll?: boolean; viewScope?: KitchenView['scope']; onClose: () => void; onUpdateStatus: (kotId: number, status: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }> }) {
+function KitchenPanel({
+  offline,
+  places,
+  standalone = false,
+  allowAll = true,
+  viewScope = 'supervisor',
+  onClose,
+  onUpdateStatus,
+  brandName,
+  branchName,
+  realtimeConnected = false,
+}: {
+  offline: boolean
+  places: KitchenPlace[]
+  standalone?: boolean
+  allowAll?: boolean
+  viewScope?: KitchenView['scope']
+  onClose: () => void
+  onUpdateStatus: (kotId: number, status: string, idempotencyKey: string) => Promise<{ queued: boolean; message: string }>
+  brandName?: string
+  branchName?: string
+  realtimeConnected?: boolean
+}) {
   const activeStatuses = ['pending_confirmation', 'in_kitchen', 'food_ready']
   const cachedKots = readCache().kots || []
   const cachedView = readCache().kitchenView
@@ -5239,13 +5268,26 @@ function KitchenPanel({ offline, places, standalone = false, allowAll = true, vi
   const [error, setError] = useState('')
   const [busyId, setBusyId] = useState<number | null>(null)
   const [selectedPlaceId, setSelectedPlaceId] = useState<number | 'all'>(initialSelectedPlaceId)
-  const [mobileStageTab, setMobileStageTab] = useState<'all' | 'pending_confirmation' | 'in_kitchen' | 'food_ready'>('all')
+  const [mobileColumn, setMobileColumn] = useState<'col-nuevos' | 'col-prep' | 'col-listos'>('col-nuevos')
   const [areaLocked, setAreaLocked] = useState(() => Boolean(cachedViewIsUsable))
-  const [showMobileFilters, setShowMobileFilters] = useState(false)
+  const [clockTime, setClockTime] = useState(() => {
+    const d = new Date()
+    return d.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit', hour12: false })
+  })
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const d = new Date()
+      setClockTime(d.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit', hour12: false }))
+    }, 10000)
+    return () => window.clearInterval(timer)
+  }, [])
+
   const seenTicketIds = useRef<Set<number> | null>(null)
   const seenFilter = useRef<string | null>(null)
   const loadRequestId = useRef(0)
   const inFlightFilter = useRef<string | null>(null)
+
   const placeOptions = useMemo(() => {
     const known = new globalThis.Map<number, KitchenPlace>()
     places.filter(place => place.id > 0).forEach(place => known.set(place.id, place))
@@ -5254,9 +5296,11 @@ function KitchenPanel({ offline, places, standalone = false, allowAll = true, vi
     })
     return [...known.values()].sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || a.name.localeCompare(b.name))
   }, [places, tickets])
+
   const defaultPlaceId = places.find(place => place.isDefault)?.id || places[0]?.id || 'all'
   const activePlaceId = !allowAll && selectedPlaceId === 'all' ? defaultPlaceId : selectedPlaceId
   const selectedFilterKey = activePlaceId === 'all' ? 'all' : String(activePlaceId)
+
   function choosePlace(placeId: number | 'all') {
     setSelectedPlaceId(placeId)
     if (areaLocked) {
@@ -5264,11 +5308,13 @@ function KitchenPanel({ offline, places, standalone = false, allowAll = true, vi
       saveCache({ kitchenView: { scope: viewScope, placeId, locked: false } })
     }
   }
+
   function toggleAreaLock() {
     const locked = !areaLocked
     setAreaLocked(locked)
     saveCache({ kitchenView: { scope: viewScope, placeId: activePlaceId, locked } })
   }
+
   async function load(placeId: number | 'all' = activePlaceId, background = false) {
     const filterKey = placeId === 'all' ? 'all' : String(placeId)
     if (inFlightFilter.current === filterKey) return
@@ -5322,9 +5368,14 @@ function KitchenPanel({ offline, places, standalone = false, allowAll = true, vi
       if (inFlightFilter.current === filterKey) inFlightFilter.current = null
     }
   }
-  // KDS refresh is triggered immediately on place change, realtime event, or heartbeat
-  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
-  useEffect(() => { void load(activePlaceId, false); if (offline) return; const timer = window.setInterval(() => void load(activePlaceId, true), 10_000); return () => window.clearInterval(timer) }, [offline, selectedFilterKey])
+
+  // KDS refresh on place change or heartbeat
+  useEffect(() => {
+    void load(activePlaceId, false)
+    if (offline) return
+    const timer = window.setInterval(() => void load(activePlaceId, true), 10_000)
+    return () => window.clearInterval(timer)
+  }, [offline, selectedFilterKey])
 
   // Realtime instant refresh for KDS
   useEffect(() => {
@@ -5332,7 +5383,11 @@ function KitchenPanel({ offline, places, standalone = false, allowAll = true, vi
       void load(activePlaceId, true)
     }
     window.addEventListener('restapp:kot-updated', handleKotEvent)
-    return () => window.removeEventListener('restapp:kot-updated', handleKotEvent)
+    window.addEventListener('restapp:order-created', handleKotEvent)
+    return () => {
+      window.removeEventListener('restapp:kot-updated', handleKotEvent)
+      window.removeEventListener('restapp:order-created', handleKotEvent)
+    }
   }, [activePlaceId])
 
   async function advance(ticket: KitchenTicket) {
@@ -5350,185 +5405,210 @@ function KitchenPanel({ offline, places, standalone = false, allowAll = true, vi
     catch (cause) { setError(normalizeError(cause, 'El servicio no pudo actualizar la comanda.')) }
     finally { setBusyId(null) }
   }
-  const statusLabel = (status: string) => status === 'pending_confirmation' ? 'Pendiente' : status === 'in_kitchen' ? 'En preparación' : status === 'food_ready' ? 'Listo' : status === 'served' ? 'Servido' : status
-  const actionLabel = (status: string) => status === 'pending_confirmation' ? 'Iniciar preparación' : status === 'in_kitchen' ? 'Marcar como listo' : status === 'food_ready' ? 'Marcar como servido' : 'Actualizar'
-  const renderTicket = (ticket: KitchenTicket) => <article className={`kitchen-ticket kitchen-${ticket.status}`} key={ticket.id}><div className="kitchen-ticket-header"><div><strong>{kitchenTicketLabel(ticket.kotNumber, ticket.id)}</strong><small className="kitchen-table-label">{kitchenOrderTarget(ticket)}</small><small>{orderNumberLabel(ticket.orderNumber, `Pedido n.º ${ticket.orderId}`)}{ticket.kitchenPlace ? ` · ${ticket.kitchenPlace}` : ''}</small>{ticket.waiterName && <small className="kitchen-waiter-label">Mesero: {ticket.waiterName}</small>}</div><div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><KotElapsedTimer createdAt={ticket.createdAt} /><span className="kitchen-status">{statusLabel(ticket.status)}</span></div></div><ul>{ticket.items.map(item => <li key={item.id}><strong>{item.quantity}× {item.name}</strong>{item.variation && <small className="kitchen-item-meta">Variante: {item.variation}</small>}{item.modifiers?.length ? <small className="kitchen-item-meta">Suplementos: {item.modifiers.map(modifier => modifier.name).join(', ')}</small> : null}{item.note && <em>Nota: {item.note}</em>}</li>)}</ul>{ticket.note && <p className="kitchen-note"><strong>Nota general:</strong> {ticket.note}</p>}<footer><small>{ticket.createdAt ? new Date(ticket.createdAt).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' }) : 'Hora no publicada'}</small><button className={`button ${ticket.status === 'in_kitchen' ? 'primary kds-btn-ready' : ticket.status === 'food_ready' ? 'kds-btn-served' : 'primary'}`} disabled={busyId !== null} onClick={() => void advance(ticket)}>{busyId === ticket.id ? 'Guardando…' : actionLabel(ticket.status)}</button></footer></article>
-  const kitchenColumns = [
-    { status: 'pending_confirmation', title: 'Nuevos', subtitle: 'Recién recibidos', className: 'kitchen-column-new' },
-    { status: 'in_kitchen', title: 'En preparación', subtitle: 'En trabajo de cocina', className: 'kitchen-column-preparing' },
-    { status: 'food_ready', title: 'Listos', subtitle: 'Esperando entrega', className: 'kitchen-column-ready' },
-  ] as const
 
-  const visibleColumns = mobileStageTab === 'all'
-    ? kitchenColumns
-    : kitchenColumns.filter(c => c.status === mobileStageTab)
+  function getElapsedMinutes(createdAt?: string): number {
+    if (!createdAt) return 0
+    const diffMs = Date.now() - new Date(createdAt).getTime()
+    return Math.max(0, Math.floor(diffMs / 60000))
+  }
 
-  const activeAreaName = activePlaceId === 'all'
-    ? 'Todas las áreas'
-    : placeOptions.find(p => p.id === activePlaceId)?.name || 'Área seleccionada'
+  function getAreaChipClass(placeName?: string) {
+    const name = (placeName || '').toLowerCase()
+    if (name.includes('bar') || name.includes('bebida') || name.includes('copas')) return 'area-bar'
+    if (name.includes('cliente') || name.includes('takeout') || name.includes('llevar')) return 'area-cliente'
+    return 'area-cocina'
+  }
 
-  const board = (
-    <div className="kitchen-board" aria-busy={loading || isRefreshing} aria-label="Tablero de pedidos de cocina">
-      {visibleColumns.map(column => {
-        const columnTickets = tickets.filter(ticket => ticket.status === column.status)
-        return (
-          <section className={`kitchen-column ${column.className}`} key={column.status}>
-            <header className="kitchen-column-header">
-              <div>
-                <strong>{column.title}</strong>
-                <small>{column.subtitle}</small>
-              </div>
-              <b>{columnTickets.length}</b>
-            </header>
-            <div className="kitchen-column-list">
-              {columnTickets.length ? (
-                columnTickets.map(renderTicket)
-              ) : (
-                <div className="kitchen-column-empty">
-                  {loading ? 'Cargando pedidos…' : 'Sin comandas en esta etapa'}
-                </div>
-              )}
-            </div>
-          </section>
-        )
-      })}
-    </div>
-  )
+  const ticketsNuevos = tickets.filter(t => t.status === 'pending_confirmation')
+  const ticketsPrep = tickets.filter(t => t.status === 'in_kitchen')
+  const ticketsListos = tickets.filter(t => t.status === 'food_ready')
 
-  return (
-    <div className={standalone ? 'kitchen-standalone-panel' : 'modal-backdrop'}>
-      <section className={`modal wide kitchen-panel${standalone ? ' kitchen-panel-standalone' : ''}`}>
-        <header>
-          {/* Mobile-optimized Header Row */}
-          <div className="kitchen-mobile-header-compact">
-            <div className="kitchen-mobile-header-title">
-              <h2>Cocina</h2>
-              <span className={`kitchen-realtime-badge ${offline ? 'offline' : 'live'}`}>
-                <span className="kitchen-pulse-dot" />
-                {offline ? 'Offline' : 'En vivo'}
-              </span>
-              <span style={{ fontSize: '11px', color: '#8b949e', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                · {activeAreaName}
-              </span>
-            </div>
-            <div className="kitchen-mobile-header-actions">
-              {placeOptions.length > 0 && (
-                <button
-                  type="button"
-                  className={`kitchen-mobile-icon-btn ${showMobileFilters ? 'active' : ''}`}
-                  onClick={() => setShowMobileFilters(!showMobileFilters)}
-                  title="Filtrar área de trabajo"
-                  aria-label="Filtrar área"
-                >
-                  <SlidersHorizontal size={16} />
-                </button>
-              )}
-              <button
-                type="button"
-                className="kitchen-mobile-icon-btn"
-                onClick={() => void load(activePlaceId, false)}
-                disabled={loading || offline}
-                title="Actualizar comandas"
-                aria-label="Actualizar"
-              >
-                <History size={16} />
-              </button>
-              {standalone ? (
-                <button className="button outline" style={{ minHeight: '34px', padding: '0 10px', fontSize: '12px' }} onClick={onClose}>
-                  Mesas
-                </button>
-              ) : (
-                <button className="icon-button" onClick={onClose} aria-label="Cerrar"><X /></button>
-              )}
-            </div>
+  const countNuevos = ticketsNuevos.length
+  const countPrep = ticketsPrep.length
+  const countListos = ticketsListos.length
+
+  const renderTicket = (ticket: KitchenTicket) => {
+    const mins = getElapsedMinutes(ticket.createdAt)
+    const isUrgent = mins >= 20
+    const timerClass = mins >= 20 ? 'timer-late' : mins >= 10 ? 'timer-warn' : 'timer-ok'
+    const colStatus = ticket.status
+
+    return (
+      <div className={`ticket ${isUrgent ? 'urgent' : ''}`} key={ticket.id} data-order={ticket.orderNumber || ticket.id} data-mins={mins}>
+        <div className="ticket-top">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+            <span className="ticket-num mono">{kitchenTicketLabel(ticket.kotNumber, ticket.id)}</span>
+            <span className="ticket-table-badge">{kitchenOrderTarget(ticket)}</span>
           </div>
-        </header>
-
-        {/* Mobile Horizontal Stage Bar */}
-        <div className="kitchen-mobile-stage-bar">
-          <button
-            type="button"
-            className={`kitchen-stage-pill ${mobileStageTab === 'all' ? 'active' : ''}`}
-            onClick={() => setMobileStageTab('all')}
-          >
-            Todas ({tickets.length})
-          </button>
-          {kitchenColumns.map(column => {
-            const count = tickets.filter(t => t.status === column.status).length
-            return (
-              <button
-                key={column.status}
-                type="button"
-                className={`kitchen-stage-pill ${mobileStageTab === column.status ? 'active' : ''}`}
-                onClick={() => setMobileStageTab(column.status as any)}
-              >
-                {column.title} ({count})
-              </button>
-            )
-          })}
+          <div className={`ticket-timer mono ${timerClass}`}>
+            <span className="tt-icon">●</span>
+            <span className="tt-text">{mins} min</span>
+          </div>
         </div>
 
-        {/* Collapsible Area Filter (Visible on desktop or when toggled on mobile) */}
-        {placeOptions.length > 0 && (
-          <div className={showMobileFilters ? 'kitchen-mobile-filter-drawer' : 'mobile-collapsed'}>
-            <div className={`kitchen-place-filter ${!showMobileFilters ? 'mobile-collapsed' : ''}`}>
-              <label htmlFor="kitchen-area-filter">
-                Mostrar área
-                <select
-                  id="kitchen-area-filter"
-                  value={activePlaceId}
-                  disabled={areaLocked}
-                  onChange={event => choosePlace(event.target.value === 'all' ? 'all' : Number(event.target.value))}
-                >
-                  {allowAll && <option value="all">Todas las áreas</option>}
-                  {placeOptions.map(place => <option key={place.id} value={place.id}>{place.name}</option>)}
-                </select>
-              </label>
-              <button
-                className={`button ${areaLocked ? 'primary' : 'outline'}`}
-                onClick={toggleAreaLock}
-                title={areaLocked ? 'Desbloquear selección de área' : 'Bloquear esta área'}
-              >
-                {areaLocked ? <><Unlock size={15} /> Desbloquear área</> : <><Lock size={15} /> Bloquear área</>}
-              </button>
+        <div className="ticket-items">
+          {ticket.items.map((item, idx) => (
+            <div key={item.id || idx} className="ticket-item-row">
+              <b>{item.quantity}×</b> {item.name}
+              {item.variation && <span className="kitchen-item-meta"> · Var: {item.variation}</span>}
+              {item.modifiers?.length ? <span className="kitchen-item-meta"> · Extras: {item.modifiers.map(m => m.name).join(', ')}</span> : null}
+              {item.note && <em>Nota: {item.note}</em>}
             </div>
-            <p className={`kitchen-place-label ${!showMobileFilters ? 'mobile-collapsed' : ''}`}>
-              {areaLocked
-                ? `Área bloqueada: ${activePlaceId === 'all' ? 'Todas' : placeOptions.find(place => place.id === activePlaceId)?.name || 'seleccionada'}`
-                : 'Área de trabajo'}
-            </p>
-            {!areaLocked && (
-              <nav className={`kitchen-place-tabs ${!showMobileFilters ? 'mobile-collapsed' : ''}`} aria-label="Áreas de preparación">
-                {allowAll && <button className={activePlaceId === 'all' ? 'active' : ''} onClick={() => choosePlace('all')}>Todas</button>}
-                {placeOptions.map(place => <button className={activePlaceId === place.id ? 'active' : ''} key={place.id} onClick={() => choosePlace(place.id)}>{place.name}</button>)}
-              </nav>
+          ))}
+        </div>
+
+        {ticket.note && (
+          <p className="kitchen-note">
+            <strong>Nota general:</strong> {ticket.note}
+          </p>
+        )}
+
+        <div className="ticket-meta">
+          <div className={`area-chip ${getAreaChipClass(ticket.kitchenPlace)}`}>
+            <span className="dot" />
+            {ticket.kitchenPlace || 'Cocina'}
+          </div>
+          {ticket.waiterName && (
+            <small className="kitchen-waiter-label">Mesero: {ticket.waiterName}</small>
+          )}
+          <button
+            type="button"
+            className={`action-btn ${colStatus === 'pending_confirmation' ? 'action-nuevos' : colStatus === 'in_kitchen' ? 'action-prep' : 'action-listos'}`}
+            disabled={busyId !== null}
+            onClick={() => void advance(ticket)}
+          >
+            {busyId === ticket.id ? 'Guardando…' : colStatus === 'pending_confirmation' ? 'Iniciar preparación' : colStatus === 'in_kitchen' ? 'Marcar listo' : 'Entregar'}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const displayName = branchName || brandName || 'Kebab Luperon'
+
+  return (
+    <div className={`kds-modern-shell ${standalone ? 'standalone' : ''}`}>
+      {/* Top bar */}
+      <div className="topbar">
+        <div className="brand">
+          <div className="brand-mark">🥙</div>
+          <div>
+            <div className="brand-name">{displayName}</div>
+            <div className="brand-sub">Panel de cocina</div>
+          </div>
+          <div className={`sync-pill ${offline ? 'offline' : realtimeConnected ? 'connected' : 'connecting'}`}>
+            <span className="sync-dot" />
+            {offline ? 'Offline' : realtimeConnected ? 'Sync OK' : 'Conectando…'}
+          </div>
+        </div>
+        <div className="topbar-right">
+          <span className="clock mono" id="clock">{clockTime}</span>
+          <button className={`btn btn-lock ${areaLocked ? 'locked' : ''}`} id="lockBtn" onClick={toggleAreaLock}>
+            <span id="lockIcon">{areaLocked ? '🔒' : '🔓'}</span>
+            <span id="lockLabel">{areaLocked ? 'Área bloqueada' : 'Bloquear área'}</span>
+          </button>
+          <button className="btn btn-ghost" onClick={onClose}>Volver a mesas</button>
+        </div>
+      </div>
+
+      {/* Controls */}
+      <div className="controls">
+        <div className="area-tabs" id="areaTabs">
+          <button className={`area-tab ${activePlaceId === 'all' ? 'active' : ''}`} onClick={() => choosePlace('all')}>Todas</button>
+          {placeOptions.map(p => (
+            <button key={p.id} className={`area-tab ${activePlaceId === p.id ? 'active' : ''}`} onClick={() => choosePlace(p.id)}>{p.name}</button>
+          ))}
+        </div>
+        <div className="status-line">Cada estación ve solo sus propias comandas. Esta pantalla se conserva bloqueada mientras trabajas en cocina.</div>
+      </div>
+
+      {/* Mobile column switcher */}
+      <div className="mobile-tabs" id="mobileTabs">
+        <button
+          type="button"
+          className={`mobile-tab t-nuevos ${mobileColumn === 'col-nuevos' ? 'active' : ''}`}
+          onClick={() => setMobileColumn('col-nuevos')}
+        >
+          <span className="n mono" id="mcNuevos">{countNuevos}</span>
+          Nuevos
+        </button>
+        <button
+          type="button"
+          className={`mobile-tab t-prep ${mobileColumn === 'col-prep' ? 'active' : ''}`}
+          onClick={() => setMobileColumn('col-prep')}
+        >
+          <span className="n mono" id="mcPrep">{countPrep}</span>
+          En prep.
+        </button>
+        <button
+          type="button"
+          className={`mobile-tab t-listos ${mobileColumn === 'col-listos' ? 'active' : ''}`}
+          onClick={() => setMobileColumn('col-listos')}
+        >
+          <span className="n mono" id="mcListos">{countListos}</span>
+          Listos
+        </button>
+      </div>
+
+      {offline && <Alert>Sin conexión: los cambios quedan guardados localmente y se sincronizarán al restablecerse la conexión.</Alert>}
+      {error && <Alert>{error}</Alert>}
+
+      {/* Board */}
+      <div className="board">
+        {/* NUEVOS */}
+        <div className={`column col-nuevos ${mobileColumn === 'col-nuevos' ? 'mobile-active' : ''}`} id="col-nuevos">
+          <div className="column-head">
+            <div>
+              <div className="column-title"><span className="dot" />Nuevos</div>
+              <div className="column-sub">Recién recibidos</div>
+            </div>
+            <div className="column-count mono" id="countNuevos">{countNuevos}</div>
+          </div>
+          <div className="card-stack" id="stackNuevos">
+            {ticketsNuevos.length ? (
+              ticketsNuevos.map(renderTicket)
+            ) : (
+              <div className="empty-hint">{loading ? 'Cargando pedidos…' : 'Sin comandas aquí'}</div>
             )}
           </div>
-        )}
+        </div>
 
-        {!placeOptions.length && (
-          <div className="kitchen-place-empty">
-            La sucursal todavía no publica sectores de preparación. Solicite al administrador configurar Cocina, Bar o Reparto en RestaPP.
+        {/* EN PREPARACIÓN */}
+        <div className={`column col-prep ${mobileColumn === 'col-prep' ? 'mobile-active' : ''}`} id="col-prep">
+          <div className="column-head">
+            <div>
+              <div className="column-title"><span className="dot" />En preparación</div>
+              <div className="column-sub">En trabajo de cocina</div>
+            </div>
+            <div className="column-count mono" id="countPrep">{countPrep}</div>
           </div>
-        )}
+          <div className="card-stack" id="stackPrep">
+            {ticketsPrep.length ? (
+              ticketsPrep.map(renderTicket)
+            ) : (
+              <div className="empty-hint">{loading ? 'Cargando pedidos…' : 'Sin comandas aquí'}</div>
+            )}
+          </div>
+        </div>
 
-        {offline && <Alert>Sin conexión: los cambios quedan guardados localmente y se sincronizarán al restablecerse la conexión.</Alert>}
-        {error && <Alert>{error}</Alert>}
-
-        {standalone ? (
-          board
-        ) : loading && !tickets.length ? (
-          <div className="empty compact"><p>Consultando pedidos activos…</p></div>
-        ) : tickets.length ? (
-          <div className="kitchen-list">{tickets.map(renderTicket)}</div>
-        ) : (
-          <div className="empty compact"><ChefHat size={34} /><p>No hay pedidos pendientes en esta área.</p></div>
-        )}
-
-        <footer className="modal-note">
-          Cada estación ve únicamente sus comandas: cocina, bar, reparto u otra zona activa de la sucursal. El sonido y la vibración de una comanda nueva usa la misma configuración de avisos que las llamadas de mesa. El área bloqueada se conserva en este dispositivo por sucursal.
-        </footer>
-      </section>
+        {/* LISTOS */}
+        <div className={`column col-listos ${mobileColumn === 'col-listos' ? 'mobile-active' : ''}`} id="col-listos">
+          <div className="column-head">
+            <div>
+              <div className="column-title"><span className="dot" />Listos</div>
+              <div className="column-sub">Esperando entrega</div>
+            </div>
+            <div className="column-count mono" id="countListos">{countListos}</div>
+          </div>
+          <div className="card-stack" id="stackListos">
+            {ticketsListos.length ? (
+              ticketsListos.map(renderTicket)
+            ) : (
+              <div className="empty-hint">{loading ? 'Cargando pedidos…' : 'Sin comandas aquí'}</div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
