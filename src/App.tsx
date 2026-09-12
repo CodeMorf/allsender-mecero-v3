@@ -1818,7 +1818,12 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
   const [activeCashSummary, setActiveCashSummary] = useState<any | null>(null)
   const [cashSessionReady, setCashSessionReady] = useState(false)
   const [cashLoading, setCashLoading] = useState(false)
-  const [allOrders, setAllOrders] = useState<any[]>([])
+  const [allOrders, setAllOrders] = useState<any[]>(() => {
+    const cached = readCache()
+    if (branchId && cached.branchId && Number(cached.branchId) !== Number(branchId)) return []
+    const rows = Array.isArray(cached.orders) ? cached.orders : []
+    return dedupeOrders(rows.filter((order): order is Record<string, unknown> => Boolean(order && typeof order === 'object')))
+  })
   const [ordersLoading, setOrdersLoading] = useState(false)
   const [posDataLoading, setPosDataLoading] = useState(true)
   const posDataReadyRef = useRef(false)
