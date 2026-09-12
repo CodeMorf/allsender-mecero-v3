@@ -519,14 +519,11 @@ export default function App() {
         setStorageScope(scoped.scopeKey); setActiveTable(null); api.setToken('pin', scoped.token); setPinSession(scoped); setScreen('floor'); await hydrate(scoped); return
       }
       const session = await api.loginPin(pin, restaurantHash || readCache().restaurantHash || '', deviceId, staffRole)
-      let permissionMap = session.permissions
-      try {
-        const permissionPayload = await api.permissions('pin')
-        if (permissionPayload?.permission_map && typeof permissionPayload.permission_map === 'object') permissionMap = permissionPayload.permission_map
-      } catch { /* el mapa devuelto por el acceso sigue siendo la fuente válida */ }
-      const next = { ...session, permissions: permissionMap, branchId: activeBranch?.id || session.branchId }
+      // PIN login already returns the authoritative permission map. A second
+      // serial permission request delayed entry without adding information.
+      const next = { ...session, branchId: activeBranch?.id || session.branchId }
       const scoped = { ...next, scopeKey: tenantScope(next) }
-      setStorageScope(scoped.scopeKey); setActiveTable(null); setPinSession(scoped); saveSession(scoped, scoped.scopeKey); setScreen('floor'); setNotice(`Sesión ${roleLabel(scoped.roleKey)} activa.`); await hydrate(scoped)
+      setStorageScope(scoped.scopeKey); setActiveTable(null); setPinSession(scoped); saveSession(scoped, scoped.scopeKey); setScreen('floor'); setNotice(`Sesión ${roleLabel(scoped.roleKey)} activa.`); void hydrate(scoped)
     } catch (cause) { setError(normalizeError(cause, 'Código personal no válido o dispositivo no autorizado.')) }
     finally { setLoading(false) }
   }
@@ -536,17 +533,12 @@ export default function App() {
     try {
       if (offline) throw new Error('Sin conexión: el acceso con código personal requiere una validación previa con conexión.')
       const session = await api.loginPin(pin, hash.trim(), linkedDeviceId.trim(), role)
-      let permissionMap = session.permissions
-      try {
-        const permissionPayload = await api.permissions('pin')
-        if (permissionPayload?.permission_map && typeof permissionPayload.permission_map === 'object') permissionMap = permissionPayload.permission_map
-      } catch { /* el mapa devuelto por el acceso sigue siendo la fuente válida */ }
-      const next = { ...session, permissions: permissionMap, branchId: session.branchId }
+      const next = { ...session, branchId: session.branchId }
       const scoped = { ...next, restaurantHash: hash.trim(), scopeKey: tenantScope({ ...next, restaurantHash: hash.trim() }) }
       setStorageScope(scoped.scopeKey); setActiveTable(null); setStaffRole(role); setPinSession(scoped); saveSession(scoped, scoped.scopeKey); setRestaurantHash(hash.trim())
       let branch = next.branchId ? { id: next.branchId, name: `Sucursal ${next.branchId}` } as Branch : null
       try { branch = (await api.branches('pin')).find(value => value.id === next.branchId) || branch } catch { /* branch label is optional */ }
-      setActiveBranch(branch); saveCache({ restaurantHash: hash.trim(), restaurantName: restaurantName || 'RestaPP', branchId: scoped.branchId, branches: branch ? [branch] : [], scopeKey: scoped.scopeKey }, scoped.scopeKey); setScreen('floor'); setNotice(`Código personal validado. Sesión de ${roleLabel(scoped.roleKey)} activa.`); await hydrate(scoped)
+      setActiveBranch(branch); saveCache({ restaurantHash: hash.trim(), restaurantName: restaurantName || 'RestaPP', branchId: scoped.branchId, branches: branch ? [branch] : [], scopeKey: scoped.scopeKey }, scoped.scopeKey); setScreen('floor'); setNotice(`Código personal validado. Sesión de ${roleLabel(scoped.roleKey)} activa.`); void hydrate(scoped)
     } catch (cause) { setError(normalizeError(cause, 'Código personal no válido, identificador incorrecto o dispositivo no autorizado.')) }
     finally { setLoading(false) }
   }
