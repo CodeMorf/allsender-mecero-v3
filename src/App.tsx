@@ -4700,7 +4700,7 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
           />
         )}
         {splitOpen && table && mode === 'dine_in' && (
-          <SplitBill lines={lines} table={table} onClose={() => setSplitOpen(false)} onNotice={setNotice} />
+          <SplitBill lines={lines} table={table} onClose={() => setSplitOpen(false)} onNotice={setPrintStatus} />
         )}
         {transferOpen && table && mode === 'dine_in' && (
           <TransferTableModal
