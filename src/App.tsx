@@ -4700,7 +4700,7 @@ function OrderPanel({ table, tables, quick, mobileDrawerOpen, isMenuOpen, roleKe
           />
         )}
         {splitOpen && table && mode === 'dine_in' && (
-          <SplitBill lines={lines} table={table} onClose={() => setSplitOpen(false)} />
+          <SplitBill lines={lines} table={table} onClose={() => setSplitOpen(false)} onNotice={setNotice} />
         )}
         {transferOpen && table && mode === 'dine_in' && (
           <TransferTableModal
@@ -5902,20 +5902,45 @@ function CashierPanel({ offline, permissions, onClose, onOpenSession, onCloseSes
   return <div className="modal-backdrop"><section className="modal wide cashier-panel"><header><div><p className="eyebrow">AUTORIZACIÓN DE CAJA</p><h2>Turno de caja</h2><small>Fondo inicial, movimientos, arqueo y cierre se administran aquí. Los cobros se registran desde cada mesa.</small></div><button className="icon-button" onClick={onClose}><X /></button></header>{offline && <Alert>Sin conexion: la apertura, cierre y movimientos de caja requieren conexion a la red central.</Alert>}{error && <Alert>{error}</Alert>}{success && <div className="success-box">{success}</div>}<section className="cash-register-section"><div className="cash-section-heading"><div><p className="eyebrow">TURNO DE CAJA</p><h3>{session ? `${session.registerName || `Caja ${session.registerId || ''}`} · ${cashSessionLabel(session.status)}` : 'Sin turno abierto'}</h3></div>{session && <span className="cash-session-badge">{cashSessionLabel(session.status)}</span>}</div>{cashLoading ? <div className="empty compact"><p>Consultando cajas y turno…</p></div> : !canViewCash && !canOpenCash ? <div className="empty compact"><Wallet size={28} /><p>Este perfil no tiene permisos para administrar la caja.</p></div> : session ? <div className="cash-session-card"><div className="cash-metrics"><div><span>Fondo inicial</span><strong>{formatMoney(session.openingFloat || 0)}</strong></div><div><span>Efectivo esperado</span><strong>{expected === undefined ? 'No informado' : formatMoney(expected)}</strong></div><div><span>Diferencia</span><strong>{difference === undefined ? 'No calculada' : formatMoney(difference)}</strong></div></div>{!sessionClosed && canMoveCash && <div className="cash-movement-form"><strong>Movimiento de efectivo</strong><div className="cash-form-grid"><label>Tipo<select value={movement} onChange={e => setMovement(e.target.value as typeof movement)}><option value="cash-in">Entrada de efectivo</option><option value="cash-out">Salida de efectivo</option><option value="safe-drop">Retiro a caja fuerte</option></select></label><label>Monto<input type="number" min="0.01" step="0.01" value={movementAmount} onChange={e => setMovementAmount(e.target.value)} placeholder="0.00" /></label><label>Motivo<input value={movementNote} onChange={e => setMovementNote(e.target.value)} placeholder="Cambio, compra, retiro…" /></label></div><button className="button outline" disabled={busy || offline} onClick={() => void moveCash()}>Registrar movimiento</button></div>}{!sessionClosed && canCloseCash && <div className="cash-close-form"><strong>Cierre y arqueo</strong><div className="cash-form-grid"><label>Efectivo contado<input type="number" min="0" step="0.01" value={countedCash} onChange={e => setCountedCash(e.target.value)} placeholder="0.00" /></label><label>Nota de cierre<input value={closingNote} onChange={e => setClosingNote(e.target.value)} placeholder="Observaciones del turno" /></label><label className="check-label"><input type="checkbox" checked={sendForApproval} onChange={e => setSendForApproval(e.target.checked)} /> Enviar para aprobación</label></div><button className="button primary" disabled={busy || offline} onClick={() => void closeSession()}>Cerrar turno y guardar arqueo</button></div>}{session.status === 'pending_approval' && canApproveCash && <div className="cash-approval-actions"><strong>Este cierre requiere revisión.</strong><div><button className="button primary" disabled={busy || offline} onClick={() => void runCashAction(() => onApproveSession(session.id, newIdempotencyKey()))}>Aprobar cierre</button><button className="button outline" disabled={busy || offline} onClick={() => void runCashAction(() => onRejectSession(session.id, closingNote, newIdempotencyKey()))}>Rechazar cierre</button></div></div>}{session.status === 'closed' && canApproveCash && <button className="button outline" disabled={busy || offline} onClick={() => void runCashAction(() => onReopenSession(session.id, newIdempotencyKey()))}>Reabrir turno</button>}</div> : <div className="cash-open-form">{canOpenCash ? <><div className="cash-form-grid"><label>Caja<select value={selectedRegisterId} onChange={e => setSelectedRegisterId(e.target.value)}><option value="">Seleccione una caja</option>{registers.map(register => <option value={register.id} key={register.id}>{register.name}</option>)}</select></label><label>Fondo inicial / caja chica<input type="number" min="0" step="0.01" value={openingFloat} onChange={e => setOpeningFloat(e.target.value)} placeholder="0.00" /></label><label>Nota de apertura<input value={openingNote} onChange={e => setOpeningNote(e.target.value)} placeholder="Fondo entregado por el encargado" /></label></div><button className="button primary" disabled={busy || offline} onClick={() => void openSession()}>Abrir turno de caja</button></> : <p className="muted">No tiene autorización para abrir un turno. Solicite al encargado que lo abra.</p>}</div>}</section><footer className="modal-note">La caja chica se registra como fondo inicial del turno. Las entradas, salidas y retiros a caja fuerte quedan asociadas a ese turno. Para cobrar, abra una mesa y use el botón “Cobrar” junto a “Precuenta”.</footer></section></div>
 }
 
-function SplitBill({ lines, table, onClose }: { lines: OrderLine[]; table: RestaurantTable; onClose: () => void }) {
+function SplitBill({ lines, table, onClose, onNotice }: { lines: OrderLine[]; table: RestaurantTable; onClose: () => void; onNotice?: (text: string) => void }) {
   const [persons, setPersons] = useState(Math.max(2, Math.min(table.capacity || 2, 8)))
   const [mode, setMode] = useState<'equal' | 'items'>('equal')
   const [itemShares, setItemShares] = useState<Record<string, number>>({})
+  const [saving, setSaving] = useState(false)
+  const [splitError, setSplitError] = useState<string | null>(null)
+  const [serverSplit, setServerSplit] = useState<any>(null)
+
+  useEffect(() => {
+    if (!table.currentOrderId || mode !== 'equal') {
+      setServerSplit(null)
+      return
+    }
+    let cancelled = false
+    api.splitPreview('pin', table.currentOrderId, { mode: 'equal', part_count: persons })
+      .then(res => {
+        if (!cancelled && res?.data) {
+          setServerSplit(res.data)
+        }
+      })
+      .catch(() => {
+        // Conservar cálculo local seguro
+      })
+    return () => { cancelled = true }
+  }, [table.currentOrderId, mode, persons])
 
   const itemsTotal = lines.reduce((sum, line) => sum + (line.price + line.modifiers.reduce((m, val) => m + val.price, 0)) * line.quantity, 0)
   const baseTotal = table.currentOrderTotal && table.currentOrderTotal > 0 ? table.currentOrderTotal : itemsTotal
   const estimatedTax = Math.round(baseTotal * 0.18 * 100) / 100
   const estimatedTip = Math.round(baseTotal * 0.10 * 100) / 100
-  const grandTotal = baseTotal + estimatedTax + estimatedTip
+  const grandTotal = serverSplit?.parts
+    ? serverSplit.parts.reduce((sum: number, p: any) => sum + (p.totals?.total ?? 0), 0)
+    : (baseTotal + estimatedTax + estimatedTip)
 
-  const perPersonTotal = grandTotal / persons
-  const perPersonTax = estimatedTax / persons
-  const perPersonTip = estimatedTip / persons
+  const firstPart = serverSplit?.parts?.[0]
+  const perPersonTotal = firstPart ? (firstPart.totals?.total ?? 0) : (grandTotal / persons)
+  const perPersonTax = firstPart ? (firstPart.totals?.tax ?? 0) : (estimatedTax / persons)
+  const perPersonTip = firstPart ? (firstPart.totals?.tip ?? 0) : (estimatedTip / persons)
+  const perPersonBase = firstPart ? (firstPart.totals?.subtotal ?? 0) : (baseTotal / persons)
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -5953,7 +5978,7 @@ function SplitBill({ lines, table, onClose }: { lines: OrderLine[]; table: Resta
                 <button
                   type="button"
                   className="split-counter-btn"
-                  disabled={persons <= 2}
+                  disabled={persons <= 2 || saving}
                   onClick={() => setPersons(p => Math.max(2, p - 1))}
                   aria-label="Restar una persona"
                 >
@@ -5966,7 +5991,7 @@ function SplitBill({ lines, table, onClose }: { lines: OrderLine[]; table: Resta
                 <button
                   type="button"
                   className="split-counter-btn"
-                  disabled={persons >= 16}
+                  disabled={persons >= 16 || saving}
                   onClick={() => setPersons(p => Math.min(16, p + 1))}
                   aria-label="Agregar una persona"
                 >
@@ -5983,7 +6008,7 @@ function SplitBill({ lines, table, onClose }: { lines: OrderLine[]; table: Resta
                 <div style={{ display: 'grid', gap: 6, fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span>Consumo base</span>
-                    <b>{formatMoney(baseTotal / persons)}</b>
+                    <b>{formatMoney(perPersonBase)}</b>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span>ITBIS (18%)</span>
@@ -6045,9 +6070,40 @@ function SplitBill({ lines, table, onClose }: { lines: OrderLine[]; table: Resta
           )}
         </div>
 
+        {splitError && (
+          <div style={{ color: '#ef4444', fontSize: 12, padding: '0 22px 10px', fontWeight: 600 }}>
+            {splitError}
+          </div>
+        )}
+
         <footer>
-          <button className="button outline" onClick={onClose}>Cerrar</button>
-          <button className="button primary" onClick={onClose}>Listo</button>
+          <button className="button outline" onClick={onClose} disabled={saving}>Cerrar</button>
+          {table.currentOrderId && mode === 'equal' ? (
+            <button
+              type="button"
+              className="button primary"
+              disabled={saving}
+              onClick={async () => {
+                setSaving(true)
+                setSplitError(null)
+                try {
+                  await api.saveSplits('pin', table.currentOrderId!, { mode: 'equal', part_count: persons })
+                  if (onNotice) {
+                    onNotice(`Cuenta dividida en ${persons} partes. Pre-cuentas enviadas a impresión.`)
+                  }
+                  onClose()
+                } catch (e: any) {
+                  setSplitError(e?.message || 'No se pudo registrar la división en el servidor.')
+                } finally {
+                  setSaving(false)
+                }
+              }}
+            >
+              {saving ? 'Guardando e imprimiendo…' : 'Dividir e Imprimir Pre-cuentas'}
+            </button>
+          ) : (
+            <button className="button primary" onClick={onClose}>Listo</button>
+          )}
         </footer>
       </section>
     </div>

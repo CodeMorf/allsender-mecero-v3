@@ -480,6 +480,20 @@ export class ApiClient {
   }
   async updateOrderItems(kind: TokenKind, orderId: number, body: unknown, idempotencyKey: string) { return this.request(`/pos/orders/${orderId}/items`, { method: 'PUT', tokenKind: kind, headers: { 'Idempotency-Key': idempotencyKey }, body: JSON.stringify(body) }) }
   async createKot(kind: TokenKind, orderId: number, body: unknown, idempotencyKey: string) { return this.request(`/pos/orders/${orderId}/kot`, { method: 'POST', tokenKind: kind, headers: { 'Idempotency-Key': idempotencyKey }, body: JSON.stringify(body) }) }
+  async splitPreview(kind: TokenKind, orderId: number, body: { mode: 'equal' | 'items'; part_count?: number; payer_names?: string[]; parts?: any[] }) {
+    return this.request<any>(`/rd/tickets/orders/${orderId}/split-preview`, {
+      method: 'POST',
+      tokenKind: kind,
+      body: JSON.stringify(body),
+    })
+  }
+  async saveSplits(kind: TokenKind, orderId: number, body: { mode: 'equal' | 'items'; part_count?: number; payer_names?: string[]; parts?: any[] }) {
+    return this.request<any>(`/rd/tickets/orders/${orderId}/splits`, {
+      method: 'POST',
+      tokenKind: kind,
+      body: JSON.stringify(body),
+    })
+  }
   async orderKots(kind: TokenKind, orderId: number): Promise<KitchenTicket[]> { return asArray<any>(await this.request(`/pos/orders/${orderId}/kots`, { tokenKind: kind })).map(normalizeKitchenTicket) }
   async kots(kind: TokenKind, params: { status?: string; date?: string; kitchenPlaceId?: number } = {}): Promise<KitchenTicket[]> {
     const query = new URLSearchParams()
