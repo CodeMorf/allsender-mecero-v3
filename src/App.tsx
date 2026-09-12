@@ -407,10 +407,31 @@ export default function App() {
       // transient outage never erases a usable offline catalog.
       const canLoadCatalog = session.permissions['menu.view'] || session.permissions['orders.create']
       const cached = readCache()
-      const [remoteTables, remoteItems, remoteCategories, config, remoteKitchenPlaces, remoteNotifications, remoteReceiptSettings, remotePrinters, remotePaymentMethods, remoteFiscalCapabilities] = await Promise.all([
+      // The floor is the critical path after PIN login. Render tables and the
+      // catalog as soon as those three requests finish; secondary settings
+      // must not hold the first usable screen hostage.
+      const [remoteTables, remoteItems, remoteCategories] = await Promise.all([
         session.permissions['tables.view'] ? api.tables('pin').catch(() => []) : Promise.resolve([]),
         canLoadCatalog ? api.menuItems('pin').catch(() => null) : Promise.resolve(null),
         canLoadCatalog ? api.categories('pin').catch(() => null) : Promise.resolve(null),
+      ])
+      const categorySource: MenuCategory[] = remoteCategories === null
+        ? (cached.menuCategories || [])
+        : remoteCategories
+      const initialItems = Array.isArray(remoteItems)
+        ? applyCategoryMetadata(remoteItems, categorySource)
+        : null
+      if (initialItems) {
+        setItems(initialItems)
+        saveCache({ menuItems: initialItems, menuCategories: categorySource, branchId: session.branchId, scopeKey: session.scopeKey || tenantScope(session) })
+      }
+      if (Array.isArray(remoteTables) && remoteTables.length > 0) {
+        setTables(remoteTables)
+        setActiveTable(current => current ? remoteTables.find(table => table.id === current.id) || current : current)
+        saveCache({ tables: remoteTables, branchId: session.branchId, scopeKey: session.scopeKey || tenantScope(session) })
+      }
+
+      const [config, remoteKitchenPlaces, remoteNotifications, remoteReceiptSettings, remotePrinters, remotePaymentMethods, remoteFiscalCapabilities] = await Promise.all([
         api.config('pin').catch(() => null),
         session.permissions['kitchen.manage'] ? api.kotPlaces('pin').catch(() => null) : Promise.resolve(null),
         api.notifications('pin').catch(() => null),
@@ -419,19 +440,7 @@ export default function App() {
         session.permissions['payments.charge'] ? api.paymentMethods('pin').catch(() => null) : Promise.resolve(null),
         api.fiscalCapabilities('pin').catch(() => null),
       ])
-      const categorySource: MenuCategory[] = remoteCategories === null
-        ? (cached.menuCategories || [])
-        : remoteCategories
       setCategories(categorySource)
-      const initialItems = Array.isArray(remoteItems)
-        ? applyCategoryMetadata(remoteItems, categorySource)
-        : null
-      // Pintar el catálogo base inmediatamente. Las categorías no deben esperar
-      // a las consultas complementarias de suplementos de cada producto.
-      if (initialItems) {
-        setItems(initialItems)
-        saveCache({ menuItems: initialItems, menuCategories: categorySource, branchId: session.branchId, scopeKey: session.scopeKey || tenantScope(session) })
-      }
       const enrichedItems = initialItems
         ? await Promise.all(initialItems.map(async item => {
           if (item.modifiers !== undefined) return item
@@ -461,10 +470,6 @@ export default function App() {
       }
       if (Array.isArray(config?.modules)) cachePatch.modules = config.modules.map((module: unknown) => String(typeof module === 'string' ? module : (module as any)?.name || '')).filter(Boolean)
       if (config?.features && typeof config.features === 'object') cachePatch.features = config.features
-      if (Array.isArray(remoteTables) && remoteTables.length > 0) {
-        setTables(remoteTables)
-        setActiveTable(current => current ? remoteTables.find(table => table.id === current.id) || current : current)
-      }
       if (enrichedItems) setItems(enrichedItems)
       saveCache(cachePatch)
     } catch (cause) {
@@ -503,7 +508,12 @@ export default function App() {
       const nextAdmin = { ...adminSession, branchId: branch.id }
       const branchScope = tenantScope(nextAdmin)
       setStorageScope(branchScope); setActiveTable(null); setTables([]); setItems([]); setActiveBranch(branch); setAdminSession({ ...nextAdmin, scopeKey: branchScope }); saveCache({ branchId: branch.id, scopeKey: branchScope }, branchScope);
-      if (!offline) { await api.logout('admin'); clearSession('admin', adminSession.scopeKey || tenantScope(adminSession)) }
+      if (!offline) {
+        const adminScope = adminSession.scopeKey || tenantScope(adminSession)
+        // Logging out the setup token is important, but it must not keep the
+        // operator waiting after the device has already been authorized.
+        void api.logout('admin').finally(() => clearSession('admin', adminScope))
+      }
       setRestaurantHash(nextAdmin.restaurantHash || readCache(branchScope).restaurantHash || ''); setScreen('pin'); setNotice(offline ? 'Sin conexión: utilice una sesión de sala validada previamente.' : 'Dispositivo autorizado. Ya puede ingresar con su código personal.')
     } catch (cause) { setError(normalizeError(cause, 'No se pudo vincular la sucursal.')) }
     finally { setLoading(false) }
@@ -536,9 +546,16 @@ export default function App() {
       const next = { ...session, branchId: session.branchId }
       const scoped = { ...next, restaurantHash: hash.trim(), scopeKey: tenantScope({ ...next, restaurantHash: hash.trim() }) }
       setStorageScope(scoped.scopeKey); setActiveTable(null); setStaffRole(role); setPinSession(scoped); saveSession(scoped, scoped.scopeKey); setRestaurantHash(hash.trim())
-      let branch = next.branchId ? { id: next.branchId, name: `Sucursal ${next.branchId}` } as Branch : null
-      try { branch = (await api.branches('pin')).find(value => value.id === next.branchId) || branch } catch { /* branch label is optional */ }
-      setActiveBranch(branch); saveCache({ restaurantHash: hash.trim(), restaurantName: restaurantName || 'RestaPP', branchId: scoped.branchId, branches: branch ? [branch] : [], scopeKey: scoped.scopeKey }, scoped.scopeKey); setScreen('floor'); setNotice(`Código personal validado. Sesión de ${roleLabel(scoped.roleKey)} activa.`); void hydrate(scoped)
+      const fallbackBranch = next.branchId ? { id: next.branchId, name: `Sucursal ${next.branchId}` } as Branch : null
+      setActiveBranch(fallbackBranch)
+      saveCache({ restaurantHash: hash.trim(), restaurantName: restaurantName || 'RestaPP', branchId: scoped.branchId, branches: fallbackBranch ? [fallbackBranch] : [], scopeKey: scoped.scopeKey }, scoped.scopeKey)
+      setScreen('floor'); setNotice(`Código personal validado. Sesión de ${roleLabel(scoped.roleKey)} activa.`); void hydrate(scoped)
+      // The branch label is cosmetic and must not delay the first usable POS.
+      void api.branches('pin').then(values => {
+        const branch = values.find(value => value.id === next.branchId) || fallbackBranch
+        setActiveBranch(branch)
+        saveCache({ branches: branch ? [branch] : [] }, scoped.scopeKey)
+      }).catch(() => undefined)
     } catch (cause) { setError(normalizeError(cause, 'Código personal no válido, identificador incorrecto o dispositivo no autorizado.')) }
     finally { setLoading(false) }
   }
