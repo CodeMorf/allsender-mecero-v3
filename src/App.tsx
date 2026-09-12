@@ -1606,6 +1606,8 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
   const canCharge = permissions['payments.charge'] === true && paymentMethods.length > 0
   const canCashier = ['cash.view', 'cash.open', 'cash.close', 'cash.movement', 'cash.approve', 'payments.charge'].some(permission => permissions[permission] === true)
   const canKitchen = permissions['kitchen.manage'] === true
+  const canViewCustomers = permissions['customers.view'] === true || permissions['customers.manage'] === true
+  const canViewStaff = permissions['staff.view'] === true || permissions['staff.manage'] === true
 
   async function openPickupPayment(order: any) {
     const orderId = Number(order?.id)
@@ -1778,7 +1780,9 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
       if (document.visibilityState === 'visible') void loadWaiterAlerts()
     }
     document.addEventListener('visibilitychange', onVisibilityChange)
-    const timer = window.setInterval(() => void loadWaiterAlerts(), 2_500)
+    // Realtime delivers new calls immediately. Keep a conservative fallback
+    // poll for disconnected clients without flooding the API continuously.
+    const timer = window.setInterval(() => void loadWaiterAlerts(), 15_000)
     return () => {
       cancelled = true
       document.removeEventListener('visibilitychange', onVisibilityChange)
@@ -1827,6 +1831,7 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
   const [posDataLoading, setPosDataLoading] = useState(true)
   const posDataReadyRef = useRef(false)
   const ordersInitialSyncDone = useRef(false)
+  const [ordersLastSyncAt, setOrdersLastSyncAt] = useState(0)
   const [productSearch, setProductSearch] = useState('')
   const [posCustomizingItem, setPosCustomizingItem] = useState<MenuItem | null>(null)
   const [localItemAvailability, setLocalItemAvailability] = useState<Record<number, boolean>>({})
@@ -1835,9 +1840,11 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
   const [clockTime, setClockTime] = useState(() => new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }))
 
   useEffect(() => {
+    // The rendered clock only includes hours and minutes; updating every
+    // second needlessly rerenders the complete operational screen.
     const timer = setInterval(() => {
       setClockTime(new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }))
-    }, 1000)
+    }, 30_000)
     return () => clearInterval(timer)
   }, [])
 
@@ -1882,6 +1889,7 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
       const nextOrders = dedupeOrders(orders.filter((order): order is Record<string, unknown> => Boolean(order && typeof order === 'object')))
       setAllOrders(nextOrders)
       saveCache({ orders: nextOrders, branchId })
+      setOrdersLastSyncAt(Date.now())
     } catch {
       // Keep the last good list during a transient connection/API failure.
     } finally {
@@ -1893,8 +1901,9 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const refreshOrders = useMemo(() => singleFlight(refreshOrdersTask), [refreshOrdersTask])
 
-  // Load POS data on mount / module changes. Orders have their own controlled
-  // refresh so a realtime event never hydrates the entire POS again.
+  // Load shared POS dependencies once per session/connectivity boundary.
+  // Individual modules own their explicit refreshes; navigation must not
+  // refetch every shared endpoint.
   const loadPosDanData = async () => {
     const isInitialLoad = !posDataReadyRef.current
     if (isInitialLoad) {
@@ -1903,25 +1912,20 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
     }
     try {
       if (!offline) {
-        const [custs, regs, actSess, oTypes, delPlats, delExecs, delSets, remoteItems, staff] = await Promise.all([
-          api.customers('pin').catch(() => []),
-          api.cashRegisters('pin').catch(() => []),
-          api.activeCashSession('pin').catch(() => null),
-          api.orderTypes('pin').catch(() => []),
-          api.deliveryPlatforms('pin').catch(() => null),
-          api.deliveryExecutives('pin').catch(() => []),
-          api.deliverySettings('pin').catch(() => null),
-          api.menuItems('pin').catch(() => null),
-          api.waiters('pin').catch(() => [])
+        const [custs, regs, actSess, oTypes, delPlats, delExecs, delSets, staff] = await Promise.all([
+          canViewCustomers ? api.customers('pin').catch(() => []) : Promise.resolve([]),
+          canCashier ? api.cashRegisters('pin').catch(() => []) : Promise.resolve([]),
+          canCashier ? api.activeCashSession('pin').catch(() => null) : Promise.resolve(null),
+          canCreate ? api.orderTypes('pin').catch(() => []) : Promise.resolve([]),
+          canCreate ? api.deliveryPlatforms('pin').catch(() => null) : Promise.resolve(null),
+          canCreate ? api.deliveryExecutives('pin').catch(() => []) : Promise.resolve([]),
+          canCreate ? api.deliverySettings('pin').catch(() => null) : Promise.resolve(null),
+          canViewStaff ? api.waiters('pin').catch(() => []) : Promise.resolve([])
         ])
         setPosCustomers(custs)
         setCashRegisters(regs)
         setActiveCashSession(actSess)
         setStaffMembers(Array.isArray(staff) ? staff : [])
-        if (Array.isArray(remoteItems) && remoteItems.length > 0) {
-          setCatalogItems(remoteItems)
-        }
-
         if (oTypes && oTypes.length > 0) setOrderTypes(oTypes)
         // An optional endpoint failure must not erase the last good list from
         // the selector (this is what made active platforms disappear).
@@ -1940,7 +1944,6 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
           setActiveCashSummary(null)
         }
         const cachePatch: any = { cashRegisters: regs, cashSession: actSess, cashSummary }
-        if (Array.isArray(remoteItems) && remoteItems.length > 0) cachePatch.menuItems = remoteItems
         saveCache(cachePatch)
       } else {
         const cached = readCache()
@@ -1973,11 +1976,20 @@ function FloorScreen({ brand, branch, branchId, restaurantId, roleKey, userName,
 
   useEffect(() => {
     void loadPosDanData()
-    if (!ordersInitialSyncDone.current || activeNavTab === 'orders') {
+    if (!ordersInitialSyncDone.current) {
       ordersInitialSyncDone.current = true
       void refreshOrders()
     }
-  }, [offline, activeNavTab, refreshOrders])
+    // Shared dependencies are intentionally reloaded only when connectivity
+    // changes. Module navigation has its own targeted refresh behavior.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offline, refreshOrders])
+
+  useEffect(() => {
+    if (activeNavTab !== 'orders' || !ordersInitialSyncDone.current) return
+    if (Date.now() - ordersLastSyncAt < 15_000) return
+    void refreshOrders()
+  }, [activeNavTab, ordersLastSyncAt, refreshOrders])
 
   // Orders resync at lifecycle boundaries only: reconnect, foreground/focus,
   // and coming back online. There is intentionally no timer for this list.
